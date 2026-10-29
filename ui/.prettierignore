@@ -1,0 +1,5 @@
+dist
+node_modules
+src/components/ui
+src/api/bindings.ts
+package-lock.json

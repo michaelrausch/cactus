@@ -1,0 +1,28 @@
+[package]
+name = "cactus"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+name = "cactus_app"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+cactus-core = { path = "../core", features = ["specta"] }
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+serde.workspace = true
+tokio = { version = "1", features = ["sync", "macros"] }
+notify-debouncer-mini = "0.6"
+# specta is pre-1.0: pin exact versions so the generated bindings stay stable.
+specta = { version = "=2.0.0-rc.28", features = ["derive"] }
+specta-typescript = "=0.0.15"
+tauri-specta = { version = "=2.0.0-rc.29", features = ["derive", "typescript"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["sync", "macros", "rt"] }
+
+[lints]
+workspace = true

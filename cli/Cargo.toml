@@ -1,0 +1,13 @@
+[package]
+name = "cactus-cli"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+cactus-core = { path = "../core" }
+clap = { version = "4.6.9", features = ["derive"] }
+serde_json.workspace = true
+tokio = { version = "1", features = ["rt", "macros"] }
+
+[lints]
+workspace = true
