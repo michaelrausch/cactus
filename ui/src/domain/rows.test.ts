@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { makeRow, recordFromRows, rowsFingerprint, rowsFromRecord } from "./rows";
+import { listFromRows, makeRow, recordFromRows, rowsFingerprint, rowsFromList, rowsFromRecord } from "./rows";
 
 describe("rows", () => {
   it("gives every row a distinct id", () => {
@@ -10,6 +10,15 @@ describe("rows", () => {
     const record = { a: "1", b: "2" };
     expect(recordFromRows(rowsFromRecord(record))).toEqual(record);
     expect(rowsFromRecord(undefined)).toEqual([]);
+  });
+
+  it("round-trips lists, writing disabled only when set", () => {
+    const list = [
+      { name: "a", value: "1" },
+      { name: "b", value: "2", disabled: true },
+    ];
+    expect(listFromRows(rowsFromList(list))).toEqual(list);
+    expect(rowsFromList(undefined)).toEqual([]);
   });
 
   it("fingerprints ignore order, ids and blank rows", () => {

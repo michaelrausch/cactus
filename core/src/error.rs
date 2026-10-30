@@ -11,7 +11,10 @@ pub enum Error {
     #[error("json: {0}")]
     Json(#[from] serde_json::Error),
     #[error("yaml: {0}")]
-    Yaml(#[from] serde_yaml::Error),
+    Yaml(#[from] serde_yaml_ng::Error),
+    /// The file could not be edited in place, so it was left untouched.
+    #[error("{path}: can't update the file in place: {reason}")]
+    Unpatchable { path: String, reason: String },
     #[error("http: {0}")]
     Http(#[from] reqwest::Error),
     #[error("invalid path: {0}")]
@@ -24,8 +27,6 @@ pub enum Error {
     InvalidHeaderName(String),
     #[error("invalid value for header {0}")]
     InvalidHeaderValue(String),
-    #[error("{0} body must be an object of fields")]
-    BodyNotAnObject(&'static str),
     #[error("{}: {source}", path.display())]
     AttachmentUnreadable { path: PathBuf, source: std::io::Error },
     #[error("{0} already exists")]

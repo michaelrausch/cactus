@@ -1,0 +1,16 @@
+# A tour of cactus against httpbin.org. Open this folder in cactus or Bruno.
+opencollection: "1.0.0"
+info:
+  name: cactus demo
+request:
+  # Sent with every request in the collection.
+  headers:
+    - name: X-Client
+      value: cactus-demo
+  # Shared variables; an active environment overrides them.
+  variables:
+    - name: baseUrl
+      value: https://httpbin.org
+    - name: user
+      value: demo
+bundled: false

@@ -1,0 +1,8 @@
+# Active when "staging" is picked in the sidebar.
+name: staging
+variables:
+  - name: user
+    value: staging-demo
+  # The value comes from .cactus/secrets.json, never from this file.
+  - name: password
+    secret: true

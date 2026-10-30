@@ -2,12 +2,13 @@
 
 mod assertions;
 mod client;
+mod expression;
 mod request;
 mod response;
 mod send;
 
 pub use assertions::scenario_passed;
 pub use client::build_client;
-pub use request::{ATTACHMENT_PREFIX, PreparedRequest, build_request};
+pub use request::{PreparedRequest, build_request};
 pub use response::{Check, Response};
 pub use send::send;

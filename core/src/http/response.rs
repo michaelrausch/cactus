@@ -27,13 +27,16 @@ pub struct Response {
     #[cfg_attr(feature = "specta", specta(type = u32))]
     pub size_bytes: usize,
     pub unresolved: Vec<String>,
+    /// What cactus left out, e.g. scripts it can't run.
+    #[serde(default)]
+    pub warnings: Vec<String>,
     #[serde(default)]
     pub captured: BTreeMap<String, String>,
     #[serde(default)]
     pub checks: Vec<Check>,
 }
 
-/// The outcome of one `expect` rule.
+/// The outcome of one assertion.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct Check {
@@ -47,6 +50,7 @@ pub(crate) struct SentRequest {
     pub method: String,
     pub url: String,
     pub unresolved: Vec<String>,
+    pub warnings: Vec<String>,
 }
 
 /// What came back over the wire.
@@ -71,6 +75,7 @@ impl Response {
             time_ms: u64::try_from(received.elapsed.as_millis()).unwrap_or(u64::MAX),
             size_bytes: body.len(),
             unresolved: sent.unresolved,
+            warnings: sent.warnings,
             captured: BTreeMap::new(),
             checks: Vec::new(),
         }

@@ -2,14 +2,14 @@
 
 use std::collections::BTreeMap;
 
-use serde_json::{Map, Value, json};
+use serde_json::{Value, json};
 
 use super::{ImportedScenario, ParsedCollection, child_dir, description_text};
-use crate::scenario::{BodyType, Scenario};
+use crate::scenario::{Body, FormField, Param, ParamKind, Scenario, TypedBody};
 
 const HTTP_METHODS: [&str; 7] = ["get", "post", "put", "patch", "delete", "head", "options"];
-/// Imported URLs are written as `{{baseUrl}}/path` and the server URL goes
-/// into `env.json` under this name.
+/// Imported URLs are written as `{{baseUrl}}/path` and the server URL becomes
+/// a collection variable under this name.
 const BASE_URL_VARIABLE: &str = "baseUrl";
 const DEFAULT_SWAGGER_SCHEME: &str = "https";
 const JSON_MEDIA_TYPE: &str = "application/json";
@@ -43,14 +43,13 @@ fn swagger2_base_url(document: &Value) -> Option<String> {
 
 /// Operations are grouped into folders by their first tag.
 fn operation_to_scenario(path: &str, method: &str, operation: &Value) -> ImportedScenario {
-    let mut scenario = Scenario {
-        title: operation_title(path, method, operation),
-        description: description_text(&operation["description"]),
-        method: method.to_uppercase(),
-        url: templated_url(path),
-        ..Scenario::default()
-    };
-    apply_request_body(&mut scenario, &operation["requestBody"]["content"]);
+    let mut scenario = Scenario::titled(operation_title(path, method, operation));
+    scenario.docs = description_text(&operation["description"]);
+    scenario.http.method = method.to_uppercase();
+    let (url, path_params) = templated_url(path);
+    scenario.http.url = url;
+    scenario.http.params = path_params;
+    scenario.http.body = request_body(&operation["requestBody"]["content"]);
     let dir = operation["tags"][0].as_str().map_or_else(String::new, |tag| child_dir("", tag));
     ImportedScenario { dir, scenario }
 }
@@ -62,18 +61,29 @@ fn operation_title(path: &str, method: &str, operation: &Value) -> String {
         .map_or_else(|| format!("{} {path}", method.to_uppercase()), str::to_string)
 }
 
-/// `/pets/{id}` → `{{baseUrl}}/pets/{{id}}`.
-fn templated_url(path: &str) -> String {
-    format!("{{{{{BASE_URL_VARIABLE}}}}}{}", path.replace('{', "{{").replace('}', "}}"))
+/// `/pets/{id}` → `{{baseUrl}}/pets/:id`, with an empty `id` path param.
+fn templated_url(path: &str) -> (String, Vec<Param>) {
+    let mut params = Vec::new();
+    let segments: Vec<String> = path
+        .split('/')
+        .map(|segment| match segment.strip_prefix('{').and_then(|s| s.strip_suffix('}')) {
+            Some(name) => {
+                params.push(Param { name: name.into(), value: String::new(), kind: ParamKind::Path, disabled: false });
+                format!(":{name}")
+            }
+            None => segment.to_string(),
+        })
+        .collect();
+    (format!("{{{{{BASE_URL_VARIABLE}}}}}{}", segments.join("/")), params)
 }
 
-fn apply_request_body(scenario: &mut Scenario, content: &Value) {
-    if let Some(media) = content.get(JSON_MEDIA_TYPE) {
-        scenario.body = json_example(media);
-    } else if let Some(media) = content.get(FORM_MEDIA_TYPE) {
-        scenario.body_type = Some(BodyType::Form);
-        scenario.body = empty_form_fields(media);
-    }
+fn request_body(content: &Value) -> Option<Body> {
+    let typed = if let Some(media) = content.get(JSON_MEDIA_TYPE) {
+        TypedBody::Json { data: serde_json::to_string_pretty(&json_example(media)).unwrap_or_default() }
+    } else {
+        TypedBody::FormUrlencoded { data: empty_form_fields(content.get(FORM_MEDIA_TYPE)?) }
+    };
+    Some(Body::Typed(typed))
 }
 
 /// The inline example, else the first named example, else `{}`.
@@ -89,9 +99,8 @@ fn first_named_example(examples: &Value) -> Value {
 }
 
 /// One empty field per schema property.
-fn empty_form_fields(media: &Value) -> Value {
-    let fields: Map<String, Value> = media["schema"]["properties"]
-        .as_object()
-        .map_or_default(|properties| properties.keys().map(|k| (k.clone(), Value::String(String::new()))).collect());
-    Value::Object(fields)
+fn empty_form_fields(media: &Value) -> Vec<FormField> {
+    media["schema"]["properties"].as_object().map_or_default(|properties| {
+        properties.keys().map(|k| FormField { name: k.clone(), ..FormField::default() }).collect()
+    })
 }

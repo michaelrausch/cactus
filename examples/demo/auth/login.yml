@@ -1,0 +1,33 @@
+# Runs first: later requests use the {{token}} it saves.
+info:
+  name: Login
+  type: http
+  seq: 1
+http:
+  method: POST
+  url: "{{baseUrl}}/post"
+  body:
+    type: json
+    # {{password}} is deliberately undefined: put it in Secrets to resolve it.
+    data: |-
+      {
+        "username": "{{user}}",
+        "password": "{{password}}"
+      }
+  auth: inherit
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+  actions:
+    # httpbin echoes the body back, so this saves the username as the token.
+    - type: set-variable
+      phase: after-response
+      selector:
+        expression: res.body.json.username
+        method: jsonq
+      variable:
+        name: token
+        scope: runtime
+docs: POSTs a JSON body and saves a value from the response as {{token}}.

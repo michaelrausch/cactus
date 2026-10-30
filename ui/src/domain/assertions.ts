@@ -1,0 +1,75 @@
+import type { Action, Assertion, Scenario, SetVariable } from "@/api/client";
+import { ASSERTION_OPERATORS } from "./http";
+import { makeRow, type Row } from "./rows";
+
+const DEFAULT_OPERATOR = "eq";
+const isOperator = (word: string): boolean => (ASSERTION_OPERATORS as readonly string[]).includes(word);
+
+/** Shown as Bruno shows them: `res.status` | `eq 200`. */
+export const assertionRows = (scenario: Scenario): Row[] =>
+  (scenario.runtime?.assertions ?? []).map((a) =>
+    makeRow(a.expression, a.value === undefined ? a.operator : `${a.operator} ${a.value}`, !a.disabled),
+  );
+
+/** `"eq 200"` → `eq` and `"200"`; text without a known operator means `eq` it. */
+export function parseCondition(text: string): Pick<Assertion, "operator" | "value"> {
+  const trimmed = text.trim();
+  const [first = "", ...rest] = trimmed.split(/\s+/);
+  if (!isOperator(first)) return { operator: DEFAULT_OPERATOR, value: trimmed };
+  const value = trimmed.slice(first.length).trim();
+  return rest.length > 0 ? { operator: first, value } : { operator: first };
+}
+
+const withRuntime = (scenario: Scenario, patch: Partial<NonNullable<Scenario["runtime"]>>): Scenario => {
+  const runtime = { ...scenario.runtime, ...patch };
+  const kept = Object.fromEntries(
+    Object.entries(runtime).filter(([, list]) => Array.isArray(list) && list.length > 0),
+  ) as NonNullable<Scenario["runtime"]>;
+  const { runtime: _previous, ...rest } = scenario;
+  return Object.keys(kept).length > 0 ? { ...rest, runtime: kept } : rest;
+};
+
+export const withAssertionRows = (scenario: Scenario, rows: Row[]): Scenario =>
+  withRuntime(scenario, {
+    assertions: rows.map((row) => ({
+      expression: row.key,
+      ...parseCondition(row.value),
+      ...(row.enabled ? {} : { disabled: true }),
+    })),
+  });
+
+export const activeAssertionCount = (scenario: Scenario): number =>
+  (scenario.runtime?.assertions ?? []).filter((a) => !a.disabled).length;
+
+const isSetVariable = (action: Action): action is SetVariable =>
+  typeof action === "object" && action !== null && !Array.isArray(action) && action["type"] === "set-variable";
+
+const setVariables = (scenario: Scenario): SetVariable[] => (scenario.runtime?.actions ?? []).filter(isSetVariable);
+
+/** Set-variable actions as `name` | `expression` rows. */
+export const varRows = (scenario: Scenario): Row[] =>
+  setVariables(scenario).map((set) => makeRow(set.variable.name, set.selector.expression, !set.disabled));
+
+/** Rows become set-variable actions, keeping each existing one's phase and scope; other actions stay. */
+export function withVarRows(scenario: Scenario, rows: Row[]): Scenario {
+  const existing = setVariables(scenario);
+  const others = (scenario.runtime?.actions ?? []).filter((action) => !isSetVariable(action));
+  const sets = rows.map((row, index): SetVariable => {
+    const base = existing[index];
+    const { disabled: _previous, ...kept } = base ?? {
+      type: "set-variable",
+      phase: "after-response",
+      selector: { expression: "", method: "jsonq" },
+      variable: { name: "", scope: "runtime" },
+    };
+    return {
+      ...kept,
+      selector: { ...kept.selector, expression: row.value },
+      variable: { ...kept.variable, name: row.key },
+      ...(row.enabled ? {} : { disabled: true }),
+    };
+  });
+  return withRuntime(scenario, { actions: [...sets, ...others] });
+}
+
+export const varCount = (scenario: Scenario): number => setVariables(scenario).filter((set) => !set.disabled).length;

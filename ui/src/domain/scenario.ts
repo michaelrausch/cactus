@@ -1,76 +1,148 @@
-import type { Auth, BodyType, JsonValue, Scenario } from "@/api/client";
+import type { Auth, AuthMode, Body, FormField, MultipartField, Param, Scenario, TypedBody } from "@/api/client";
+import { AUTH_KINDS, BODY_KINDS, TEXT_BODY_KINDS, type AuthKind, type BodyKind, type TextBodyKind } from "./http";
 
-export type JsonObject = { [key: string]: JsonValue };
+const PATH_PARAM_PREFIX = ":";
+/** `{{name}}` placeholders, which make otherwise valid JSON fail to parse. */
+const PLACEHOLDER = /\{\{[^}]*\}\}/g;
 
-export const isJsonObject = (value: JsonValue | undefined): value is JsonObject =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
+export const displayTitle = (scenario: Scenario): string => scenario.info.name || "Untitled";
 
-/** Mirrors `Scenario::effective_body_type` in Rust. */
-export function inferBodyType(scenario: Scenario): BodyType {
-  if (scenario.bodyType) return scenario.bodyType;
-  if (scenario.body === null) return "none";
-  return typeof scenario.body === "string" ? "text" : "json";
+const isTypedBody = (body: Body | undefined): body is TypedBody =>
+  typeof body === "object" && body !== null && !Array.isArray(body) && typeof body["type"] === "string";
+
+/** The body when it is one cactus edits, else `null`. */
+export function typedBody(scenario: Scenario): TypedBody | null {
+  const { body } = scenario.http;
+  return isTypedBody(body) ? body : null;
 }
 
-/** How a body appears in the text editor. */
-export function bodyToEditorText(body: JsonValue): string {
-  if (body === null) return "";
-  return typeof body === "string" ? body : JSON.stringify(body, null, 2);
+/** What the body editor shows; `other` is a body cactus keeps but doesn't edit. */
+export function bodyKind(scenario: Scenario): BodyKind | "other" {
+  const { body } = scenario.http;
+  if (body === undefined || body === null) return "none";
+  if (!isTypedBody(body)) return "other";
+  return (BODY_KINDS as readonly string[]).includes(body.type) ? (body.type as BodyKind) : "other";
 }
 
-/** Parse as JSON, falling back to the raw text. */
-export function parseLooseJson(text: string): JsonValue {
-  try {
-    return JSON.parse(text) as JsonValue;
-  } catch {
-    return text;
+export const isTextBodyKind = (kind: string): kind is TextBodyKind =>
+  (TEXT_BODY_KINDS as readonly string[]).includes(kind);
+
+export function bodyText(scenario: Scenario): string {
+  const { body } = scenario.http;
+  return isTypedBody(body) && typeof body.data === "string" ? body.data : "";
+}
+
+export function withBody(scenario: Scenario, body: TypedBody | undefined): Scenario {
+  const { body: _previous, ...http } = scenario.http;
+  return { ...scenario, http: body ? { ...http, body } : http };
+}
+
+export const withBodyText = (scenario: Scenario, kind: TextBodyKind, data: string): Scenario =>
+  withBody(scenario, { type: kind, data });
+
+const formFields = (scenario: Scenario): FormField[] => {
+  const { body } = scenario.http;
+  if (!isTypedBody(body)) return [];
+  if (body.type === "form-urlencoded") return body.data;
+  if (body.type === "multipart-form") {
+    return body.data
+      .filter((field) => field.type === "text" && typeof field.value === "string")
+      .map(({ name, value, disabled }): FormField =>
+        disabled ? { name, value: value as string, disabled } : { name, value: value as string },
+      );
   }
+  return [];
+};
+
+const multipartFields = (scenario: Scenario): MultipartField[] => {
+  const { body } = scenario.http;
+  if (isTypedBody(body) && body.type === "multipart-form") return body.data;
+  return formFields(scenario).map(({ name, value, disabled }): MultipartField =>
+    disabled ? { name, value, type: "text", disabled } : { name, value, type: "text" },
+  );
+};
+
+/** Switch the body to `next`, keeping what carries over: text stays text, form fields stay fields. */
+export function switchBodyKind(scenario: Scenario, next: BodyKind): Scenario {
+  if (next === "none") return withBody(scenario, undefined);
+  if (isTextBodyKind(next)) return withBodyText(scenario, next, bodyText(scenario));
+  if (next === "form-urlencoded") return withBody(scenario, { type: next, data: formFields(scenario) });
+  return withBody(scenario, { type: next, data: multipartFields(scenario) });
 }
 
-/** Text that isn't JSON becomes `{}`, and empty values become no body. */
-function jsonBodyFromText(text: string): JsonValue {
-  const parsed = parseLooseJson(text);
-  if (typeof parsed === "string" && parsed) return {};
-  return parsed || null;
-}
-
-/** Form fields keep only the string values of an existing object body. */
-function stringFields(body: JsonValue): JsonObject {
-  if (!isJsonObject(body)) return {};
-  return Object.fromEntries(Object.entries(body).filter(([, value]) => typeof value === "string"));
-}
-
-/** `editorText` is what the body editor currently shows, which may not parse. */
-export function switchBodyType(scenario: Scenario, next: BodyType, editorText: string): Scenario {
-  const { bodyType: _previous, ...rest } = scenario;
-  switch (next) {
-    case "none":
-      return { ...rest, body: null };
-    case "text":
-      return { ...rest, bodyType: "text", body: editorText };
-    case "json":
-      return { ...rest, bodyType: "json", body: jsonBodyFromText(editorText) };
-    case "form":
-    case "multipart":
-      return { ...rest, bodyType: next, body: stringFields(scenario.body) };
-  }
-}
-
-export function withAuth(scenario: Scenario, auth: Auth | null): Scenario {
-  const { auth: _previous, ...rest } = scenario;
-  return auth ? { ...rest, auth } : rest;
-}
-
-export const displayTitle = (scenario: Pick<Scenario, "title">): string => scenario.title || "Untitled";
-
-export type JsonParseResult = { ok: true; value: JsonValue } | { ok: false; error: string };
-
-/** Strict parse for the JSON body editor; blank text means no body. */
-export function parseJsonBodyText(text: string): JsonParseResult {
-  if (!text.trim()) return { ok: true, value: null };
+/** Why JSON body text wouldn't parse, ignoring `{{placeholders}}`; `null` when fine or blank. */
+export function jsonProblem(text: string): string | null {
+  if (!text.trim()) return null;
   try {
-    return { ok: true, value: JSON.parse(text) as JsonValue };
+    JSON.parse(text.replace(PLACEHOLDER, "0"));
+    return null;
   } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : String(error) };
+    return error instanceof Error ? error.message : String(error);
   }
+}
+
+const isAuthMode = (auth: Auth): auth is AuthMode =>
+  typeof auth === "object" && auth !== null && !Array.isArray(auth) && typeof auth.type === "string";
+
+export function authKind(scenario: Scenario): AuthKind | "other" {
+  const { auth } = scenario.http;
+  if (auth === undefined || auth === null) return "none";
+  if (auth === "inherit") return "inherit";
+  if (isAuthMode(auth) && (AUTH_KINDS as readonly string[]).includes(auth.type)) return auth.type;
+  return "other";
+}
+
+/** The `type` of an auth mode cactus keeps but doesn't send, for display. */
+export function otherAuthType(scenario: Scenario): string {
+  const { auth } = scenario.http;
+  const type = typeof auth === "object" && auth !== null && !Array.isArray(auth) ? auth["type"] : undefined;
+  return typeof type === "string" ? type : "custom";
+}
+
+export function withAuth(scenario: Scenario, auth: Auth | undefined): Scenario {
+  const { auth: _previous, ...http } = scenario.http;
+  return { ...scenario, http: auth === undefined ? http : { ...http, auth } };
+}
+
+export const authMode = (scenario: Scenario): AuthMode | null => {
+  const { auth } = scenario.http;
+  return auth !== undefined && auth !== null && isAuthMode(auth) ? auth : null;
+};
+
+/** `:name` segments of the URL's path, in order. */
+export function pathParamNames(url: string): string[] {
+  const path = url.split(/[?#]/)[0] ?? "";
+  return path
+    .split("/")
+    .filter((segment) => segment.startsWith(PATH_PARAM_PREFIX) && segment.length > 1)
+    .map((segment) => segment.slice(PATH_PARAM_PREFIX.length));
+}
+
+export const pathParams = (scenario: Scenario): Param[] =>
+  (scenario.http.params ?? []).filter((param) => param.type === "path");
+
+/**
+ * Set the URL and keep path params in step with its `:name` segments, as
+ * Bruno does: existing values are kept, new names start empty. Query params
+ * are rebuilt from the URL by the backend on save.
+ */
+export function withUrl(scenario: Scenario, url: string): Scenario {
+  const existing = pathParams(scenario);
+  const path = pathParamNames(url).map(
+    (name): Param => existing.find((param) => param.name === name) ?? { name, value: "", type: "path" },
+  );
+  const query = (scenario.http.params ?? []).filter((param) => param.type !== "path");
+  const params = [...query, ...path];
+  const { params: _previous, ...http } = scenario.http;
+  return { ...scenario, http: params.length > 0 ? { ...http, url, params } : { ...http, url } };
+}
+
+export function withPathParamValues(scenario: Scenario, values: Record<string, string>): Scenario {
+  const params = (scenario.http.params ?? []).map((param): Param => {
+    if (param.type !== "path" || !(param.name in values)) return param;
+    const filled: Param = { name: param.name, value: values[param.name] ?? "", type: param.type };
+    if (param.disabled) filled.disabled = true;
+    return filled;
+  });
+  return { ...scenario, http: { ...scenario.http, params } };
 }

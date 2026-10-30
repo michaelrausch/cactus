@@ -4,6 +4,7 @@ import { withShortcut } from "@/app/shortcuts";
 import { MethodBadge } from "@/components/MethodBadge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { HTTP_METHODS } from "@/domain/http";
+import { withUrl } from "@/domain/scenario";
 import { cn } from "@/lib/utils";
 import { methodColor } from "@/theme/httpColors";
 import { useResponseStore } from "@/stores/responseStore";
@@ -38,11 +39,14 @@ function SendButton() {
 export function UrlBar({ scenario, onChange }: ScenarioTabProps) {
   return (
     <div className="flex items-center gap-1 rounded-xl border bg-card p-1 shadow-sm shadow-black/20 transition-colors focus-within:border-emerald-400/40">
-      <Select value={scenario.method.toUpperCase()} onValueChange={(method) => onChange({ ...scenario, method })}>
+      <Select
+        value={scenario.http.method.toUpperCase()}
+        onValueChange={(method) => onChange({ ...scenario, http: { ...scenario.http, method } })}
+      >
         <SelectTrigger
           className={cn(
             "h-9 w-[6.5rem] border-0 bg-transparent font-mono text-xs font-bold shadow-none dark:bg-transparent dark:hover:bg-accent",
-            methodColor(scenario.method),
+            methodColor(scenario.http.method),
           )}
         >
           <SelectValue />
@@ -56,8 +60,8 @@ export function UrlBar({ scenario, onChange }: ScenarioTabProps) {
         </SelectContent>
       </Select>
       <input
-        value={scenario.url}
-        onChange={(e) => onChange({ ...scenario, url: e.target.value })}
+        value={scenario.http.url}
+        onChange={(e) => onChange(withUrl(scenario, e.target.value))}
         placeholder="{{baseUrl}}/path"
         className="h-9 min-w-0 flex-1 bg-transparent px-2 font-mono text-[13px] outline-none placeholder:text-muted-foreground"
         spellCheck={false}

@@ -1,6 +1,6 @@
 import { toast } from "sonner";
 import { backend, type Scenario, type ScenarioPath } from "@/api/client";
-import { withJsonExtension } from "@/domain/paths";
+import { withRequestExtension } from "@/domain/paths";
 import { reportErrors } from "@/lib/errors";
 import { stableStringify } from "@/lib/format";
 import { useEditorStore } from "@/stores/editorStore";
@@ -61,7 +61,7 @@ export function renameScenario(from: ScenarioPath): void {
     initial: from,
     onSubmit: async (input) => {
       if (!input) return;
-      const to = withJsonExtension(input);
+      const to = withRequestExtension(input);
       if (to === from) return;
       await flushPendingSave();
       await reportErrors(async () => {

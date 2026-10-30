@@ -16,6 +16,9 @@ pub async fn send(
     let scenario = scenario::load(project, &path)?;
     let response = runner::send_and_record(client, project, &path, &scenario, env).await?;
     eprintln!("{}", format_status_line(&response));
+    for warning in &response.warnings {
+        eprintln!("warning: {warning}");
+    }
     println!("{}", response.body);
     Ok(Outcome::from_passed(scenario_passed(&scenario, &response)))
 }

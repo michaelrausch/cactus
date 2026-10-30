@@ -1,8 +1,8 @@
-/** Scenario paths are project-relative and always use `/`. */
+/** Request paths are project-relative and always use `/`. */
 
-const JSON_EXTENSION = ".json";
+const REQUEST_EXTENSION = ".yml";
 
-/** `"a/b/c.json"` → `"a/b"`; `""` at the project root. */
+/** `"a/b/c.yml"` → `"a/b"`; `""` at the project root. */
 export const dirOf = (path: string): string => path.split("/").slice(0, -1).join("/");
 
 /** Last segment of a path with either separator, e.g. a project folder's name. */
@@ -14,5 +14,5 @@ export function isWithinDir(path: string, dir: string): boolean {
   return folder === "" || path.startsWith(`${folder}/`);
 }
 
-export const withJsonExtension = (path: string): string =>
-  path.endsWith(JSON_EXTENSION) ? path : `${path}${JSON_EXTENSION}`;
+export const withRequestExtension = (path: string): string =>
+  path.endsWith(REQUEST_EXTENSION) ? path : `${path}${REQUEST_EXTENSION}`;

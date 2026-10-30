@@ -7,19 +7,28 @@ import type * as Bindings from "./bindings";
 
 export { commands as backend, events as backendEvents } from "./bindings";
 
+export type Action = Bindings.Action_Serialize;
+export type Assertion = Bindings.Assertion_Serialize;
 export type Auth = Bindings.Auth_Serialize;
-export type BodyType = Bindings.BodyType;
+export type AuthMode = Bindings.AuthMode_Serialize;
+export type Body = Bindings.Body_Serialize;
 export type Check = Bindings.Check;
 export type EnvFile = Bindings.EnvFile;
-export type Expect = Bindings.Expect_Serialize;
+export type FormField = Bindings.FormField_Serialize;
+export type Header = Bindings.Header_Serialize;
 export type HistoryEntry = Bindings.HistoryEntry_Serialize;
+export type Http = Bindings.Http_Serialize;
 export type HttpResponse = Bindings.Response_Serialize;
 export type ImportSummary = Bindings.ImportSummary;
 export type JsonValue = Bindings.JsonValue;
+export type MultipartField = Bindings.MultipartField_Serialize;
+export type Param = Bindings.Param_Serialize;
 export type RunResult = Bindings.RunResult_Serialize;
 export type Scenario = Bindings.Scenario_Serialize;
 export type ScenarioEntry = Bindings.ScenarioEntry;
 export type ScenarioPath = Bindings.ScenarioPath;
-export type StatusExpect = Bindings.StatusExpect;
+export type Script = Bindings.Script_Serialize;
+export type SetVariable = Bindings.SetVariable_Serialize;
+export type TypedBody = Bindings.TypedBody_Serialize;
 
 export type Env = Record<string, string>;

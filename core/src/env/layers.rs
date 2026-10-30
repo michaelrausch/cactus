@@ -2,47 +2,29 @@
 
 use std::collections::BTreeMap;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
+use crate::collection::{self, Environment, RequestDefaults, Variable, VariableValue};
 use crate::storage::{read_json, write_json};
 use crate::{Error, Result, layout, state};
 
 pub type Env = BTreeMap<String, String>;
 
-/// One env layer file. Later layers override earlier ones; see [`resolve`].
+/// One env layer. Later layers override earlier ones; see [`resolve`].
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", content = "name", rename_all = "lowercase")]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub enum EnvFile {
-    /// `env.json`, shared and committed.
+    /// The collection's variables in `opencollection.yml`, shared and committed.
     Base,
-    /// `env.<name>.json`, one of which is active.
+    /// `environments/<name>.yml`, one of which is active.
     Named(String),
     /// `.cactus/secrets.json`, never committed.
     Secrets,
-    /// `.cactus/captured.json`, written by `capture` rules.
+    /// `.cactus/captured.json`, written by set-variable actions.
     Captured,
-}
-
-impl EnvFile {
-    /// Whether this layer lives in the local-only `.cactus/` folder.
-    fn is_local(&self) -> bool {
-        matches!(self, Self::Secrets | Self::Captured)
-    }
-
-    fn path(&self, project: &Path) -> Result<PathBuf> {
-        Ok(match self {
-            Self::Base => project.join(layout::BASE_ENV_FILE),
-            Self::Named(name) => {
-                validate_env_name(name)?;
-                project.join(layout::named_env_file_name(name))
-            }
-            Self::Secrets => layout::secrets_file(project),
-            Self::Captured => layout::captured_file(project),
-        })
-    }
 }
 
 /// Env names become file names, so they are limited to `[A-Za-z0-9_-]+`.
@@ -54,22 +36,76 @@ pub fn validate_env_name(name: &str) -> Result<()> {
     Ok(())
 }
 
+/// The layer's variables that take part in substitution: secret and
+/// disabled variables are left out.
 pub fn load(project: &Path, file: &EnvFile) -> Result<Env> {
-    read_json(&file.path(project)?)
+    Ok(match file {
+        EnvFile::Base => active_values(&collection::load_root(project)?.request.variables),
+        EnvFile::Named(name) => active_values(&load_environment(project, name)?.variables),
+        EnvFile::Secrets => read_json(&layout::secrets_file(project))?,
+        EnvFile::Captured => read_json(&layout::captured_file(project))?,
+    })
 }
 
+/// Replace the layer's variables with `env`. In YAML layers the file is
+/// edited in place, and secret and disabled variables stay as they are.
 pub fn save(project: &Path, file: &EnvFile, env: &Env) -> Result<()> {
-    if file.is_local() {
-        layout::ensure_workspace(project)?;
+    match file {
+        EnvFile::Base => {
+            let mut root = collection::load_root(project)?;
+            merge_values(&mut root.request.variables, env);
+            collection::save_root(project, &root)
+        }
+        EnvFile::Named(name) => {
+            let mut environment = load_environment(project, name)?;
+            merge_values(&mut environment.variables, env);
+            fs::create_dir_all(layout::environments_dir(project))?;
+            collection::write(&layout::environment_file(project, name), &environment)
+        }
+        EnvFile::Secrets => {
+            layout::ensure_workspace(project)?;
+            write_json(&layout::secrets_file(project), env)
+        }
+        EnvFile::Captured => {
+            layout::ensure_workspace(project)?;
+            write_json(&layout::captured_file(project), env)
+        }
     }
-    write_json(&file.path(project)?, env)
 }
 
-/// Names of the `env.<name>.json` files at the project root, sorted.
+fn load_environment(project: &Path, name: &str) -> Result<Environment> {
+    validate_env_name(name)?;
+    let file = layout::environment_file(project, name);
+    Ok(collection::read_if_exists(&file)?.unwrap_or_else(|| Environment { name: name.into(), variables: Vec::new() }))
+}
+
+fn active_values(variables: &[Variable]) -> Env {
+    variables.iter().filter(|v| v.is_active()).map(|v| (v.name.clone(), v.resolved_value())).collect()
+}
+
+/// Make the active variables match `env`: change values in place, drop the
+/// missing, append the new. Untouched variables stay exactly as written.
+fn merge_values(variables: &mut Vec<Variable>, env: &Env) {
+    let mut remaining = env.clone();
+    variables.retain_mut(|variable| {
+        if !variable.is_active() {
+            return true;
+        }
+        let Some(value) = remaining.remove(&variable.name) else { return false };
+        if variable.resolved_value() != value {
+            variable.value = Some(VariableValue::Text(value));
+        }
+        true
+    });
+    variables.extend(remaining.into_iter().map(|(name, value)| Variable::new(name, value)));
+}
+
+/// Names of the environments in `environments/`, sorted.
 pub fn list_named(project: &Path) -> Result<Vec<String>> {
-    let mut names: Vec<String> = fs::read_dir(project)?
+    let Ok(entries) = fs::read_dir(layout::environments_dir(project)) else { return Ok(Vec::new()) };
+    let mut names: Vec<String> = entries
         .filter_map(|entry| entry.ok()?.file_name().into_string().ok())
-        .filter_map(|file_name| layout::named_env_from_file_name(&file_name).map(str::to_string))
+        .filter_map(|file_name| layout::environment_from_file_name(&file_name).map(str::to_string))
         .filter(|name| validate_env_name(name).is_ok())
         .collect();
     names.sort();
@@ -79,7 +115,7 @@ pub fn list_named(project: &Path) -> Result<Vec<String>> {
 /// The active named env, if its file still exists.
 pub fn active(project: &Path) -> Option<String> {
     let name = state::load(project).env?;
-    EnvFile::Named(name.clone()).path(project).ok()?.exists().then_some(name)
+    (validate_env_name(&name).is_ok() && layout::environment_file(project, &name).exists()).then_some(name)
 }
 
 pub fn set_active(project: &Path, name: Option<String>) -> Result<()> {
@@ -91,21 +127,35 @@ pub fn set_active(project: &Path, name: Option<String>) -> Result<()> {
     state::save(project, &workspace_state)
 }
 
-/// Merge every layer, lowest precedence first: base, the named env, secrets,
-/// captured. `named` picks the env; `None` means the active one.
+/// Merge every layer, lowest precedence first: the collection's variables,
+/// the named env, secrets, captured. `named` picks the env; `None` means
+/// the active one.
 pub fn resolve(project: &Path, named: Option<&str>) -> Result<Env> {
-    let named = named.map(str::to_string).or_else(|| active(project));
-    layer_order(named).iter().try_fold(Env::new(), |mut merged, file| {
-        merged.extend(load(project, file)?);
-        Ok(merged)
-    })
+    resolve_for_request(project, named, &[], &[])
 }
 
-fn layer_order(named: Option<String>) -> Vec<EnvFile> {
-    let mut layers = vec![EnvFile::Base];
-    layers.extend(named.map(EnvFile::Named));
-    layers.extend([EnvFile::Secrets, EnvFile::Captured]);
-    layers
+/// [`resolve`] for one request: the variables of its folders (`inherited`
+/// past the collection's own, outermost first) and then its own go between
+/// the named env and secrets, so a folder or request can override an
+/// environment but local secrets still win.
+pub fn resolve_for_request(
+    project: &Path,
+    named: Option<&str>,
+    inherited: &[RequestDefaults],
+    request_variables: &[Variable],
+) -> Result<Env> {
+    let named = named.map(str::to_string).or_else(|| active(project));
+    let mut merged = load(project, &EnvFile::Base)?;
+    if let Some(name) = named {
+        merged.extend(load(project, &EnvFile::Named(name))?);
+    }
+    for folder in inherited.iter().skip(1) {
+        merged.extend(active_values(&folder.variables));
+    }
+    merged.extend(active_values(request_variables));
+    merged.extend(load(project, &EnvFile::Secrets)?);
+    merged.extend(load(project, &EnvFile::Captured)?);
+    Ok(merged)
 }
 
 #[cfg(test)]
@@ -122,20 +172,52 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let p = dir.path();
         assert!(resolve(p, None).unwrap().is_empty());
-        save(p, &EnvFile::Base, &env(&[("a", "base"), ("b", "base"), ("c", "base"), ("d", "base")])).unwrap();
-        save(p, &EnvFile::Named("dev".into()), &env(&[("b", "dev"), ("c", "dev"), ("d", "dev")])).unwrap();
+        save(p, &EnvFile::Base, &env(&[("a", "base"), ("b", "base"), ("c", "base"), ("d", "base"), ("e", "base")]))
+            .unwrap();
+        save(p, &EnvFile::Named("dev".into()), &env(&[("b", "dev"), ("c", "dev"), ("d", "dev"), ("e", "dev")]))
+            .unwrap();
         save(p, &EnvFile::Named("prod".into()), &env(&[("b", "prod")])).unwrap();
-        save(p, &EnvFile::Secrets, &env(&[("c", "secret"), ("d", "secret")])).unwrap();
-        merge_captured(p, &env(&[("d", "captured")])).unwrap();
+        save(p, &EnvFile::Secrets, &env(&[("d", "secret"), ("e", "secret")])).unwrap();
+        merge_captured(p, &env(&[("e", "captured")])).unwrap();
 
         assert_eq!(list_named(p).unwrap(), ["dev", "prod"]);
         assert_eq!(resolve(p, None).unwrap()["b"], "base");
         set_active(p, Some("dev".into())).unwrap();
         assert_eq!(active(p).as_deref(), Some("dev"));
         let merged = resolve(p, None).unwrap();
-        assert_eq!([&merged["a"], &merged["b"], &merged["c"], &merged["d"]], ["base", "dev", "secret", "captured"]);
+        assert_eq!([&merged["a"], &merged["b"], &merged["d"], &merged["e"]], ["base", "dev", "secret", "captured"]);
         assert_eq!(resolve(p, Some("prod")).unwrap()["b"], "prod");
         assert_eq!(fs::read_to_string(p.join(".cactus/.gitignore")).unwrap(), "*\n");
         assert!(save(p, &EnvFile::Named("../x".into()), &Env::new()).is_err());
+
+        let folder = RequestDefaults { variables: vec![Variable::new("c", "folder")], ..Default::default() };
+        let request = [Variable::new("c", "request"), Variable::new("d", "request")];
+        let for_request =
+            resolve_for_request(p, None, &[RequestDefaults::default(), folder.clone()], &request[..1]).unwrap();
+        assert_eq!(for_request["c"], "request");
+        let for_request = resolve_for_request(p, None, &[RequestDefaults::default(), folder], &request).unwrap();
+        assert_eq!(for_request["d"], "secret");
+    }
+
+    #[test]
+    fn saving_keeps_secrets_disabled_and_comments() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path();
+        fs::create_dir_all(p.join("environments")).unwrap();
+        let file = p.join("environments/dev.yml");
+        fs::write(
+            &file,
+            "name: dev\nvariables:\n  # Where the API lives.\n  - name: baseUrl\n    value: http://localhost\n  - name: token\n    secret: true\n  - name: off\n    value: x\n    disabled: true\n  - name: gone\n    value: y\n",
+        )
+        .unwrap();
+        assert_eq!(
+            load(p, &EnvFile::Named("dev".into())).unwrap(),
+            env(&[("baseUrl", "http://localhost"), ("gone", "y")])
+        );
+        save(p, &EnvFile::Named("dev".into()), &env(&[("baseUrl", "http://dev"), ("new", "1")])).unwrap();
+        assert_eq!(
+            fs::read_to_string(&file).unwrap(),
+            "name: dev\nvariables:\n  # Where the API lives.\n  - name: baseUrl\n    value: http://dev\n  - name: token\n    secret: true\n  - name: off\n    value: x\n    disabled: true\n  - name: new\n    value: '1'\n",
+        );
     }
 }

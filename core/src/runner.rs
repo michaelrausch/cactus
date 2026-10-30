@@ -1,4 +1,4 @@
-//! Sending scenarios with their side effects: captures and history.
+//! Sending requests with their side effects: captured variables and history.
 
 use std::path::Path;
 
@@ -8,10 +8,11 @@ use crate::clock::now_unix_millis;
 use crate::history::{self, HistoryEntry};
 use crate::http::{self, Response, scenario_passed};
 use crate::scenario::{self, Scenario, ScenarioEntry};
-use crate::{Error, Result, ScenarioPath, env};
+use crate::{Error, Result, ScenarioPath, collection, env};
 
-/// Send one scenario using the merged env (`env_name` overrides the active
-/// one), persist its captures and record it in history.
+/// Send one request with what its collection and folders set and the
+/// merged env (`env_name` overrides the active one), persist the variables
+/// its actions set and record it in history.
 pub async fn send_and_record(
     client: &reqwest::Client,
     project: &Path,
@@ -19,8 +20,9 @@ pub async fn send_and_record(
     scenario: &Scenario,
     env_name: Option<&str>,
 ) -> Result<Response> {
-    let vars = env::resolve(project, env_name)?;
-    let response = http::send(client, project, scenario, &vars).await?;
+    let inherited = collection::defaults_chain(project, path.dir())?;
+    let vars = env::resolve_for_request(project, env_name, &inherited, &scenario.runtime.variables)?;
+    let response = http::send(client, project, scenario, &inherited, &vars).await?;
     if !response.captured.is_empty() {
         env::merge_captured(project, &response.captured)?;
     }
@@ -56,9 +58,9 @@ impl RunResult {
     }
 }
 
-/// Run every scenario under `dir` (all when empty) in path order, calling
-/// `on_result` as each finishes. Captures from earlier scenarios are visible
-/// to later ones.
+/// Run every request under `dir` (all when empty) in listing order, calling
+/// `on_result` as each finishes. Variables set by earlier requests are
+/// visible to later ones.
 pub async fn run(
     client: &reqwest::Client,
     project: &Path,

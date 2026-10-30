@@ -1,4 +1,5 @@
-//! Import Postman v2 collections and OpenAPI 3 / Swagger 2 specs as scenarios.
+//! Import Postman v2 collections and OpenAPI 3 / Swagger 2 specs as
+//! OpenCollection request files.
 
 mod openapi;
 mod postman;
@@ -39,11 +40,11 @@ impl ImportFormat {
 pub struct ImportSummary {
     pub format: ImportFormat,
     pub created: Vec<ScenarioPath>,
-    /// Variables added to `env.json`; existing keys are never overwritten.
+    /// Variables added to the collection; existing ones are never overwritten.
     pub env_vars: Vec<String>,
 }
 
-/// A scenario plus the folder it belongs in.
+/// A request plus the folder it belongs in.
 struct ImportedScenario {
     dir: String,
     scenario: Scenario,
@@ -74,9 +75,9 @@ fn parse_document(file: &Path) -> Result<Value> {
     let is_yaml =
         file.extension().is_some_and(|ext| ext.eq_ignore_ascii_case("yaml") || ext.eq_ignore_ascii_case("yml"));
     if is_yaml {
-        return Ok(serde_yaml::from_str(&text)?);
+        return Ok(serde_yaml_ng::from_str(&text)?);
     }
-    Ok(serde_json::from_str(&text).or_else(|_| serde_yaml::from_str(&text))?)
+    Ok(serde_json::from_str(&text).or_else(|_| serde_yaml_ng::from_str(&text))?)
 }
 
 fn detect_format(document: &Value) -> Result<ImportFormat> {
@@ -93,7 +94,7 @@ fn write_scenarios(project: &Path, scenarios: &[ImportedScenario]) -> Result<Vec
     scenarios.iter().map(|imported| scenario::create(project, &imported.dir, &imported.scenario)).collect()
 }
 
-/// Add variables that `env.json` doesn't define yet; returns their names.
+/// Add variables the collection doesn't define yet; returns their names.
 fn add_missing_env_vars(project: &Path, variables: BTreeMap<String, String>) -> Result<Vec<String>> {
     let mut base = env::load(project, &EnvFile::Base)?;
     let mut added = Vec::new();
@@ -133,7 +134,8 @@ mod tests {
     use serde_json::json;
 
     use super::*;
-    use crate::scenario::{Auth, BodyType};
+    use crate::collection::{Auth, AuthMode};
+    use crate::scenario::{Body, ParamKind, PartKind, PartValue, TypedBody};
 
     fn path(rel: &str) -> ScenarioPath {
         ScenarioPath::parse(rel).unwrap()
@@ -143,7 +145,7 @@ mod tests {
     fn imports_postman_collection() {
         let dir = tempfile::tempdir().unwrap();
         let p = dir.path();
-        fs::write(p.join("env.json"), r#"{"baseUrl":"keep-me"}"#).unwrap();
+        env::save(p, &EnvFile::Base, &BTreeMap::from([("baseUrl".into(), "keep-me".into())])).unwrap();
         let file = p.join("c.json");
         fs::write(
             &file,
@@ -153,6 +155,7 @@ mod tests {
                 "item": [
                     {"name": "Users", "item": [{
                         "name": "Create user",
+                        "event": [{"listen": "test", "script": {"exec": ["pm.test('ok');"]}}],
                         "request": {
                             "method": "post",
                             "url": {"raw": "{{baseUrl}}/users"},
@@ -171,19 +174,20 @@ mod tests {
         .unwrap();
         let sum = import(p, &file).unwrap();
         let created: Vec<_> = sum.created.iter().map(ScenarioPath::as_str).collect();
-        assert_eq!(created, ["users/create-user.json", "upload.json", "ping.json"]);
+        assert_eq!(created, ["users/create-user.yml", "upload.yml", "ping.yml"]);
         assert_eq!(sum.env_vars, ["token"]);
         assert_eq!(env::load(p, &EnvFile::Base).unwrap()["baseUrl"], "keep-me");
 
-        let s = scenario::load(p, &path("users/create-user.json")).unwrap();
-        assert_eq!((s.method.as_str(), s.url.as_str()), ("POST", "{{baseUrl}}/users"));
-        assert_eq!(s.body, json!({"n": 1}));
-        assert_eq!(s.headers["A"], "1");
-        assert_eq!(s.disabled_headers["B"], "2");
-        assert_eq!(s.auth, Some(Auth::Bearer { token: "{{token}}".into() }));
-        let up = scenario::load(p, &path("upload.json")).unwrap();
-        assert_eq!(up.body_type, Some(BodyType::Multipart));
-        assert_eq!(up.body, json!({"f": "@a.png", "t": "x"}));
+        let s = scenario::load(p, &path("users/create-user.yml")).unwrap();
+        assert_eq!((s.http.method.as_str(), s.http.url.as_str()), ("POST", "{{baseUrl}}/users"));
+        assert_eq!(s.http.body, Some(Body::Typed(TypedBody::Json { data: r#"{"n":1}"#.into() })));
+        assert_eq!((s.http.headers[0].name.as_str(), s.http.headers[1].disabled), ("A", true));
+        assert_eq!(s.http.auth, Some(Auth::Mode(AuthMode::Bearer { token: "{{token}}".into() })));
+        assert_eq!(s.runtime.scripts[0].code, "pm.test('ok');");
+        let up = scenario::load(p, &path("upload.yml")).unwrap();
+        let Some(Body::Typed(TypedBody::MultipartForm { data })) = up.http.body else { panic!("multipart") };
+        assert_eq!((data[0].kind, &data[0].value), (PartKind::File, &PartValue::One("a.png".into())));
+        assert_eq!(up.http.auth, Some(Auth::INHERIT));
     }
 
     #[test]
@@ -217,10 +221,11 @@ paths:
         assert_eq!(sum.format, ImportFormat::OpenApi);
         assert_eq!(sum.created.len(), 2);
         assert_eq!(env::load(p, &EnvFile::Base).unwrap()["baseUrl"], "https://api.example.com/v1");
-        let get = scenario::load(p, &path("pets/get-a-pet.json")).unwrap();
-        assert_eq!(get.url, "{{baseUrl}}/pets/{{petId}}");
-        let post = scenario::load(p, &path("pets/createpet.json")).unwrap();
-        assert_eq!(post.body, json!({"name": "Rex"}));
+        let get = scenario::load(p, &path("pets/get-a-pet.yml")).unwrap();
+        assert_eq!(get.http.url, "{{baseUrl}}/pets/:petId");
+        assert_eq!((get.http.params[0].name.as_str(), get.http.params[0].kind), ("petId", ParamKind::Path));
+        let post = scenario::load(p, &path("pets/createpet.yml")).unwrap();
+        assert_eq!(post.http.body, Some(Body::Typed(TypedBody::Json { data: "{\n  \"name\": \"Rex\"\n}".into() })));
     }
 
     #[test]

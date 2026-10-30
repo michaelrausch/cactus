@@ -7,7 +7,7 @@ use crate::{Error, Result};
 
 const SEPARATOR: char = '/';
 
-/// A scenario's location relative to the project root, using `/` separators.
+/// A request file's location relative to the project root, using `/` separators.
 /// It can never point outside the project, so it is safe to join onto it.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(try_from = "String", into = "String")]
@@ -86,24 +86,24 @@ mod tests {
 
     #[test]
     fn rejects_escape() {
-        assert!(ScenarioPath::parse("../x.json").is_err());
+        assert!(ScenarioPath::parse("../x.yml").is_err());
         assert!(ScenarioPath::parse("/etc/passwd").is_err());
         assert!(ScenarioPath::parse("").is_err());
-        assert!(ScenarioPath::parse("a/b.json").is_ok());
+        assert!(ScenarioPath::parse("a/b.yml").is_ok());
     }
 
     #[test]
     fn splits_dir_and_name() {
-        let path = ScenarioPath::parse("a/b/c.json").unwrap();
-        assert_eq!((path.dir(), path.file_name()), ("a/b", "c.json"));
-        let root = ScenarioPath::parse("c.json").unwrap();
-        assert_eq!((root.dir(), root.file_name()), ("", "c.json"));
-        assert_eq!(ScenarioPath::in_dir("a/", "c.json").unwrap().as_str(), "a/c.json");
+        let path = ScenarioPath::parse("a/b/c.yml").unwrap();
+        assert_eq!((path.dir(), path.file_name()), ("a/b", "c.yml"));
+        let root = ScenarioPath::parse("c.yml").unwrap();
+        assert_eq!((root.dir(), root.file_name()), ("", "c.yml"));
+        assert_eq!(ScenarioPath::in_dir("a/", "c.yml").unwrap().as_str(), "a/c.yml");
     }
 
     #[test]
     fn within_matches_whole_folders() {
-        let path = ScenarioPath::parse("auth/login.json").unwrap();
+        let path = ScenarioPath::parse("auth/login.yml").unwrap();
         assert!(path.is_within(""));
         assert!(path.is_within("auth"));
         assert!(path.is_within("auth/"));

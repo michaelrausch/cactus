@@ -1,47 +1,89 @@
 import { useMemo } from "react";
+import type { MultipartField } from "@/api/client";
 import { Hint } from "@/components/Field";
 import { KeyValueTable } from "@/components/KeyValueTable";
 import { Textarea } from "@/components/ui/textarea";
-import { BODY_TYPES } from "@/domain/http";
-import { recordFromRows, rowsFromRecord } from "@/domain/rows";
-import { isJsonObject } from "@/domain/scenario";
+import { BODY_KIND_LABELS, BODY_KINDS, type BodyKind } from "@/domain/http";
+import { listFromRows, makeRow, rowsFromList, type Row } from "@/domain/rows";
+import {
+  bodyKind,
+  bodyText,
+  isTextBodyKind,
+  jsonProblem,
+  switchBodyKind,
+  typedBody,
+  withBody,
+  withBodyText,
+} from "@/domain/scenario";
 import { cn } from "@/lib/utils";
 import type { ScenarioTabProps } from "../types";
-import type { BodyDraft } from "../useBodyDraft";
 
 const JSON_PLACEHOLDER = '{\n  "key": "{{value}}"\n}';
+/** A multipart value starting with this is a file path, relative to the project. */
+const FILE_PREFIX = "@";
 
-function BodyTypePicker({ draft }: { draft: BodyDraft }) {
+function BodyKindPicker({ scenario, onChange }: ScenarioTabProps) {
+  const current = bodyKind(scenario);
   return (
     <div className="flex items-center gap-1">
-      {BODY_TYPES.map((type) => (
+      {BODY_KINDS.map((kind) => (
         <button
           type="button"
-          key={type}
-          onClick={() => draft.switchType(type)}
+          key={kind}
+          onClick={() => onChange(switchBodyKind(scenario, kind))}
           className={cn(
-            "rounded-md px-2.5 py-1 text-xs capitalize transition",
-            type === draft.bodyType ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground",
+            "rounded-md px-2.5 py-1 text-xs transition",
+            kind === current ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground",
           )}
         >
-          {type}
+          {BODY_KIND_LABELS[kind]}
         </button>
       ))}
-      {draft.jsonError && <span className="ml-auto truncate text-xs text-rose-400">Invalid JSON, not saved</span>}
     </div>
   );
 }
 
-function FieldsEditor({ scenario, onChange, multipart }: ScenarioTabProps & { multipart: boolean }) {
-  const rows = useMemo(
-    () => (isJsonObject(scenario.body) ? rowsFromRecord(scenario.body as Record<string, string>) : []),
-    [scenario.body],
-  );
+/** Multipart file parts are shown as `@path`, as in curl. */
+const multipartRows = (fields: MultipartField[]): Row[] =>
+  fields.map((field) => {
+    const value = Array.isArray(field.value) ? field.value.join(", ") : field.value;
+    return makeRow(field.name, field.type === "file" ? `${FILE_PREFIX}${value}` : value, !field.disabled);
+  });
+
+const multipartFromRows = (rows: Row[]): MultipartField[] =>
+  rows.map((row) => {
+    const isFile = row.value.startsWith(FILE_PREFIX);
+    const field: MultipartField = {
+      name: row.key,
+      type: isFile ? "file" : "text",
+      value: isFile ? row.value.slice(FILE_PREFIX.length) : row.value,
+    };
+    return row.enabled ? field : { ...field, disabled: true };
+  });
+
+function FieldsEditor({ scenario, onChange, kind }: ScenarioTabProps & { kind: "form-urlencoded" | "multipart-form" }) {
+  const body = typedBody(scenario);
+  const rows = useMemo(() => {
+    if (body?.type === "form-urlencoded") return rowsFromList(body.data);
+    if (body?.type === "multipart-form") return multipartRows(body.data);
+    return [];
+  }, [body]);
+  const update = (next: Row[]) =>
+    onChange(
+      withBody(
+        scenario,
+        kind === "form-urlencoded"
+          ? { type: kind, data: listFromRows(next) }
+          : { type: kind, data: multipartFromRows(next) },
+      ),
+    );
+  const multipart = kind === "multipart-form";
   return (
     <div className="overflow-auto">
       <KeyValueTable
         rows={rows}
-        onChange={(next) => onChange({ ...scenario, body: recordFromRows(next) })}
+        toggles
+        onChange={update}
         valuePlaceholder={multipart ? "Value, or @path/to/file" : "Value"}
       />
       {multipart && <Hint>Start a value with @ to upload a file. Relative paths resolve from the project folder.</Hint>}
@@ -49,24 +91,37 @@ function FieldsEditor({ scenario, onChange, multipart }: ScenarioTabProps & { mu
   );
 }
 
-export function BodyTab({ draft, ...tab }: ScenarioTabProps & { draft: BodyDraft }) {
-  const { bodyType } = draft;
+function TextEditor({ scenario, onChange, kind }: ScenarioTabProps & { kind: "json" | "text" | "xml" }) {
+  const text = bodyText(scenario);
+  const problem = kind === "json" ? jsonProblem(text) : null;
   return (
     <>
-      <BodyTypePicker draft={draft} />
-      {(bodyType === "json" || bodyType === "text") && (
-        <Textarea
-          value={draft.text}
-          onChange={(e) => draft.editText(e.target.value)}
-          spellCheck={false}
-          placeholder={bodyType === "json" ? JSON_PLACEHOLDER : ""}
-          className="min-h-0 flex-1 resize-none rounded-lg font-mono text-xs leading-relaxed"
-        />
+      <Textarea
+        value={text}
+        onChange={(e) => onChange(withBodyText(scenario, kind, e.target.value))}
+        spellCheck={false}
+        placeholder={kind === "json" ? JSON_PLACEHOLDER : ""}
+        className="min-h-0 flex-1 resize-none rounded-lg font-mono text-xs leading-relaxed"
+      />
+      {problem && <span className="truncate text-xs text-amber-400">Not valid JSON: {problem}</span>}
+    </>
+  );
+}
+
+export function BodyTab(tab: ScenarioTabProps) {
+  const kind: BodyKind | "other" = bodyKind(tab.scenario);
+  return (
+    <>
+      <BodyKindPicker {...tab} />
+      {isTextBodyKind(kind) && <TextEditor {...tab} kind={kind} />}
+      {(kind === "form-urlencoded" || kind === "multipart-form") && <FieldsEditor {...tab} kind={kind} />}
+      {kind === "none" && <Hint>This request has no body.</Hint>}
+      {kind === "other" && (
+        <Hint>
+          This body (variants, a file, or another kind) is kept in the file as written and sent as its selected variant.
+          Edit it in the file, or pick a kind above to replace it.
+        </Hint>
       )}
-      {(bodyType === "form" || bodyType === "multipart") && (
-        <FieldsEditor {...tab} multipart={bodyType === "multipart"} />
-      )}
-      {bodyType === "none" && <Hint>This request has no body.</Hint>}
     </>
   );
 }

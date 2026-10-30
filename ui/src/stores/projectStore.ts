@@ -34,7 +34,9 @@ export const useProjectStore = create<ProjectState>()((set) => ({
   entrySaved: (path, scenario) =>
     set((state) => ({
       entries: state.entries.map((entry) =>
-        entry.relPath === path ? { ...entry, title: scenario.title || entry.title, method: scenario.method } : entry,
+        entry.relPath === path
+          ? { ...entry, title: scenario.info.name || entry.title, method: scenario.http.method }
+          : entry,
       ),
     })),
 }));

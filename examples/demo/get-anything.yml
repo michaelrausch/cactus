@@ -1,0 +1,39 @@
+info:
+  name: Get anything
+  type: http
+  seq: 3
+http:
+  method: GET
+  url: "{{baseUrl}}/anything?q=hello&page=1"
+  headers:
+    # Unchecked in the editor: kept here, not sent.
+    - name: X-Debug
+      value: "1"
+      disabled: true
+  # Mirrors the query string of the URL.
+  params:
+    - name: q
+      value: hello
+      type: query
+    - name: page
+      value: "1"
+      type: query
+  auth:
+    type: bearer
+    token: "{{token}}"
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.args.q
+      operator: eq
+      value: hello
+    # httpbin echoes the headers it received.
+    - expression: res.body.headers.Authorization
+      operator: eq
+      value: Bearer demo
+    - expression: res.body.headers.X-Client
+      operator: eq
+      value: cactus-demo
+docs: Uses the {{token}} saved by Login as a bearer token and checks httpbin echoed it back.
