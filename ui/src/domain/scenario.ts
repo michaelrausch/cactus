@@ -1,5 +1,6 @@
-import type { Auth, AuthMode, Body, FormField, MultipartField, Param, Scenario, TypedBody } from "@/api/client";
+import type { Auth, AuthMode, Body, FormField, Header, MultipartField, Param, Scenario, TypedBody } from "@/api/client";
 import { AUTH_KINDS, BODY_KINDS, TEXT_BODY_KINDS, type AuthKind, type BodyKind, type TextBodyKind } from "./http";
+import { parseQuery } from "./query";
 
 const PATH_PARAM_PREFIX = ":";
 /** `{{name}}` placeholders, which make otherwise valid JSON fail to parse. */
@@ -122,19 +123,38 @@ export const pathParams = (scenario: Scenario): Param[] =>
   (scenario.http.params ?? []).filter((param) => param.type === "path");
 
 /**
- * Set the URL and keep path params in step with its `:name` segments, as
- * Bruno does: existing values are kept, new names start empty. Query params
- * are rebuilt from the URL by the backend on save.
+ * Set the URL and keep params in step with it, as the backend does on save
+ * (`Scenario::sync_query_params`), so what is saved reads back unchanged:
+ * enabled query params take the URL's pairs in order, disabled ones stay, and
+ * path params follow the URL's `:name` segments, keeping their values.
  */
 export function withUrl(scenario: Scenario, url: string): Scenario {
-  const existing = pathParams(scenario);
-  const path = pathParamNames(url).map(
-    (name): Param => existing.find((param) => param.name === name) ?? { name, value: "", type: "path" },
-  );
-  const query = (scenario.http.params ?? []).filter((param) => param.type !== "path");
-  const params = [...query, ...path];
+  const pairs = parseQuery(url).map((row) => ({ name: row.key, value: row.value }));
+  const names = pathParamNames(url);
+  const params: Param[] = [];
+  for (const param of scenario.http.params ?? []) {
+    if (param.type === "path") {
+      if (names.includes(param.name) && !params.some((p) => p.type === "path" && p.name === param.name))
+        params.push(param);
+    } else if (param.disabled) {
+      params.push(param);
+    } else {
+      const pair = pairs.shift();
+      if (pair) params.push({ name: pair.name, value: pair.value, type: "query" });
+    }
+  }
+  params.push(...pairs.map(({ name, value }): Param => ({ name, value, type: "query" })));
+  for (const name of names) {
+    if (!params.some((p) => p.type === "path" && p.name === name)) params.push({ name, value: "", type: "path" });
+  }
   const { params: _previous, ...http } = scenario.http;
   return { ...scenario, http: params.length > 0 ? { ...http, url, params } : { ...http, url } };
+}
+
+/** Empty lists are left out, as the backend writes them. */
+export function withHeaders(scenario: Scenario, headers: Header[]): Scenario {
+  const { headers: _previous, ...http } = scenario.http;
+  return { ...scenario, http: headers.length > 0 ? { ...http, headers } : http };
 }
 
 export function withPathParamValues(scenario: Scenario, values: Record<string, string>): Scenario {
