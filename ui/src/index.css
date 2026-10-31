@@ -161,11 +161,21 @@
 }
 
 @utility bg-brand {
-  background-image: linear-gradient(100deg, var(--color-brand-1) 0%, var(--color-brand-2) 45%, var(--color-brand-3) 100%);
+  background-image: linear-gradient(
+    100deg,
+    var(--color-brand-1) 0%,
+    var(--color-brand-2) 45%,
+    var(--color-brand-3) 100%
+  );
 }
 
 @utility text-brand {
-  background-image: linear-gradient(100deg, var(--color-brand-1) 0%, var(--color-brand-2) 45%, var(--color-brand-3) 100%);
+  background-image: linear-gradient(
+    100deg,
+    var(--color-brand-1) 0%,
+    var(--color-brand-2) 45%,
+    var(--color-brand-3) 100%
+  );
   background-clip: text;
   color: transparent;
 }
