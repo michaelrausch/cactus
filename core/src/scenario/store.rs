@@ -63,14 +63,21 @@ pub fn rename(project: &Path, from: &ScenarioPath, to: &ScenarioPath) -> Result<
     if !layout::is_request_file(to.as_str()) {
         return Err(Error::InvalidScenarioPath(to.to_string()));
     }
+    let source = from.resolve(project);
     let target = to.resolve(project);
-    if target.exists() {
+    if target.exists() && !is_same_file(&source, &target) {
         return Err(Error::AlreadyExists(to.to_string()));
     }
     collection::ensure_folder(project, to.dir())?;
-    fs::rename(from.resolve(project), target)?;
+    fs::rename(source, target)?;
     history::rename(project, from, to);
     Ok(())
+}
+
+/// On a case-insensitive file system (Windows, macOS) `login.yml` and
+/// `Login.yml` are one file, so renaming one to the other only changes case.
+fn is_same_file(a: &Path, b: &Path) -> bool {
+    matches!((fs::canonicalize(a), fs::canonicalize(b)), (Ok(a), Ok(b)) if a == b)
 }
 
 fn slug_for(title: &str) -> String {
@@ -191,5 +198,22 @@ examples:
         assert!(matches!(rename(p, &a, &path("x/folder.yml")), Err(Error::InvalidScenarioPath(_))));
         rename(p, &a, &path("moved/a.yml")).unwrap();
         assert!(p.join("moved/a.yml").exists() && p.join("moved/folder.yml").exists());
+    }
+
+    #[test]
+    fn rename_changes_case_only_where_names_are_one_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path();
+        let lower = create_blank(p, "", "login").unwrap();
+        let upper = path("Login.yml");
+        let case_insensitive = upper.resolve(p).exists();
+        if case_insensitive {
+            rename(p, &lower, &upper).unwrap();
+            let names: Vec<_> = fs::read_dir(p).unwrap().map(|e| e.unwrap().file_name()).collect();
+            assert!(names.iter().any(|n| n == "Login.yml"), "{names:?}");
+        } else {
+            fs::write(upper.resolve(p), "").unwrap();
+            assert!(matches!(rename(p, &lower, &upper), Err(Error::AlreadyExists(_))));
+        }
     }
 }

@@ -155,17 +155,17 @@
 }
 
 @theme inline {
-  --color-brand-1: #bef264;
-  --color-brand-2: #4ade80;
-  --color-brand-3: #2dd4bf;
+  --color-brand-1: #d9f99d;
+  --color-brand-2: #22e06b;
+  --color-brand-3: #06b6d4;
 }
 
 @utility bg-brand {
-  background-image: linear-gradient(100deg, var(--color-brand-1), var(--color-brand-2) 50%, var(--color-brand-3));
+  background-image: linear-gradient(100deg, var(--color-brand-1) 0%, var(--color-brand-2) 45%, var(--color-brand-3) 100%);
 }
 
 @utility text-brand {
-  background-image: linear-gradient(100deg, var(--color-brand-1), var(--color-brand-2) 50%, var(--color-brand-3));
+  background-image: linear-gradient(100deg, var(--color-brand-1) 0%, var(--color-brand-2) 45%, var(--color-brand-3) 100%);
   background-clip: text;
   color: transparent;
 }
