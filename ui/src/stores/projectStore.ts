@@ -9,12 +9,18 @@ interface ProjectState {
   /** Names of the `env.<name>.json` files. */
   envs: string[];
   activeEnv: string | null;
+  /**
+   * Every variable the open scenario can use with the active env, or null
+   * until known (nothing is flagged as unresolved then).
+   */
+  variableNames: string[] | null;
 
   opened: (project: string, entries: ScenarioEntry[]) => void;
   setEntries: (entries: ScenarioEntry[]) => void;
   setRecentProjects: (recent: string[]) => void;
   setEnvs: (envs: string[], activeEnv: string | null) => void;
   setActiveEnv: (name: string | null) => void;
+  setVariableNames: (names: string[] | null) => void;
   /** Reflect a saved scenario in the sidebar without re-listing. */
   entrySaved: (path: ScenarioPath, scenario: Scenario) => void;
 }
@@ -25,12 +31,14 @@ export const useProjectStore = create<ProjectState>()((set) => ({
   recentProjects: [],
   envs: [],
   activeEnv: null,
+  variableNames: null,
 
-  opened: (project, entries) => set({ project, entries }),
+  opened: (project, entries) => set({ project, entries, variableNames: null }),
   setEntries: (entries) => set({ entries }),
   setRecentProjects: (recentProjects) => set({ recentProjects }),
   setEnvs: (envs, activeEnv) => set({ envs, activeEnv }),
   setActiveEnv: (activeEnv) => set({ activeEnv }),
+  setVariableNames: (variableNames) => set({ variableNames }),
   entrySaved: (path, scenario) =>
     set((state) => ({
       entries: state.entries.map((entry) =>

@@ -13,6 +13,7 @@ export function ParamsTab({ scenario, onChange }: ScenarioTabProps) {
     <>
       <KeyValueTable
         rows={query}
+        valueColumn={{ templates: true }}
         onChange={(rows) => onChange(withUrl(scenario, withQuery(scenario.http.url, rows)))}
       />
       {path.length > 0 && (
@@ -20,6 +21,7 @@ export function ParamsTab({ scenario, onChange }: ScenarioTabProps) {
           <KeyValueTable
             rows={path}
             keyPlaceholder="name"
+            valueColumn={{ templates: true }}
             onChange={(rows) => onChange(withPathParamValues(scenario, recordFromRows(rows)))}
           />
         </Field>

@@ -2,6 +2,7 @@ import { ArrowUp, Square } from "lucide-react";
 import { cancelInFlight, sendCurrentScenario } from "@/actions/request";
 import { withShortcut } from "@/app/shortcuts";
 import { MethodBadge } from "@/components/MethodBadge";
+import { TemplateField } from "@/components/template/TemplateField";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { HTTP_METHODS } from "@/domain/http";
 import { withUrl } from "@/domain/scenario";
@@ -18,7 +19,7 @@ function SendButton() {
         type="button"
         onClick={() => void cancelInFlight()}
         title="Cancel"
-        className="grid size-9 shrink-0 place-items-center rounded-full bg-secondary text-foreground hover:bg-accent"
+        className="grid size-9 shrink-0 place-items-center rounded-lg bg-secondary text-foreground hover:bg-accent"
       >
         <Square className="size-3.5 animate-pulse fill-current" />
       </button>
@@ -29,7 +30,7 @@ function SendButton() {
       type="button"
       onClick={() => void sendCurrentScenario()}
       title={withShortcut("Send", "send")}
-      className="grid size-9 shrink-0 place-items-center rounded-full bg-brand text-black shadow-md shadow-emerald-500/20 transition hover:brightness-110 active:scale-95"
+      className="grid size-9 shrink-0 place-items-center rounded-lg bg-brand-2 text-black shadow-md shadow-emerald-500/20 transition hover:brightness-110 active:scale-95"
     >
       <ArrowUp className="size-4" strokeWidth={2.5} />
     </button>
@@ -59,12 +60,13 @@ export function UrlBar({ scenario, onChange }: ScenarioTabProps) {
           ))}
         </SelectContent>
       </Select>
-      <input
+      <TemplateField
         value={scenario.http.url}
-        onChange={(e) => onChange(withUrl(scenario, e.target.value))}
+        onChange={(url) => onChange(withUrl(scenario, url))}
         placeholder="{{baseUrl}}/path"
-        className="h-9 min-w-0 flex-1 bg-transparent px-2 font-mono text-[13px] outline-none placeholder:text-muted-foreground"
-        spellCheck={false}
+        aria-label="URL"
+        className="flex-1"
+        fieldClassName="h-9 px-2 font-mono text-[13px]"
       />
       <SendButton />
     </div>

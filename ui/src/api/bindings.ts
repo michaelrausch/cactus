@@ -23,6 +23,11 @@ export const commands = {
 	setActiveEnv: (project: string, name: string | null, options?: InvokeOptions) => __TAURI_INVOKE<null>("set_active_env", { project, name }, options),
 	loadEnv: (project: string, file: EnvFile, options?: InvokeOptions) => __TAURI_INVOKE<{ [key in string]: string }>("load_env", { project, file }, options),
 	saveEnv: (project: string, file: EnvFile, env: { [key in string]: string }, options?: InvokeOptions) => __TAURI_INVOKE<null>("save_env", { project, file, env }, options),
+	/**
+	 *  The names of every variable a request at `path` can use with the active
+	 *  env, for highlighting and completing `{{name}}`. Values stay out of the UI.
+	 */
+	variableNames: (project: string, path: ScenarioPath, options?: InvokeOptions) => __TAURI_INVOKE<string[]>("variable_names", { project, path }, options),
 	importFile: (project: string, file: string, options?: InvokeOptions) => __TAURI_INVOKE<ImportSummary>("import_file", { project, file }, options),
 	/**
 	 *  Send the scenario as edited (it may not be saved yet). Resolves to
@@ -122,6 +127,13 @@ export type Body_Serialize = TypedBody_Serialize |
  *  selected variant (or else the first) is what gets sent.
  */
 JsonValue;
+
+/**  A set-variable action that couldn't select a value from the response. */
+export type CaptureFailure = {
+	name: string,
+	expression: string,
+	reason: string,
+};
 
 /**  The outcome of one assertion. */
 export type Check = {
@@ -326,6 +338,8 @@ export type Response_Deserialize = {
 	/**  What cactus left out, e.g. scripts it can't run. */
 	warnings?: string[],
 	captured?: { [key in string]: string },
+	/**  Set-variable actions that found nothing to save. */
+	captureFailures?: CaptureFailure[],
 	checks?: Check[],
 };
 
@@ -344,6 +358,8 @@ export type Response_Serialize = {
 	/**  What cactus left out, e.g. scripts it can't run. */
 	warnings: string[],
 	captured: { [key in string]: string },
+	/**  Set-variable actions that found nothing to save. */
+	captureFailures: CaptureFailure[],
 	checks: Check[],
 };
 

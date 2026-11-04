@@ -22,7 +22,7 @@ function NothingSentYet() {
   return (
     <div className="grid h-full place-items-center p-6 text-center text-sm text-muted-foreground">
       <div>
-        <div className="mx-auto mb-3 size-10 rounded-full bg-brand opacity-30 blur-md" />
+        <div className="mx-auto mb-3 size-14 rounded-full bg-[radial-gradient(closest-side,var(--color-brand-2),transparent)] opacity-30" />
         Press <kbd className="rounded border px-1.5 py-0.5 text-xs">Ctrl</kbd>{" "}
         <kbd className="rounded border px-1.5 py-0.5 text-xs">Enter</kbd> to send
       </div>

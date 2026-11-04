@@ -26,6 +26,7 @@ pub fn builder() -> Builder<tauri::Wry> {
             env::set_active_env,
             env::load_env,
             env::save_env,
+            env::variable_names,
             import::import_file,
             request::send_request,
             request::run_folder,

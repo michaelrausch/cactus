@@ -17,12 +17,24 @@ const scenario = (runtime?: Scenario["runtime"]): Scenario => ({
   ...(runtime ? { runtime } : {}),
 });
 
+/** A condition as the assertions table shows it once stored. */
+const shown = (value: string) => assertionRows(withAssertionRows(scenario(), [makeRow("res.status", value)]))[0]?.value;
+
 describe("assertions", () => {
   it("parses conditions like Bruno writes them", () => {
     expect(parseCondition("eq 200")).toEqual({ operator: "eq", value: "200" });
     expect(parseCondition("in 200, 201")).toEqual({ operator: "in", value: "200, 201" });
     expect(parseCondition("isDefined")).toEqual({ operator: "isDefined" });
     expect(parseCondition("hello world")).toEqual({ operator: "eq", value: "hello world" });
+  });
+
+  // The table is told about this normalisation (KeyValueTable's `echo`) so it
+  // doesn't reset half-typed text: before, "eq " came back as "eq" and the next
+  // keystroke made "eq2", saved as `eq eq2`.
+  it("normalises half-typed conditions when stored", () => {
+    expect(shown("eq ")).toBe("eq");
+    expect(shown("200")).toBe("eq 200");
+    expect(shown("eq  2")).toBe("eq 2");
   });
 
   it("round-trips rows", () => {

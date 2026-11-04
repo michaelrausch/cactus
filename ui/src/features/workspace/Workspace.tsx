@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import { editScenario } from "@/actions/scenario";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { RequestEditor } from "@/features/editor/RequestEditor";
@@ -41,13 +42,27 @@ function EditorArea() {
   );
 }
 
+/**
+ * A soft glow drawn as a gradient. A `blur()` filter looks the same but is
+ * re-rendered on every repaint beneath it, which makes WebKitGTK crawl.
+ */
+const glow = (color: string): CSSProperties => ({
+  background: `radial-gradient(closest-side, ${color}, transparent)`,
+});
+
 /** Everything right of the sidebar. */
 export function Workspace() {
   return (
     <main className="relative flex h-full flex-col overflow-hidden">
       {/* The glow behind the title bar. */}
-      <div className="pointer-events-none absolute -top-28 left-10 h-48 w-[34rem] rounded-full bg-brand opacity-[0.09] blur-3xl" />
-      <div className="pointer-events-none absolute -top-20 right-24 h-32 w-64 rounded-full bg-pink-500 opacity-[0.05] blur-3xl" />
+      <div
+        className="pointer-events-none absolute -top-52 -left-14 h-96 w-[42rem] opacity-[0.2]"
+        style={glow("var(--color-brand-2)")}
+      />
+      <div
+        className="pointer-events-none absolute -top-44 right-8 h-80 w-[24rem] opacity-[0.1]"
+        style={glow("var(--color-pink-500)")}
+      />
       <Header />
       <div className="relative min-h-0 flex-1">
         <EditorArea />

@@ -6,7 +6,7 @@ use regex::Regex;
 use serde_json::Value;
 
 use super::expression::Subject;
-use super::response::{Check, Response};
+use super::response::{CaptureFailure, Check, Response};
 use crate::scenario::{Action, ActionPhase, Assertion, Scenario, SetVariable};
 use crate::text::plain_string;
 
@@ -17,7 +17,9 @@ const FIRST_ERROR_STATUS: u16 = 400;
 /// be longer than the truncated `response.body`.
 pub(crate) fn evaluate(scenario: &Scenario, response: &mut Response, raw_body: &[u8]) {
     let body = needs_body(scenario).then(|| serde_json::from_slice::<Value>(raw_body).ok()).flatten();
-    response.captured = captures(scenario, response, body.as_ref());
+    let (captured, failures) = captures(scenario, response, body.as_ref());
+    response.captured = captured;
+    response.capture_failures = failures;
     response.checks = active_assertions(scenario).map(|a| check(a, response, body.as_ref())).collect();
 }
 
@@ -55,13 +57,40 @@ fn needs_body(scenario: &Scenario) -> bool {
         || response_actions(scenario).any(|set| reads_body(&set.selector.expression))
 }
 
-fn captures(scenario: &Scenario, response: &Response, body: Option<&Value>) -> BTreeMap<String, String> {
-    response_actions(scenario)
-        .filter_map(|set| {
-            let value = Subject::parse(&set.selector.expression)?.select(response, body)?;
-            Some((set.variable.name.trim().to_string(), plain_string(&value)))
-        })
-        .collect()
+/// The values the response's set-variable actions select, and the actions
+/// that found nothing.
+fn captures(
+    scenario: &Scenario,
+    response: &Response,
+    body: Option<&Value>,
+) -> (BTreeMap<String, String>, Vec<CaptureFailure>) {
+    let mut captured = BTreeMap::new();
+    let mut failures = Vec::new();
+    for set in response_actions(scenario) {
+        let name = set.variable.name.trim().to_string();
+        let expression = set.selector.expression.trim().to_string();
+        match capture(&expression, response, body) {
+            Ok(value) => {
+                captured.insert(name, value);
+            }
+            Err(reason) => failures.push(CaptureFailure { name, expression, reason }),
+        }
+    }
+    (captured, failures)
+}
+
+fn capture(expression: &str, response: &Response, body: Option<&Value>) -> Result<String, String> {
+    if expression.is_empty() {
+        return Err("no expression".into());
+    }
+    let subject = Subject::parse(expression).ok_or_else(|| "unsupported expression".to_string())?;
+    if subject.reads_body() && body.is_none() {
+        return Err("response body isn't JSON".into());
+    }
+    match subject.select(response, body) {
+        Some(value) => Ok(plain_string(&value)),
+        None => Err(format!("nothing at {expression}")),
+    }
 }
 
 fn check(assertion: &Assertion, response: &Response, body: Option<&Value>) -> Check {
@@ -208,6 +237,7 @@ mod tests {
             unresolved: vec![],
             warnings: vec![],
             captured: BTreeMap::new(),
+            capture_failures: vec![],
             checks: vec![],
         }
     }
@@ -236,10 +266,30 @@ mod tests {
         let mut res = response(201);
         evaluate(&s, &mut res, raw);
         assert_eq!(res.captured, BTreeMap::from([("loc".into(), "/x".into()), ("token".into(), "T".into())]));
+        let failure = CaptureFailure {
+            name: "none".into(),
+            expression: "res.body.nope".into(),
+            reason: "nothing at res.body.nope".into(),
+        };
+        assert_eq!(res.capture_failures, [failure]);
         let oks: Vec<_> = res.checks.iter().map(|c| (c.name.as_str(), c.ok)).collect();
         assert_eq!(oks, [("res.status", true), ("res.body.ok", true), ("res.body.n", false), ("res.body.n", false)]);
         assert_eq!(res.checks[0].detail, "expected in 200, 201, got 201");
         assert_eq!(res.checks[3].detail, r#"unsupported operator "frobs""#);
+    }
+
+    #[test]
+    fn capture_from_non_json_body_fails() {
+        let mut s = Scenario::default();
+        s.runtime.actions = vec![
+            Action::SetVariable(SetVariable::new("token", "res.body.token")),
+            Action::SetVariable(SetVariable::new("etag", "res.headers.etag")),
+        ];
+        let mut res = response(200);
+        evaluate(&s, &mut res, b"<html>");
+        assert!(res.captured.is_empty());
+        let reasons: Vec<_> = res.capture_failures.iter().map(|f| (f.name.as_str(), f.reason.as_str())).collect();
+        assert_eq!(reasons, [("token", "response body isn't JSON"), ("etag", "nothing at res.headers.etag")]);
     }
 
     #[test]

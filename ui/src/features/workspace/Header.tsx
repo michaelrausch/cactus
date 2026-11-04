@@ -6,7 +6,6 @@ import { IconButton } from "@/components/IconButton";
 import { MethodBadge } from "@/components/MethodBadge";
 import { baseName, dirOf } from "@/domain/paths";
 import { displayTitle } from "@/domain/scenario";
-import { cn } from "@/lib/utils";
 import { useEditorStore } from "@/stores/editorStore";
 import { useProjectStore } from "@/stores/projectStore";
 import { useUiStore } from "@/stores/uiStore";
@@ -37,21 +36,6 @@ function Breadcrumb({ project }: { project: string }) {
   );
 }
 
-function EnvChip() {
-  const activeEnv = useProjectStore((s) => s.activeEnv);
-  return (
-    <button
-      type="button"
-      onClick={() => useUiStore.getState().setEnvDialogOpen(true)}
-      className="mr-1 flex h-6 items-center gap-1.5 rounded-full border px-2.5 text-xs text-muted-foreground hover:text-foreground"
-      title={withShortcut("Environment", "variables")}
-    >
-      <span className={cn("size-1.5 rounded-full", activeEnv ? "bg-brand" : "bg-muted-foreground/50")} />
-      {activeEnv ?? "no env"}
-    </button>
-  );
-}
-
 function ScenarioActions() {
   const path = useEditorStore((s) => s.path);
   if (!path) return null;
@@ -77,7 +61,6 @@ export function Header() {
         <>
           <Breadcrumb project={project} />
           <div className="ml-auto flex items-center gap-1">
-            <EnvChip />
             <ScenarioActions />
             <IconButton
               label={withShortcut("Toggle response", "toggleResponse")}

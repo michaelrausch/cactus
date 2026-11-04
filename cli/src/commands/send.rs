@@ -19,6 +19,9 @@ pub async fn send(
     for warning in &response.warnings {
         eprintln!("warning: {warning}");
     }
+    for failure in &response.capture_failures {
+        eprintln!("warning: capture {} failed: {}", failure.name, failure.reason);
+    }
     println!("{}", response.body);
     Ok(Outcome::from_passed(scenario_passed(&scenario, &response)))
 }

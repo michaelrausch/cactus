@@ -1,5 +1,5 @@
 import { toast } from "sonner";
-import { backend, backendEvents, type RunResult, type ScenarioPath } from "@/api/client";
+import { backend, backendEvents, type HttpResponse, type RunResult, type ScenarioPath } from "@/api/client";
 import { isWithinDir } from "@/domain/paths";
 import { errorMessage, reportErrors } from "@/lib/errors";
 import { useEditorStore } from "@/stores/editorStore";
@@ -8,6 +8,21 @@ import { useResponseStore } from "@/stores/responseStore";
 import { useRunStore } from "@/stores/runStore";
 import { flushPendingSave } from "./autosave";
 import { selectScenario } from "./scenario";
+import { refreshVariableNames } from "./variables";
+
+/** As kept by the backend (`core/src/history.rs`). */
+const MAX_HISTORY_ENTRIES = 10;
+
+/** A capture that found nothing leaves the variable stale, which is easy to miss. */
+function alertCaptureFailures(response: HttpResponse): void {
+  const failures = response.captureFailures;
+  if (failures.length === 0) return;
+  const names = failures.map((failure) => failure.name).join(", ");
+  toast.warning(`Couldn't capture ${names}`, {
+    description: failures.map((failure) => `${failure.name}: ${failure.reason}`).join("\n"),
+    classNames: { description: "whitespace-pre-line font-mono" },
+  });
+}
 
 /** Send the open scenario as currently edited, even if not saved yet. */
 export async function sendCurrentScenario(): Promise<void> {
@@ -21,7 +36,13 @@ export async function sendCurrentScenario(): Promise<void> {
     const response = await backend.sendRequest(project, path, scenario);
     if (!response) return; // Cancelled.
     responses.sendSucceeded(path, response);
-    responses.setHistory(await backend.loadHistory(project, path));
+    alertCaptureFailures(response);
+    if (Object.keys(response.captured).length > 0) void refreshVariableNames();
+    // The backend has just recorded it; prepending saves re-reading the whole file.
+    if (useEditorStore.getState().path === path) {
+      const { history, setHistory } = useResponseStore.getState();
+      setHistory([{ at: Date.now(), response }, ...history].slice(0, MAX_HISTORY_ENTRIES));
+    }
   } catch (error) {
     responses.sendFailed(errorMessage(error));
   } finally {
@@ -57,6 +78,7 @@ export async function runFolder(dir: string): Promise<void> {
   } finally {
     unlisten();
     useRunStore.getState().finished();
+    void refreshVariableNames();
     await reportErrors(() => reloadOpenHistory(project));
   }
 }
