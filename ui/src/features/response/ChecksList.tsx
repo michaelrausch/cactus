@@ -3,9 +3,9 @@ import type { Check } from "@/api/client";
 
 export function CheckIcon({ ok, className }: { ok: boolean; className: string }) {
   return ok ? (
-    <CircleCheck className={`${className} text-emerald-400`} />
+    <CircleCheck className={`${className} text-success`} />
   ) : (
-    <CircleX className={`${className} text-rose-400`} />
+    <CircleX className={`${className} text-danger`} />
   );
 }
 

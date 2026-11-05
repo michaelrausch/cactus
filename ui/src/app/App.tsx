@@ -5,6 +5,7 @@ import { PromptDialog } from "@/features/dialogs/PromptDialog";
 import { EnvDialog } from "@/features/env/EnvDialog";
 import { ScenarioSwitcher } from "@/features/palette/ScenarioSwitcher";
 import { RunDialog } from "@/features/run/RunDialog";
+import { SettingsDialog } from "@/features/settings/SettingsDialog";
 import { Sidebar } from "@/features/sidebar/Sidebar";
 import { Workspace } from "@/features/workspace/Workspace";
 import { useAppLifecycle } from "@/hooks/useAppLifecycle";
@@ -15,7 +16,7 @@ export default function App() {
   useKeyboardShortcuts();
 
   return (
-    <div className="dark h-screen overflow-hidden bg-background text-foreground">
+    <div className="relative h-screen overflow-hidden bg-background bg-(image:--app-backdrop) text-foreground">
       <ResizablePanelGroup orientation="horizontal">
         <ResizablePanel defaultSize="264px" minSize="200px" maxSize="420px">
           <Sidebar />
@@ -29,9 +30,12 @@ export default function App() {
       <PromptDialog />
       <ConfirmDialog />
       <EnvDialog />
+      <SettingsDialog />
       <RunDialog />
       <ScenarioSwitcher />
       <Toaster position="bottom-right" />
+      {/* Theme effects drawn over everything, e.g. scanlines. */}
+      <div aria-hidden className="pointer-events-none absolute inset-0 z-40 bg-(image:--app-overlay)" />
     </div>
   );
 }

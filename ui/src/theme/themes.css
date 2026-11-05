@@ -1,0 +1,553 @@
+/*
+ * Themes. `[data-theme]` holds the default (cactus) and defines every token;
+ * each named theme overrides some of them. The selectors match any element,
+ * so a theme preview card with `data-theme="…"` renders in that theme's
+ * real colours. Apart from the Extras section at the end, themes set tokens
+ * only. Every theme here must be listed in `themes.ts`, and may only set
+ * tokens the base block defines (`themes.test.ts` checks both).
+ */
+
+/* cactus: near-black, quiet surfaces, one green gradient (and a pink flower) for personality. */
+[data-theme] {
+  color-scheme: dark;
+
+  --background: oklch(0.13 0.003 286);
+  --foreground: oklch(0.94 0 0);
+  --card: oklch(0.165 0.004 286);
+  --card-foreground: oklch(0.93 0 0);
+  --popover: oklch(0.18 0.004 286);
+  --popover-foreground: oklch(0.93 0 0);
+  --primary: oklch(0.93 0 0);
+  --primary-foreground: oklch(0.15 0 0);
+  --secondary: oklch(0.22 0.004 286);
+  --secondary-foreground: oklch(0.93 0 0);
+  --muted: oklch(0.21 0.004 286);
+  --muted-foreground: oklch(0.7 0.01 286);
+  --accent: oklch(0.23 0.005 286);
+  --accent-foreground: oklch(0.95 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 9%);
+  --input: oklch(1 0 0 / 10%);
+  --ring: oklch(0.8 0.17 155 / 60%);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --sidebar: oklch(0.115 0.003 286);
+  --sidebar-foreground: oklch(0.9 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.19 0.005 286);
+  --sidebar-accent-foreground: oklch(0.95 0 0);
+  --sidebar-border: oklch(1 0 0 / 7%);
+  --sidebar-ring: oklch(0.556 0 0);
+
+  --radius: 0.625rem;
+  --app-font: "Geist Variable", sans-serif;
+
+  /* The logo gradient (and `bg-brand`); brand-2 is the solid accent, e.g. the send button. */
+  --brand-1: #a3e635;
+  --brand-2: #22e06b;
+  --brand-3: #06b6d4;
+  --brand-foreground: oklch(0 0 0);
+  --flower: #f472b6;
+
+  /* The two soft glows behind the title bar. */
+  --glow-1: var(--brand-2);
+  --glow-2: #ec4899;
+  --glow-intensity: 1;
+
+  /* Image layers behind the app, and over it (pointer-events: none). */
+  --app-backdrop: none;
+  --app-overlay: none;
+
+  /* Keep these four clearly apart in every theme: a failure must never read as a pass. */
+  --success: oklch(0.765 0.177 163.2);
+  --warning: oklch(0.828 0.189 84.4);
+  --danger: oklch(0.712 0.194 13.4);
+  --info: oklch(0.746 0.16 232.7);
+
+  --method-get: var(--success);
+  --method-post: var(--warning);
+  --method-put: var(--info);
+  --method-patch: oklch(0.702 0.183 293.5);
+  --method-delete: var(--danger);
+
+  --syntax-key: oklch(0.828 0.111 230.3);
+  --syntax-string: oklch(0.845 0.143 165);
+  --syntax-number: oklch(0.879 0.169 91.6);
+  --syntax-literal: oklch(0.811 0.111 293.6);
+}
+
+/* ---------- Variations: same layout and contrast, a different hue. ---------- */
+
+/* agave: cool blue-teal. */
+[data-theme="agave"] {
+  --background: oklch(0.14 0.014 235);
+  --card: oklch(0.175 0.017 235);
+  --popover: oklch(0.19 0.018 235);
+  --secondary: oklch(0.23 0.02 235);
+  --muted: oklch(0.22 0.018 235);
+  --muted-foreground: oklch(0.71 0.025 230);
+  --accent: oklch(0.24 0.022 235);
+  --ring: oklch(0.78 0.13 200 / 60%);
+  --sidebar: oklch(0.125 0.013 235);
+  --sidebar-accent: oklch(0.2 0.02 235);
+
+  --brand-1: #2dd4bf;
+  --brand-2: #22d3ee;
+  --brand-3: #3b82f6;
+  --flower: #fbbf24;
+  --glow-2: #6366f1;
+}
+
+/* prickly pear: plum surfaces, an orange-to-magenta gradient, a yellow flower. */
+[data-theme="prickly-pear"] {
+  --background: oklch(0.14 0.018 330);
+  --card: oklch(0.175 0.022 330);
+  --popover: oklch(0.19 0.024 330);
+  --secondary: oklch(0.23 0.026 330);
+  --muted: oklch(0.22 0.024 330);
+  --muted-foreground: oklch(0.72 0.03 335);
+  --accent: oklch(0.245 0.03 330);
+  --ring: oklch(0.75 0.18 350 / 60%);
+  --sidebar: oklch(0.125 0.016 330);
+  --sidebar-accent: oklch(0.2 0.026 330);
+
+  --brand-1: #fdba74;
+  --brand-2: #f472b6;
+  --brand-3: #c026d3;
+  --flower: #facc15;
+  --glow-2: #f97316;
+
+  /* Pull danger toward red, away from the pink brand. */
+  --danger: oklch(0.7 0.2 28);
+}
+
+/* sage: low-saturation grey-green; calm, no neon. */
+[data-theme="sage"] {
+  --background: oklch(0.15 0.008 150);
+  --foreground: oklch(0.92 0.008 140);
+  --card: oklch(0.185 0.01 150);
+  --popover: oklch(0.2 0.01 150);
+  --secondary: oklch(0.235 0.012 150);
+  --muted: oklch(0.225 0.011 150);
+  --muted-foreground: oklch(0.7 0.018 145);
+  --accent: oklch(0.25 0.013 150);
+  --ring: oklch(0.72 0.06 155 / 60%);
+  --sidebar: oklch(0.135 0.008 150);
+  --sidebar-accent: oklch(0.205 0.012 150);
+
+  --brand-1: #c5d1a8;
+  --brand-2: #8fb996;
+  --brand-3: #5f8f84;
+  --flower: #e8a5a0;
+  --glow-2: #8fb996;
+  --glow-intensity: 0.6;
+
+  --success: oklch(0.77 0.12 158);
+  --warning: oklch(0.83 0.12 85);
+  --danger: oklch(0.72 0.14 20);
+  --info: oklch(0.76 0.09 225);
+  --method-patch: oklch(0.74 0.1 295);
+  --syntax-key: oklch(0.82 0.07 220);
+  --syntax-string: oklch(0.84 0.1 150);
+  --syntax-number: oklch(0.86 0.11 85);
+  --syntax-literal: oklch(0.8 0.08 300);
+}
+
+/* desert day: the light one. Warm sand surfaces, darker status colours for contrast. */
+[data-theme="desert-day"] {
+  color-scheme: light;
+
+  --background: oklch(0.975 0.012 80);
+  --foreground: oklch(0.25 0.02 60);
+  --card: oklch(0.99 0.008 80);
+  --card-foreground: oklch(0.25 0.02 60);
+  --popover: oklch(0.995 0.006 80);
+  --popover-foreground: oklch(0.25 0.02 60);
+  --primary: oklch(0.3 0.03 60);
+  --primary-foreground: oklch(0.98 0.01 80);
+  --secondary: oklch(0.93 0.02 75);
+  --secondary-foreground: oklch(0.25 0.02 60);
+  --muted: oklch(0.94 0.018 75);
+  --muted-foreground: oklch(0.5 0.03 60);
+  --accent: oklch(0.915 0.025 75);
+  --accent-foreground: oklch(0.25 0.02 60);
+  --destructive: oklch(0.577 0.245 27.3);
+  --border: oklch(0.3 0.04 60 / 14%);
+  --input: oklch(0.3 0.04 60 / 18%);
+  --ring: oklch(0.6 0.15 150 / 60%);
+  --sidebar: oklch(0.95 0.02 78);
+  --sidebar-foreground: oklch(0.25 0.02 60);
+  --sidebar-primary: oklch(0.45 0.13 150);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.9 0.028 75);
+  --sidebar-accent-foreground: oklch(0.25 0.02 60);
+  --sidebar-border: oklch(0.3 0.04 60 / 10%);
+  --sidebar-ring: oklch(0.6 0.1 150);
+
+  --brand-1: #65a30d;
+  --brand-2: #16a34a;
+  --brand-3: #0891b2;
+  --brand-foreground: oklch(1 0 0);
+  --flower: #db2777;
+  --glow-2: #f472b6;
+  --glow-intensity: 0.8;
+
+  --success: oklch(0.52 0.12 160);
+  --warning: oklch(0.56 0.15 55);
+  --danger: oklch(0.56 0.21 20);
+  --info: oklch(0.5 0.13 243);
+  --method-patch: oklch(0.52 0.22 293);
+  --syntax-key: oklch(0.48 0.13 243);
+  --syntax-string: oklch(0.5 0.12 160);
+  --syntax-number: oklch(0.55 0.15 55);
+  --syntax-literal: oklch(0.5 0.2 300);
+}
+
+/* ---------- Fun. Still only tokens: no theme-specific code in components. ---------- */
+
+/* synthwave: deep indigo, hot pink to cyan, and a neon grid on the horizon. */
+[data-theme="synthwave"] {
+  --background: oklch(0.15 0.05 290);
+  --foreground: oklch(0.95 0.02 320);
+  --card: oklch(0.185 0.06 292);
+  --card-foreground: oklch(0.95 0.02 320);
+  --popover: oklch(0.205 0.065 292);
+  --popover-foreground: oklch(0.95 0.02 320);
+  --secondary: oklch(0.25 0.07 295);
+  --muted: oklch(0.23 0.06 292);
+  --muted-foreground: oklch(0.73 0.06 305);
+  --accent: oklch(0.27 0.08 300);
+  --border: oklch(0.75 0.2 330 / 16%);
+  --input: oklch(0.75 0.2 330 / 20%);
+  --ring: oklch(0.72 0.25 340 / 70%);
+  --sidebar: oklch(0.12 0.045 288);
+  --sidebar-accent: oklch(0.2 0.06 292);
+  --sidebar-border: oklch(0.75 0.2 330 / 12%);
+
+  --brand-1: #ff2a6d;
+  --brand-2: #ff5ecf;
+  --brand-3: #05d9e8;
+  --brand-foreground: oklch(0.16 0.06 290);
+  --flower: #ffe066;
+  --glow-1: #ff2a6d;
+  --glow-2: #05d9e8;
+  --glow-intensity: 1.8;
+
+  --app-backdrop:
+    linear-gradient(to bottom, var(--background) 45%, transparent 100%),
+    radial-gradient(ellipse 70% 30% at 50% 100%, oklch(0.65 0.27 345 / 22%), transparent 70%),
+    repeating-linear-gradient(90deg, oklch(0.72 0.25 340 / 9%) 0 1px, transparent 1px 56px),
+    repeating-linear-gradient(0deg, oklch(0.72 0.25 340 / 9%) 0 1px, transparent 1px 56px);
+
+  --success: oklch(0.82 0.18 165);
+  --warning: oklch(0.86 0.16 88);
+  --danger: oklch(0.68 0.22 22);
+  --info: oklch(0.8 0.13 215);
+  --method-patch: oklch(0.76 0.19 305);
+  --syntax-key: oklch(0.84 0.13 205);
+  --syntax-string: oklch(0.82 0.16 345);
+  --syntax-number: oklch(0.89 0.15 95);
+  --syntax-literal: oklch(0.78 0.16 300);
+}
+
+/* phosphor: a green CRT. Monospace everything, square corners, faint scanlines. */
+[data-theme="phosphor"] {
+  --background: oklch(0.13 0.02 150);
+  --foreground: oklch(0.88 0.17 145);
+  --card: oklch(0.16 0.025 150);
+  --card-foreground: oklch(0.88 0.17 145);
+  --popover: oklch(0.18 0.03 150);
+  --popover-foreground: oklch(0.88 0.17 145);
+  --primary: oklch(0.85 0.2 145);
+  --primary-foreground: oklch(0.15 0.03 150);
+  --secondary: oklch(0.21 0.04 150);
+  --secondary-foreground: oklch(0.88 0.17 145);
+  --muted: oklch(0.2 0.035 150);
+  --muted-foreground: oklch(0.66 0.12 148);
+  --accent: oklch(0.24 0.05 150);
+  --accent-foreground: oklch(0.93 0.18 145);
+  --border: oklch(0.8 0.2 145 / 16%);
+  --input: oklch(0.8 0.2 145 / 20%);
+  --ring: oklch(0.85 0.2 145 / 60%);
+  --sidebar: oklch(0.11 0.018 150);
+  --sidebar-foreground: oklch(0.86 0.16 145);
+  --sidebar-accent: oklch(0.19 0.04 150);
+  --sidebar-accent-foreground: oklch(0.93 0.18 145);
+  --sidebar-border: oklch(0.8 0.2 145 / 12%);
+
+  --radius: 0.125rem;
+  --app-font: ui-monospace, "JetBrains Mono", "Cascadia Code", "DejaVu Sans Mono", monospace;
+
+  --brand-1: oklch(0.93 0.19 130);
+  --brand-2: oklch(0.83 0.22 145);
+  --brand-3: oklch(0.66 0.17 155);
+  --brand-foreground: oklch(0.14 0.03 150);
+  --flower: oklch(0.85 0.17 80);
+  --glow-2: oklch(0.85 0.2 145);
+  --glow-intensity: 1.3;
+
+  --app-overlay:
+    repeating-linear-gradient(to bottom, oklch(0 0 0 / 16%) 0 1px, transparent 1px 3px),
+    radial-gradient(ellipse at center, transparent 60%, oklch(0 0 0 / 35%) 100%);
+
+  /* Not everything can be green: danger is amber-red so failures still stand out. */
+  --success: oklch(0.86 0.21 145);
+  --warning: oklch(0.88 0.17 98);
+  --danger: oklch(0.72 0.19 40);
+  --info: oklch(0.82 0.12 190);
+  --method-patch: oklch(0.82 0.13 125);
+  --syntax-key: oklch(0.93 0.11 145);
+  --syntax-string: oklch(0.8 0.2 145);
+  --syntax-number: oklch(0.88 0.15 110);
+  --syntax-literal: oklch(0.82 0.12 175);
+}
+
+/* sunset mesa: dusk purple fading to orange, with a low sun behind everything. */
+[data-theme="sunset-mesa"] {
+  --background: oklch(0.16 0.04 320);
+  --foreground: oklch(0.95 0.015 60);
+  --card: oklch(0.195 0.045 318);
+  --card-foreground: oklch(0.95 0.015 60);
+  --popover: oklch(0.21 0.05 318);
+  --popover-foreground: oklch(0.95 0.015 60);
+  --secondary: oklch(0.25 0.05 320);
+  --muted: oklch(0.235 0.045 320);
+  --muted-foreground: oklch(0.73 0.04 330);
+  --accent: oklch(0.27 0.055 325);
+  --border: oklch(0.85 0.1 50 / 11%);
+  --input: oklch(0.85 0.1 50 / 14%);
+  --ring: oklch(0.78 0.16 55 / 60%);
+  --sidebar: oklch(0.135 0.035 315);
+  --sidebar-accent: oklch(0.215 0.05 318);
+  --sidebar-border: oklch(0.85 0.1 50 / 8%);
+
+  --brand-1: #fde047;
+  --brand-2: #fb923c;
+  --brand-3: #c026d3;
+  --brand-foreground: oklch(0.18 0.04 320);
+  --flower: #fef3c7;
+  --glow-1: #f97316;
+  --glow-2: #8b5cf6;
+  --glow-intensity: 1.5;
+
+  --app-backdrop: radial-gradient(ellipse 80% 45% at 70% 115%, oklch(0.68 0.19 45 / 20%), transparent 70%);
+
+  --success: oklch(0.8 0.15 158);
+  --warning: oklch(0.87 0.16 90);
+  --danger: oklch(0.7 0.2 15);
+  --info: oklch(0.78 0.12 230);
+  --method-patch: oklch(0.76 0.15 300);
+  --syntax-key: oklch(0.8 0.12 300);
+  --syntax-string: oklch(0.84 0.13 150);
+  --syntax-number: oklch(0.86 0.15 70);
+  --syntax-literal: oklch(0.8 0.12 200);
+}
+
+/* bloom: near-black and pastel, with the flower turned all the way up. */
+[data-theme="bloom"] {
+  --background: oklch(0.12 0.006 300);
+  --card: oklch(0.16 0.008 300);
+  --popover: oklch(0.18 0.01 300);
+  --secondary: oklch(0.22 0.012 300);
+  --muted: oklch(0.21 0.01 300);
+  --muted-foreground: oklch(0.72 0.02 300);
+  --accent: oklch(0.235 0.015 300);
+  --ring: oklch(0.8 0.1 300 / 60%);
+  --sidebar: oklch(0.105 0.006 300);
+  --sidebar-accent: oklch(0.19 0.012 300);
+
+  --brand-1: #f9a8d4;
+  --brand-2: #c4b5fd;
+  --brand-3: #86efac;
+  --brand-foreground: oklch(0.18 0.03 300);
+  --flower: #f9a8d4;
+  --glow-1: #c4b5fd;
+  --glow-2: #f9a8d4;
+  --glow-intensity: 1.6;
+
+  --app-backdrop:
+    radial-gradient(60% 40% at 15% 100%, oklch(0.8 0.1 330 / 8%), transparent),
+    radial-gradient(50% 40% at 85% 100%, oklch(0.85 0.1 160 / 7%), transparent);
+
+  --success: oklch(0.85 0.13 160);
+  --warning: oklch(0.87 0.13 85);
+  --danger: oklch(0.74 0.16 15);
+  --info: oklch(0.83 0.1 235);
+  --method-patch: oklch(0.82 0.11 300);
+  --syntax-key: oklch(0.85 0.08 250);
+  --syntax-string: oklch(0.88 0.1 160);
+  --syntax-number: oklch(0.88 0.1 75);
+  --syntax-literal: oklch(0.85 0.1 330);
+}
+
+/* aqua: pinstripes, Lucida Grande, and lickable blue gel. Gloss and scrollbars are in Extras. */
+[data-theme="aqua"] {
+  color-scheme: light;
+
+  --background: #ececec;
+  --foreground: #1a1a1a;
+  --card: #ffffff;
+  --card-foreground: #1a1a1a;
+  --popover: #f7f7f7;
+  --popover-foreground: #1a1a1a;
+  --primary: #1d6fdc;
+  --primary-foreground: #ffffff;
+  --secondary: #e4e4e4;
+  --secondary-foreground: #1a1a1a;
+  --muted: #e6e6e6;
+  --muted-foreground: #5c5c5c;
+  --accent: #dbe6f5;
+  --accent-foreground: #1a1a1a;
+  --destructive: #d9352b;
+  --border: oklch(0 0 0 / 18%);
+  --input: oklch(0 0 0 / 22%);
+  --ring: oklch(0.62 0.17 255 / 70%);
+  --sidebar: #e3e9f1;
+  --sidebar-foreground: #1a1a1a;
+  --sidebar-primary: #1d6fdc;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #cbd8ea;
+  --sidebar-accent-foreground: #1a1a1a;
+  --sidebar-border: oklch(0 0 0 / 14%);
+  --sidebar-ring: #1d6fdc;
+
+  --radius: 0.75rem;
+  --app-font: "Lucida Grande", "Lucida Sans Unicode", "Helvetica Neue", Helvetica, Arial, sans-serif;
+
+  --brand-1: #8cc8ff;
+  --brand-2: #2f7fe0;
+  --brand-3: #0b4fb5;
+  --brand-foreground: #ffffff;
+  /* The close button. */
+  --flower: #f25b54;
+  --glow-1: #6cb4ff;
+  --glow-2: #9ad0ff;
+  --glow-intensity: 0.5;
+
+  --app-backdrop: repeating-linear-gradient(to bottom, oklch(1 0 0 / 60%) 0 2px, transparent 2px 4px);
+
+  --success: #1e9e3e;
+  --warning: #b86e00;
+  --danger: #d9352b;
+  --info: #1d6fdc;
+  --method-patch: #8a3fc8;
+  --syntax-key: #2a5bc9;
+  --syntax-string: #1e7f34;
+  --syntax-number: #a0520b;
+  --syntax-literal: #aa0d91;
+}
+
+/* windows 95: silver chrome, navy, white fields, square corners. Bevels are below. */
+[data-theme="win95"] {
+  color-scheme: light;
+
+  --background: #c0c0c0;
+  --foreground: #000000;
+  --card: #ffffff;
+  --card-foreground: #000000;
+  --popover: #c0c0c0;
+  --popover-foreground: #000000;
+  --primary: #000080;
+  --primary-foreground: #ffffff;
+  --secondary: #c0c0c0;
+  --secondary-foreground: #000000;
+  --muted: #d4d4d4;
+  --muted-foreground: #474747;
+  --accent: #a9a9a9;
+  --accent-foreground: #000000;
+  --destructive: #c00000;
+  --border: #808080;
+  --input: #808080;
+  --ring: oklch(0 0 0 / 70%);
+  --sidebar: #ffffff;
+  --sidebar-foreground: #000000;
+  --sidebar-primary: #000080;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #dcdcdc;
+  --sidebar-accent-foreground: #000000;
+  --sidebar-border: #808080;
+  --sidebar-ring: #000000;
+
+  --radius: 0rem;
+  --app-font: "Microsoft Sans Serif", "MS Sans Serif", Tahoma, "Segoe UI", Geneva, Verdana, sans-serif;
+
+  --brand-1: #008080;
+  --brand-2: #000080;
+  --brand-3: #1084d0;
+  --brand-foreground: #ffffff;
+  --flower: #ff0000;
+  --glow-intensity: 0;
+
+  /* The 16-colour palette, darkened where it needs to read on white. */
+  --success: #008000;
+  --warning: #806000;
+  --danger: #c00000;
+  --info: #000080;
+  --method-patch: #800080;
+  --syntax-key: #000080;
+  --syntax-string: #008000;
+  --syntax-number: #a04000;
+  --syntax-literal: #800080;
+}
+
+/*
+ * ---------- Extras ----------
+ * The one place a theme reaches past tokens: bevels need box-shadows on the
+ * shared shadcn components (matched by their `data-slot`), nothing app-specific.
+ * Keep this section small.
+ */
+[data-theme="win95"] [data-slot="button"]:not([data-variant="ghost"], [data-variant="link"]),
+[data-theme="win95"] [data-slot="dialog-content"],
+[data-theme="win95"] [data-slot="dropdown-menu-content"],
+[data-theme="win95"] [data-slot="select-content"] {
+  box-shadow:
+    inset -1px -1px #0a0a0a,
+    inset 1px 1px #ffffff,
+    inset -2px -2px #808080,
+    inset 2px 2px #dfdfdf;
+}
+[data-theme="win95"] [data-slot="button"]:not([data-variant="ghost"], [data-variant="link"]):active,
+[data-theme="win95"] [data-slot="input"],
+[data-theme="win95"] [data-slot="textarea"],
+[data-theme="win95"] [data-slot="select-trigger"] {
+  box-shadow:
+    inset -1px -1px #ffffff,
+    inset 1px 1px #0a0a0a,
+    inset -2px -2px #dfdfdf,
+    inset 2px 2px #808080;
+}
+[data-theme="win95"] ::selection {
+  background: #000080;
+  color: #ffffff;
+}
+
+/* aqua: gel buttons, a blue gel scrollbar thumb, and the Mac highlight. */
+[data-theme="aqua"] [data-slot="button"][data-variant="default"] {
+  background-image: linear-gradient(
+    to bottom,
+    oklch(1 0 0 / 55%) 0%,
+    oklch(1 0 0 / 15%) 50%,
+    transparent 51%,
+    oklch(1 0 0 / 25%) 100%
+  );
+  box-shadow:
+    inset 0 1px 2px oklch(0 0 0 / 25%),
+    0 1px 2px oklch(0 0 0 / 20%);
+}
+[data-theme="aqua"] [data-slot="button"]:is([data-variant="outline"], [data-variant="secondary"]) {
+  background-image: linear-gradient(to bottom, #ffffff 0%, #f1f1f1 50%, #e2e2e2 51%, #f4f4f4 100%);
+  box-shadow:
+    inset 0 0 0 1px oklch(0 0 0 / 22%),
+    0 1px 1px oklch(0 0 0 / 10%);
+}
+[data-theme="aqua"] ::-webkit-scrollbar-thumb {
+  background-image: linear-gradient(to right, #7db9f5, #2f7fe0 45%, #5ea3ee);
+  border-width: 2px;
+}
+[data-theme="aqua"] ::selection {
+  background: #b5d5ff;
+}

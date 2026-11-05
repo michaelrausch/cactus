@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 function LayerIcon({ file }: { file: EnvFile }) {
   switch (file.kind) {
     case "secrets":
-      return <Lock className="size-3.5 text-amber-300" />;
+      return <Lock className="size-3.5 text-warning" />;
     case "captured":
       return <Sparkles className="size-3.5 text-teal-300" />;
     case "base":

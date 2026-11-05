@@ -13,15 +13,15 @@ function RunProgress({ run }: { run: FolderRun }) {
   return (
     <>
       <DialogDescription className="flex items-center gap-3">
-        <span className="text-emerald-400">{passed} passed</span>
-        {failed > 0 && <span className="text-rose-400">{failed} failed</span>}
+        <span className="text-success">{passed} passed</span>
+        {failed > 0 && <span className="text-danger">{failed} failed</span>}
         <span>
           {run.results.length}/{run.total}
         </span>
       </DialogDescription>
       <div className="h-1 overflow-hidden rounded-full bg-muted">
         <div
-          className={cn("h-full transition-all", failed ? "bg-rose-400" : "bg-brand")}
+          className={cn("h-full transition-all", failed ? "bg-danger" : "bg-brand")}
           style={{ width: `${percent}%` }}
         />
       </div>

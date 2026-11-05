@@ -5,7 +5,8 @@ import { reportErrors } from "@/lib/errors";
 import { useEditorStore } from "@/stores/editorStore";
 import { useProjectStore } from "@/stores/projectStore";
 import { useResponseStore } from "@/stores/responseStore";
-import { flushPendingSave } from "./autosave";
+import { useUiStore } from "@/stores/uiStore";
+import { saveAll, hasUnsavedChanges } from "./saving";
 
 const IMPORT_FILTERS = [{ name: "Postman / OpenAPI", extensions: ["json", "yaml", "yml"] }];
 
@@ -20,11 +21,24 @@ async function pickFolder(): Promise<string | null> {
 export async function openProject(path?: string): Promise<void> {
   const folder = path ?? (await pickFolder());
   if (!folder) return;
-  await flushPendingSave();
+  if (!hasUnsavedChanges()) return loadProject(folder);
+  useUiStore.getState().askConfirm({
+    title: "Unsaved changes",
+    description: "Some scenarios have unsaved edits, which opening another folder would lose.",
+    action: "Save all and open",
+    destructive: false,
+    onConfirm: async () => {
+      if (await saveAll()) await loadProject(folder);
+    },
+    alternative: { action: "Discard changes", onConfirm: () => loadProject(folder) },
+  });
+}
+
+async function loadProject(folder: string): Promise<void> {
   await reportErrors(async () => {
     const entries = await backend.openProject(folder);
     useProjectStore.getState().opened(folder, entries);
-    useEditorStore.getState().closed();
+    useEditorStore.getState().reset();
     useResponseStore.getState().reset();
     await refreshEnvs();
     useProjectStore.getState().setRecentProjects(await backend.recentProjects());

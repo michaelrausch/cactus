@@ -79,13 +79,8 @@ describe("format and colors", () => {
   });
 
   it("colors by method and status class", () => {
-    expect(methodColor("get")).toBe("text-emerald-400");
+    expect(methodColor("get")).toBe("text-method-get");
     expect(methodColor("TRACE")).toBe("text-muted-foreground");
-    expect([200, 302, 404, 503].map(statusColor)).toEqual([
-      "text-emerald-400",
-      "text-sky-400",
-      "text-amber-400",
-      "text-rose-400",
-    ]);
+    expect([200, 302, 404, 503].map(statusColor)).toEqual(["text-success", "text-info", "text-warning", "text-danger"]);
   });
 });

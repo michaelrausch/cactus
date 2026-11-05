@@ -11,7 +11,7 @@ interface BodySearchProps {
 
 export function BodySearch({ query, onQueryChange, current, matchCount, onStep }: BodySearchProps) {
   return (
-    <div className="flex h-7 flex-1 items-center gap-1.5 rounded-md border bg-background/40 px-2 focus-within:border-emerald-400/40">
+    <div className="flex h-7 flex-1 items-center gap-1.5 rounded-md border bg-background/40 px-2 focus-within:border-brand-2/40">
       <Search className="size-3.5 text-muted-foreground" />
       <input
         value={query}

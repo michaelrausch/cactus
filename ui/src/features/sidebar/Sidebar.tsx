@@ -7,6 +7,7 @@ import { withShortcut } from "@/app/shortcuts";
 import { IconButton } from "@/components/IconButton";
 import { Logo } from "@/components/Logo";
 import { useProjectStore } from "@/stores/projectStore";
+import { useUiStore } from "@/stores/uiStore";
 import { EnvPicker } from "./EnvPicker";
 import { ProjectSwitcher } from "./ProjectSwitcher";
 import { ScenarioList } from "./ScenarioList";
@@ -37,6 +38,23 @@ function ScenarioToolbar({ filter, onFilterChange }: { filter: string; onFilterC
   );
 }
 
+/** The cactus: opens Settings. */
+function SettingsButton() {
+  const openSettings = useUiStore((s) => s.setSettingsOpen);
+  const label = withShortcut("Settings", "settings");
+  return (
+    <button
+      type="button"
+      title={label}
+      aria-label={label}
+      onClick={() => openSettings(true)}
+      className="group -ml-1 grid size-7 shrink-0 place-items-center rounded-md transition hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+    >
+      <Logo className="transition-transform duration-300 group-hover:scale-110 group-hover:-rotate-6 group-active:scale-95" />
+    </button>
+  );
+}
+
 export function Sidebar() {
   const hasProject = useProjectStore((s) => s.project !== null);
   const [filter, setFilter] = useState("");
@@ -44,7 +62,7 @@ export function Sidebar() {
   return (
     <div className="flex h-full flex-col bg-sidebar">
       <div className="flex h-12 items-center gap-1 pr-2 pl-3">
-        <Logo />
+        <SettingsButton />
         <div className="min-w-0 flex-1">
           <ProjectSwitcher />
         </div>

@@ -122,7 +122,7 @@ export function KeyValueTable({
               <label className="grid w-8 shrink-0 place-items-center self-stretch">
                 <input
                   type="checkbox"
-                  className="size-3.5 accent-emerald-400"
+                  className="size-3.5 accent-brand-2"
                   checked={row.enabled}
                   disabled={isBlank}
                   onChange={(e) => updateRow(row.id, { enabled: e.target.checked })}

@@ -1,12 +1,17 @@
 import { useEffect } from "react";
 import { openProject } from "@/actions/project";
 import { sendCurrentScenario } from "@/actions/request";
+import { saveScenario } from "@/actions/saving";
 import { createScenarioIn, duplicateScenario } from "@/actions/scenario";
 import { shortcutForKey, type ShortcutId } from "@/app/shortcuts";
 import { useEditorStore } from "@/stores/editorStore";
 import { useUiStore } from "@/stores/uiStore";
 
 const SHORTCUT_ACTIONS: Record<ShortcutId, () => void> = {
+  save: () => {
+    const { path } = useEditorStore.getState();
+    if (path) void saveScenario(path);
+  },
   send: () => void sendCurrentScenario(),
   newScenario: () => createScenarioIn(""),
   openProject: () => void openProject(),
@@ -17,6 +22,7 @@ const SHORTCUT_ACTIONS: Record<ShortcutId, () => void> = {
   },
   variables: () => useUiStore.getState().setEnvDialogOpen(true),
   toggleResponse: () => useUiStore.getState().toggleResponse(),
+  settings: () => useUiStore.getState().setSettingsOpen(true),
 };
 
 function onKeyDown(event: KeyboardEvent): void {
@@ -29,7 +35,8 @@ function onKeyDown(event: KeyboardEvent): void {
 
 export function useKeyboardShortcuts(): void {
   useEffect(() => {
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    // Capture phase, so a focused field or dialog can't swallow a shortcut first.
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
   }, []);
 }

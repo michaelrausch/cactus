@@ -3,7 +3,7 @@ import { openRunResult } from "@/actions/request";
 import { StatusCode } from "@/components/StatusCode";
 import { CheckIcon } from "@/features/response/ChecksList";
 
-const DETAIL_CLASS = "pl-[4.25rem] text-xs text-rose-300";
+const DETAIL_CLASS = "pl-[4.25rem] text-xs text-danger";
 
 export function RunResultRow({ result }: { result: RunResult }) {
   const { response } = result;

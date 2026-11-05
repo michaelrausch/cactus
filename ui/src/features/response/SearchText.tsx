@@ -32,10 +32,11 @@ export function SearchText({ text, queryLength, matches, current }: SearchTextPr
     [text, queryLength, matches, current],
   );
 
-  // Runs after every render: the current match may have moved whenever we re-render.
+  // Only when the current match moves, not on every render.
   useEffect(() => {
+    if (matches[current] === undefined) return;
     ref.current?.querySelector("mark[data-current]")?.scrollIntoView({ block: "center" });
-  });
+  }, [matches, current]);
 
   return (
     <pre ref={ref} className="font-mono text-xs leading-relaxed break-all whitespace-pre-wrap select-text">

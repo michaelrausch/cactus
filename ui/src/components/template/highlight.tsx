@@ -9,14 +9,14 @@ export type KnownNames = ReadonlySet<string> | null;
 
 const RESOLVED = "rounded-sm bg-teal-400/15 text-teal-200";
 const UNRESOLVED =
-  "rounded-sm bg-amber-400/15 text-amber-300 underline decoration-amber-400/70 decoration-wavy underline-offset-2";
+  "rounded-sm bg-warning/15 text-warning underline decoration-warning/70 decoration-wavy underline-offset-2";
 
 /** The same colours as the response's JSON viewer. */
 const JSON_CLASSES: Record<JsonTokenKind, string | undefined> = {
-  key: "text-sky-300",
-  string: "text-emerald-300",
-  number: "text-amber-300",
-  literal: "text-violet-300",
+  key: "text-syntax-key",
+  string: "text-syntax-string",
+  number: "text-syntax-number",
+  literal: "text-syntax-literal",
   punctuation: "text-muted-foreground",
   placeholder: undefined,
   text: undefined,

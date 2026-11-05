@@ -154,7 +154,7 @@ export function TemplateField({
   const shared = cn(TEXT, fieldClassName);
   const inputClass = cn(
     shared,
-    "relative w-full min-w-0 bg-transparent text-transparent caret-foreground outline-none placeholder:text-muted-foreground selection:bg-sky-400/30",
+    "relative w-full min-w-0 bg-transparent text-transparent caret-foreground outline-none placeholder:text-muted-foreground selection:bg-info/30",
   );
   const inputProps = {
     ref: inputRef,
