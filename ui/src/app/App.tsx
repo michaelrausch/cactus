@@ -3,6 +3,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { ConfirmDialog } from "@/features/dialogs/ConfirmDialog";
 import { PromptDialog } from "@/features/dialogs/PromptDialog";
 import { EnvDialog } from "@/features/env/EnvDialog";
+import { GitDialog } from "@/features/git/GitDialog";
 import { ScenarioSwitcher } from "@/features/palette/ScenarioSwitcher";
 import { RunDialog } from "@/features/run/RunDialog";
 import { SettingsDialog } from "@/features/settings/SettingsDialog";
@@ -30,6 +31,7 @@ export default function App() {
       <PromptDialog />
       <ConfirmDialog />
       <EnvDialog />
+      <GitDialog />
       <SettingsDialog />
       <RunDialog />
       <ScenarioSwitcher />

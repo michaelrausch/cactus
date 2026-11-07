@@ -1,4 +1,5 @@
-import { Copy, PanelRight, Play, Save } from "lucide-react";
+import { Copy, GitBranch, PanelRight, Play, Save, TriangleAlert } from "lucide-react";
+import { openChanges } from "@/actions/git";
 import { runFolder } from "@/actions/request";
 import { duplicateScenario } from "@/actions/scenario";
 import { saveScenario } from "@/actions/saving";
@@ -6,8 +7,11 @@ import { withShortcut } from "@/app/shortcuts";
 import { IconButton } from "@/components/IconButton";
 import { MethodBadge } from "@/components/MethodBadge";
 import { baseName, dirOf } from "@/domain/paths";
+import { stagedFiles, unstagedFiles } from "@/domain/git";
 import { displayTitle } from "@/domain/scenario";
+import { cn } from "@/lib/utils";
 import { isDirty, useEditorStore } from "@/stores/editorStore";
+import { useGitStore } from "@/stores/gitStore";
 import { useProjectStore } from "@/stores/projectStore";
 import { useUiStore } from "@/stores/uiStore";
 
@@ -36,6 +40,58 @@ function Breadcrumb({ project }: { project: string }) {
         </>
       )}
     </div>
+  );
+}
+
+const CHIP =
+  "mr-1 flex h-6 max-w-56 items-center gap-1.5 rounded-full border px-2.5 text-xs text-muted-foreground hover:text-foreground";
+
+/**
+ * The project's git state, opening the Changes dialog: branch plus staged and
+ * unstaged counts, an offer to set up git, or why the repository can't be read.
+ */
+function GitChip() {
+  const status = useGitStore((s) => s.status);
+  const noRepo = useGitStore((s) => s.noRepo);
+  const error = useGitStore((s) => s.error);
+
+  if (error) {
+    return (
+      <span className={cn(CHIP, "hover:text-muted-foreground")} title={error}>
+        <TriangleAlert className="size-3.5 shrink-0 text-warning" />
+        git unavailable
+      </span>
+    );
+  }
+  if (noRepo) {
+    return (
+      <button
+        type="button"
+        onClick={openChanges}
+        className={cn(CHIP, "border-dashed")}
+        title="Track this collection with git"
+      >
+        <GitBranch className="size-3.5 shrink-0" />
+        Set up git
+      </button>
+    );
+  }
+  if (!status) return null;
+  const staged = stagedFiles(status).length;
+  const unstaged = unstagedFiles(status).length;
+  const counts = [staged && `${staged} staged`, unstaged && `${unstaged} changed`].filter(Boolean).join(", ");
+  return (
+    <button
+      type="button"
+      onClick={openChanges}
+      className={CHIP}
+      title={withShortcut(counts ? `Changes: ${counts}` : "Changes: none", "changes")}
+    >
+      <GitBranch className="size-3.5 shrink-0" />
+      <span className="truncate">{status.branch ?? "detached"}</span>
+      {staged > 0 && <span className="shrink-0 text-success">+{staged}</span>}
+      {unstaged > 0 && <span className="shrink-0 text-warning">~{unstaged}</span>}
+    </button>
   );
 }
 
@@ -68,6 +124,7 @@ export function Header() {
         <>
           <Breadcrumb project={project} />
           <div className="ml-auto flex items-center gap-1">
+            <GitChip />
             <ScenarioActions />
             <IconButton
               label={withShortcut("Toggle response", "toggleResponse")}

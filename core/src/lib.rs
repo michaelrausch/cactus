@@ -13,6 +13,8 @@ mod text;
 
 pub mod collection;
 pub mod env;
+#[cfg(feature = "git")]
+pub mod git;
 pub mod history;
 pub mod http;
 pub mod import;

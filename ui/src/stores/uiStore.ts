@@ -23,6 +23,7 @@ interface UiState {
   prompt: PromptRequest | null;
   confirm: ConfirmRequest | null;
   envDialogOpen: boolean;
+  gitDialogOpen: boolean;
   settingsOpen: boolean;
   switcherOpen: boolean;
   responseVisible: boolean;
@@ -32,6 +33,7 @@ interface UiState {
   closePrompt: () => void;
   closeConfirm: () => void;
   setEnvDialogOpen: (open: boolean) => void;
+  setGitDialogOpen: (open: boolean) => void;
   setSettingsOpen: (open: boolean) => void;
   setSwitcherOpen: (open: boolean) => void;
   toggleSwitcher: () => void;
@@ -43,6 +45,7 @@ export const useUiStore = create<UiState>()((set) => ({
   prompt: null,
   confirm: null,
   envDialogOpen: false,
+  gitDialogOpen: false,
   settingsOpen: false,
   switcherOpen: false,
   responseVisible: true,
@@ -52,6 +55,7 @@ export const useUiStore = create<UiState>()((set) => ({
   closePrompt: () => set({ prompt: null }),
   closeConfirm: () => set({ confirm: null }),
   setEnvDialogOpen: (envDialogOpen) => set({ envDialogOpen }),
+  setGitDialogOpen: (gitDialogOpen) => set({ gitDialogOpen }),
   setSettingsOpen: (settingsOpen) => set({ settingsOpen }),
   setSwitcherOpen: (switcherOpen) => set({ switcherOpen }),
   toggleSwitcher: () => set((s) => ({ switcherOpen: !s.switcherOpen })),

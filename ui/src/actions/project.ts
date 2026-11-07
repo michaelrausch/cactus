@@ -40,8 +40,8 @@ async function loadProject(folder: string): Promise<void> {
     useProjectStore.getState().opened(folder, entries);
     useEditorStore.getState().reset();
     useResponseStore.getState().reset();
-    await refreshEnvs();
-    useProjectStore.getState().setRecentProjects(await backend.recentProjects());
+    const [, recent] = await Promise.all([refreshEnvs(), backend.recentProjects()]);
+    useProjectStore.getState().setRecentProjects(recent);
   });
 }
 
@@ -55,13 +55,16 @@ export async function restoreLastProject(): Promise<void> {
 export async function refreshEntries(): Promise<void> {
   const project = currentProject();
   if (!project) return;
-  useProjectStore.getState().setEntries(await backend.listScenarios(project));
+  const entries = await backend.listScenarios(project);
+  // The project may have been switched while listing; don't show the old one's scenarios.
+  if (currentProject() === project) useProjectStore.getState().setEntries(entries);
 }
 
 export async function refreshEnvs(): Promise<void> {
   const project = currentProject();
   if (!project) return;
   const [envs, activeEnv] = await Promise.all([backend.listEnvs(project), backend.activeEnv(project)]);
+  if (currentProject() !== project) return;
   useProjectStore.getState().setEnvs(envs, activeEnv);
 }
 

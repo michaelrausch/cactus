@@ -10,7 +10,7 @@ name = "cactus_app"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-cactus-core = { path = "../core", features = ["specta"] }
+cactus-core = { path = "../core", features = ["specta", "git"] }
 tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
 serde.workspace = true

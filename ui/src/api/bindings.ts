@@ -28,6 +28,23 @@ export const commands = {
 	 *  env, for highlighting and completing `{{name}}`. Values stay out of the UI.
 	 */
 	variableNames: (project: string, path: ScenarioPath, options?: InvokeOptions) => __TAURI_INVOKE<string[]>("variable_names", { project, path }, options),
+	/**  `None` when the project isn't in a git repository. */
+	gitStatus: (project: string, options?: InvokeOptions) => __TAURI_INVOKE<GitStatus_Serialize | null>("git_status", { project }, options),
+	/**  Make the project folder a git repository. */
+	gitInit: (project: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("git_init", { project }, options),
+	gitStage: (project: string, paths: ScenarioPath[], options?: InvokeOptions) => __TAURI_INVOKE<null>("git_stage", { project, paths }, options),
+	gitUnstage: (project: string, paths: ScenarioPath[], options?: InvokeOptions) => __TAURI_INVOKE<null>("git_unstage", { project, paths }, options),
+	gitStageAll: (project: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("git_stage_all", { project }, options),
+	gitUnstageAll: (project: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("git_unstage_all", { project }, options),
+	gitDiscard: (project: string, paths: ScenarioPath[], options?: InvokeOptions) => __TAURI_INVOKE<null>("git_discard", { project, paths }, options),
+	gitDiscardAll: (project: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("git_discard_all", { project }, options),
+	gitDiff: (project: string, path: ScenarioPath, side: DiffSide, options?: InvokeOptions) => __TAURI_INVOKE<FileDiff_Serialize>("git_diff", { project, path, side }, options),
+	gitCommit: (project: string, message: string, options?: InvokeOptions) => __TAURI_INVOKE<CommitSummary>("git_commit", { project, message }, options),
+	gitBranches: (project: string, options?: InvokeOptions) => __TAURI_INVOKE<BranchInfo_Serialize[]>("git_branches", { project }, options),
+	/**  `checkout`: switch to the new branch too. (`switch` is reserved in TypeScript.) */
+	gitCreateBranch: (project: string, name: string, checkout: boolean, options?: InvokeOptions) => __TAURI_INVOKE<null>("git_create_branch", { project, name, checkout }, options),
+	gitSwitchBranch: (project: string, name: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("git_switch_branch", { project, name }, options),
+	gitDeleteBranch: (project: string, name: string, force: boolean, options?: InvokeOptions) => __TAURI_INVOKE<null>("git_delete_branch", { project, name, force }, options),
 	importFile: (project: string, file: string, options?: InvokeOptions) => __TAURI_INVOKE<ImportSummary>("import_file", { project, file }, options),
 	/**
 	 *  Send the scenario as edited (it may not be saved yet). Resolves to
@@ -128,6 +145,26 @@ export type Body_Serialize = TypedBody_Serialize |
  */
 JsonValue;
 
+export type BranchInfo = BranchInfo_Serialize | BranchInfo_Deserialize;
+
+export type BranchInfo_Deserialize = {
+	name: string,
+	/**  Whether it is checked out. */
+	current: boolean,
+	/**  Whether HEAD contains all its commits, so deleting it loses nothing. */
+	merged: boolean,
+	lastCommit?: CommitSummary | null,
+};
+
+export type BranchInfo_Serialize = {
+	name: string,
+	/**  Whether it is checked out. */
+	current: boolean,
+	/**  Whether HEAD contains all its commits, so deleting it loses nothing. */
+	merged: boolean,
+	lastCommit: CommitSummary | null,
+};
+
 /**  A set-variable action that couldn't select a value from the response. */
 export type CaptureFailure = {
 	name: string,
@@ -135,12 +172,63 @@ export type CaptureFailure = {
 	reason: string,
 };
 
+export type ChangeKind = "added" | "modified" | "deleted" | "renamed" | "untracked" | "conflicted";
+
 /**  The outcome of one assertion. */
 export type Check = {
 	name: string,
 	ok: boolean,
 	detail: string,
 };
+
+export type CommitSummary = {
+	/**  The abbreviated commit id. */
+	id: string,
+	/**  The message's first line. */
+	summary: string,
+	/**  When it was committed, in Unix epoch millis. */
+	at: number,
+};
+
+export type DiffHunk = DiffHunk_Serialize | DiffHunk_Deserialize;
+
+export type DiffHunk_Deserialize = {
+	/**  `@@ -1,3 +1,4 @@` */
+	header: string,
+	lines: DiffLine_Deserialize[],
+};
+
+export type DiffHunk_Serialize = {
+	/**  `@@ -1,3 +1,4 @@` */
+	header: string,
+	lines: DiffLine_Serialize[],
+};
+
+export type DiffLine = DiffLine_Serialize | DiffLine_Deserialize;
+
+export type DiffLineKind = "context" | "added" | "removed";
+
+export type DiffLine_Deserialize = {
+	kind: DiffLineKind,
+	oldLine?: number | null,
+	newLine?: number | null,
+	/**  The line without its line ending. */
+	text: string,
+};
+
+export type DiffLine_Serialize = {
+	kind: DiffLineKind,
+	oldLine: number | null,
+	newLine: number | null,
+	/**  The line without its line ending. */
+	text: string,
+};
+
+export type DiffSide = 
+/**  HEAD → index: what the next commit records. */
+"staged" | 
+/**  Index → work tree: what isn't staged yet. */
+"unstaged";
 
 /**  One env layer. Later layers override earlier ones; see [`resolve`]. */
 export type EnvFile = 
@@ -154,6 +242,46 @@ export type EnvFile =
 { kind: "captured" };
 
 export type Error = string;
+
+export type FileDiff = FileDiff_Serialize | FileDiff_Deserialize;
+
+export type FileDiff_Deserialize = {
+	/**  Binary files have no hunks. */
+	binary: boolean,
+	/**  More than [`MAX_DIFF_LINES`] lines changed, and the rest are left out. */
+	truncated: boolean,
+	hunks: DiffHunk_Deserialize[],
+};
+
+export type FileDiff_Serialize = {
+	/**  Binary files have no hunks. */
+	binary: boolean,
+	/**  More than [`MAX_DIFF_LINES`] lines changed, and the rest are left out. */
+	truncated: boolean,
+	hunks: DiffHunk_Serialize[],
+};
+
+export type FileStatus = FileStatus_Serialize | FileStatus_Deserialize;
+
+export type FileStatus_Deserialize = {
+	path: ScenarioPath,
+	/**  The previous path of a staged rename, if it was in the project. */
+	renamedFrom?: ScenarioPath | null,
+	/**  The change in the index, which the next commit records. */
+	staged?: ChangeKind | null,
+	/**  The change in the work tree that isn't staged. */
+	unstaged?: ChangeKind | null,
+};
+
+export type FileStatus_Serialize = {
+	path: ScenarioPath,
+	/**  The previous path of a staged rename, if it was in the project. */
+	renamedFrom: ScenarioPath | null,
+	/**  The change in the index, which the next commit records. */
+	staged: ChangeKind | null,
+	/**  The change in the work tree that isn't staged. */
+	unstaged: ChangeKind | null,
+};
 
 export type FileVariant = FileVariant_Serialize | FileVariant_Deserialize;
 
@@ -188,6 +316,34 @@ export type FormField_Serialize = {
 
 /**  Project-relative paths of files that changed on disk. */
 export type FsChanged = string[];
+
+export type GitStatus = GitStatus_Serialize | GitStatus_Deserialize;
+
+export type GitStatus_Deserialize = {
+	/**  `None` when HEAD is detached. */
+	branch?: string | null,
+	/**  Changed files in the project, sorted by path. */
+	files: FileStatus_Deserialize[],
+	/**  The operation in progress (`"merge"`, `"rebase"`, …) that blocks committing. */
+	busy?: string | null,
+	/**  Files staged elsewhere in the repository, which a commit includes too. */
+	stagedOutside: number,
+	/**  The commit HEAD points at; `None` before the first one. */
+	lastCommit?: CommitSummary | null,
+};
+
+export type GitStatus_Serialize = {
+	/**  `None` when HEAD is detached. */
+	branch: string | null,
+	/**  Changed files in the project, sorted by path. */
+	files: FileStatus_Serialize[],
+	/**  The operation in progress (`"merge"`, `"rebase"`, …) that blocks committing. */
+	busy: string | null,
+	/**  Files staged elsewhere in the repository, which a commit includes too. */
+	stagedOutside: number,
+	/**  The commit HEAD points at; `None` before the first one. */
+	lastCommit: CommitSummary | null,
+};
 
 /**  `name: value` sent with a request; `disabled` ones stay in the file. */
 export type Header = Header_Serialize | Header_Deserialize;

@@ -57,10 +57,20 @@ says so in the response's `warnings`.
 | `env`                                             | `layers` (env layers and merge), `capture`, `template` (`Substituter`)                                                                             |
 | `http`                                            | `request` (scenario + inherited defaults → reqwest request), `send`, `response`, `expression` (`res.*`), `assertions` (actions, checks, pass/fail) |
 | `import`                                          | Postman and OpenAPI → requests                                                                                                                     |
+| `git`                                             | Status, stage/unstage, discard, diffs, commits and local branches in the project's repository (`git` feature)                                      |
 | `runner`                                          | Send + persist captures + record history; folder runs                                                                                              |
 | `history`, `recent`, `state`, `storage`, `layout` | Persistence                                                                                                                                        |
 
 Errors are typed (`core/src/error.rs`) and reach the UI as their message.
+
+**Git** uses libgit2 through `git2`, vendored and without network features,
+so it builds the same on Linux and Windows with no OpenSSL. It sits behind the
+`git` feature, which only the desktop app enables. The project can be the
+repository's root or any folder in it: only the project's files are listed
+and staged, but a commit records the whole index, as `git commit` does
+(`GitStatus::staged_outside` counts what else is staged). The author comes from
+`user.name`/`user.email` in git config, and hooks don't run. `.git/` isn't
+watched; the UI refreshes the status on file changes and on window focus.
 
 ## Desktop backend (src-tauri)
 

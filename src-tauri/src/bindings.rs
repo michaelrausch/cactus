@@ -2,7 +2,7 @@
 
 use tauri_specta::{Builder, collect_commands, collect_events};
 
-use crate::commands::{env, import, project, request, scenario};
+use crate::commands::{env, git, import, project, request, scenario};
 use crate::events::{FsChanged, RunProgress};
 
 #[cfg(debug_assertions)]
@@ -27,6 +27,20 @@ pub fn builder() -> Builder<tauri::Wry> {
             env::load_env,
             env::save_env,
             env::variable_names,
+            git::git_status,
+            git::git_init,
+            git::git_stage,
+            git::git_unstage,
+            git::git_stage_all,
+            git::git_unstage_all,
+            git::git_discard,
+            git::git_discard_all,
+            git::git_diff,
+            git::git_commit,
+            git::git_branches,
+            git::git_create_branch,
+            git::git_switch_branch,
+            git::git_delete_branch,
             import::import_file,
             request::send_request,
             request::run_folder,
