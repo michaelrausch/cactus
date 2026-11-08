@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 const TONES = {
@@ -15,20 +16,25 @@ interface IconButtonProps {
   children: ReactNode;
 }
 
+/** An icon-only button with a tooltip that shows on hover and on keyboard focus. */
 export function IconButton({ label, onClick, tone = "toolbar", active = false, children }: IconButtonProps) {
   return (
-    <button
-      type="button"
-      title={label}
-      aria-label={label}
-      onClick={onClick}
-      className={cn(
-        "grid size-7 place-items-center rounded-md text-muted-foreground transition hover:text-foreground [&_svg]:size-4",
-        TONES[tone],
-        active && "bg-accent text-foreground",
-      )}
-    >
-      {children}
-    </button>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          aria-label={label}
+          onClick={onClick}
+          className={cn(
+            "grid size-7 place-items-center rounded-md text-muted-foreground focus-ring transition hover:text-foreground [&_svg]:size-4",
+            TONES[tone],
+            active && "bg-accent text-foreground",
+          )}
+        >
+          {children}
+        </button>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
   );
 }

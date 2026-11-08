@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { firstOf, placeholderSuggester, type Suggester, type Suggestion } from "@/domain/suggestions";
 import { useKnownVariables } from "@/hooks/useKnownVariables";
@@ -68,6 +68,8 @@ export function TemplateField({
   /** Caret to restore once an accepted completion has come back as `value`. */
   const pendingCaret = useRef<number | null>(null);
   const [menu, setMenu] = useState<Menu | null>(null);
+  const listId = useId();
+  const optionId = (index: number) => `${listId}-${index}`;
 
   const coloured = useMemo(
     () => (templates || syntax !== "template" ? highlight(value, syntax, knownSet) : value),
@@ -162,8 +164,11 @@ export function TemplateField({
     placeholder,
     spellCheck: false,
     "aria-label": ariaLabel,
+    role: "combobox",
     "aria-autocomplete": "list" as const,
     "aria-expanded": menu !== null,
+    "aria-controls": menu ? listId : undefined,
+    "aria-activedescendant": menu ? optionId(menu.active) : undefined,
     onChange: (event: { target: HTMLInputElement | HTMLTextAreaElement }) => {
       onChange(event.target.value);
       refresh(event.target.value, event.target.selectionStart);
@@ -230,14 +235,17 @@ export function TemplateField({
         createPortal(
           <div
             ref={listRef}
+            id={listId}
             role="listbox"
+            aria-label="Suggestions"
             // Keep focus (and the caret) in the input while picking with the mouse.
             onMouseDown={(event) => event.preventDefault()}
-            className="pointer-events-auto fixed z-[100] max-h-60 min-w-48 overflow-y-auto rounded-lg border bg-popover p-1 font-mono text-xs text-popover-foreground shadow-lg shadow-black/40"
+            className="pointer-events-auto fixed z-[100] max-h-60 min-w-48 overflow-y-auto rounded-lg border bg-popover p-1 font-mono text-xs text-popover-foreground shadow-lg shadow-shadow/40"
           >
             {menu.items.map((item, index) => (
               <div
                 key={`${item.label}:${item.insert}`}
+                id={optionId(index)}
                 role="option"
                 aria-selected={index === menu.active}
                 onMouseEnter={() => setMenu({ ...menu, active: index })}

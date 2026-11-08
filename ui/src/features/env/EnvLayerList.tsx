@@ -11,7 +11,7 @@ function LayerIcon({ file }: { file: EnvFile }) {
     case "secrets":
       return <Lock className="size-3.5 text-warning" />;
     case "captured":
-      return <Sparkles className="size-3.5 text-teal-300" />;
+      return <Sparkles className="size-3.5 text-captured" />;
     case "base":
       return <span className="size-2 rounded-full bg-muted-foreground/60" />;
     case "named":
@@ -31,8 +31,21 @@ function NewEnvForm({ onCreate }: { onCreate: (name: string) => Promise<boolean>
         void onCreate(trimmed).then((created) => created && setName(""));
       }}
     >
-      <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="new env" className="h-7 text-xs" />
-      <Button type="submit" size="icon" variant="ghost" className="size-7 shrink-0" title="Create environment">
+      <Input
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder="New environment"
+        aria-label="New environment name"
+        className="h-7 text-xs"
+      />
+      <Button
+        type="submit"
+        size="icon"
+        variant="ghost"
+        className="size-7 shrink-0"
+        title="Create environment"
+        aria-label="Create environment"
+      >
         <Plus />
       </Button>
     </form>
@@ -55,7 +68,9 @@ export function EnvLayerList({ envs, selected, onSelect, onCreate }: EnvLayerLis
           type="button"
           key={envFileKey(file)}
           onClick={() => onSelect(file)}
+          aria-current={envFileKey(file) === envFileKey(selected) || undefined}
           className={cn(
+            "focus-ring",
             "flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-sidebar-accent",
             envFileKey(file) === envFileKey(selected) && "bg-sidebar-accent",
           )}

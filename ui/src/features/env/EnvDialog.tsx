@@ -60,13 +60,50 @@ export function EnvDialog() {
     return created ?? false;
   };
 
+  const renameEnv = (from: string) =>
+    guardUnsaved(() =>
+      useUiStore.getState().askPrompt({
+        title: "Rename environment",
+        description: "Letters, digits, - and _ only. It becomes the file name.",
+        initial: from,
+        onSubmit: async (to) => {
+          if (!to || to === from) return;
+          await reportErrors(async () => {
+            await backend.renameEnv(project, from, to);
+            await refreshEnvs();
+            setSelected({ kind: "named", name: to });
+          }, "Rename failed");
+        },
+      }),
+    );
+
+  const deleteEnv = (name: string) =>
+    useUiStore.getState().askConfirm({
+      title: `Delete ${name}?`,
+      description: `environments/${name}.yml will be deleted from disk.`,
+      action: "Delete",
+      onConfirm: () =>
+        void reportErrors(async () => {
+          await backend.deleteEnv(project, name);
+          await refreshEnvs();
+          setSelected({ kind: "base" });
+        }, "Delete failed"),
+    });
+
   return (
     <Dialog open={open} onOpenChange={(next) => (next ? setOpen(true) : guardUnsaved(close))}>
       <DialogContent className="gap-0 p-0 sm:max-w-3xl">
-        <div className="flex h-[480px]">
+        <div className="flex h-[min(480px,calc(100vh-4rem))]">
           <EnvLayerList envs={envs} selected={selected} onSelect={select} onCreate={createEnv} />
           {open && (
-            <EnvLayerEditor key={`${project}:${envFileKey(selected)}`} ref={editor} project={project} file={selected} />
+            <EnvLayerEditor
+              key={`${project}:${envFileKey(selected)}`}
+              ref={editor}
+              project={project}
+              file={selected}
+              onRename={renameEnv}
+              onDelete={deleteEnv}
+            />
           )}
         </div>
       </DialogContent>

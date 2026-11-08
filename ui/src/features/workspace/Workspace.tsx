@@ -93,7 +93,7 @@ const ResponsePane = memo(function ResponsePane({
           !visible && "translate-x-4 opacity-0",
         )}
       >
-        <div className="h-full overflow-hidden rounded-xl border bg-card/70 shadow-lg shadow-black/20">
+        <div className="h-full overflow-hidden rounded-xl border bg-card/70 shadow-lg shadow-shadow/20">
           {showContent && <ResponsePanel />}
         </div>
       </div>

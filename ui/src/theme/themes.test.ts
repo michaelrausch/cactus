@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { DEFAULT_THEME, THEMES, applyTheme, resolveTheme } from "./themes";
@@ -49,6 +49,9 @@ describe("themes.css", () => {
         "--syntax-string",
         "--syntax-number",
         "--syntax-literal",
+        "--template-resolved",
+        "--captured",
+        "--shadow",
       ]),
     );
   });
@@ -79,6 +82,21 @@ describe("themes.css", () => {
       const block = css.slice(css.indexOf(`[data-theme="${theme.id}"]`));
       expect(block.slice(0, block.indexOf("}"))).toContain("color-scheme: light");
     }
+  });
+});
+
+/** App components (not the generated shadcn ones in `components/ui`), relative to `src`. */
+const SRC = path.join(import.meta.dirname, "..");
+const appComponents = (readdirSync(SRC, { recursive: true }) as string[]).filter(
+  (file) => file.endsWith(".tsx") && !file.startsWith(path.join("components", "ui")),
+);
+const PALETTE_CLASS =
+  /\b(?:text|bg|border|ring|shadow|fill|stroke|from|to|via|decoration)-(?:slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-\d{2,3}\b|\b(?:text|bg|shadow)-(?:black|white)\b/;
+
+describe("components", () => {
+  it("take colours from theme tokens, never Tailwind's fixed palette", () => {
+    const offenders = appComponents.filter((file) => PALETTE_CLASS.test(readFileSync(path.join(SRC, file), "utf8")));
+    expect(offenders).toEqual([]);
   });
 });
 

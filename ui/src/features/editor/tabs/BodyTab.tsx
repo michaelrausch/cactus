@@ -24,14 +24,15 @@ const FILE_PREFIX = "@";
 function BodyKindPicker({ scenario, onChange }: ScenarioTabProps) {
   const current = bodyKind(scenario);
   return (
-    <div className="flex items-center gap-1">
+    <div role="group" aria-label="Body type" className="flex items-center gap-1">
       {BODY_KINDS.map((kind) => (
         <button
           type="button"
           key={kind}
+          aria-pressed={kind === current}
           onClick={() => onChange(switchBodyKind(scenario, kind))}
           className={cn(
-            "rounded-md px-2.5 py-1 text-xs transition",
+            "rounded-md px-2.5 py-1 text-xs focus-ring transition",
             kind === current ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground",
           )}
         >

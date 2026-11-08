@@ -34,9 +34,13 @@ function Breadcrumb({ project }: { project: string }) {
       {scenario && (
         <>
           <Separator />
-          <MethodBadge method={scenario.http.method} className="text-[11px]" />
+          <MethodBadge method={scenario.http.method} className="text-xs" />
           <span className="truncate font-medium">{displayTitle(scenario)}</span>
-          {dirty && <span title="Unsaved changes" className="size-2 shrink-0 rounded-full bg-brand" />}
+          {dirty && (
+            <span title="Unsaved changes" className="size-2 shrink-0 rounded-full bg-brand">
+              <span className="sr-only">Unsaved changes</span>
+            </span>
+          )}
         </>
       )}
     </div>

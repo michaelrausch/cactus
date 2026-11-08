@@ -14,13 +14,13 @@ export function WelcomeScreen() {
       <div className="flex flex-col items-center gap-4 text-center">
         <Logo className="size-12" />
         <p className="mt-2 text-sm text-muted-foreground">
-          {hasProject ? "Pick a scenario, or press Ctrl+N to make one." : "Requests as plain JSON files. Fast."}
+          {hasProject ? "Pick a request, or press Ctrl+N to make one." : "Requests as plain YAML files. Fast."}
         </p>
         {!hasProject && (
           <button
             type="button"
             onClick={() => void openProject()}
-            className="flex items-center gap-2 rounded-full bg-brand px-4 py-2 text-sm font-medium text-brand-foreground shadow-lg shadow-brand-2/20 hover:brightness-110"
+            className="flex items-center gap-2 rounded-full bg-brand-2 px-4 py-2 text-sm font-medium text-brand-foreground shadow-lg shadow-brand-2/20 focus-ring hover:brightness-110"
           >
             <FolderOpen className="size-4" /> Open a folder
           </button>

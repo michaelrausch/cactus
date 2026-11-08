@@ -16,15 +16,13 @@ import { UrlBar } from "./UrlBar";
 
 function TitleField({ scenario, onChange }: ScenarioTabProps) {
   return (
-    <div>
-      <input
-        value={scenario.info.name}
-        onChange={(e) => onChange({ ...scenario, info: { ...scenario.info, name: e.target.value } })}
-        placeholder="Untitled request"
-        className="w-full bg-transparent text-lg font-semibold tracking-tight outline-none placeholder:text-muted-foreground"
-      />
-      {scenario.docs && <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{scenario.docs}</p>}
-    </div>
+    <input
+      value={scenario.info.name}
+      onChange={(e) => onChange({ ...scenario, info: { ...scenario.info, name: e.target.value } })}
+      placeholder="Untitled request"
+      aria-label="Request title"
+      className="-mx-1.5 w-[calc(100%+0.75rem)] rounded-md bg-transparent px-1.5 text-lg font-semibold tracking-tight outline-none placeholder:text-muted-foreground hover:bg-accent/40 focus-visible:bg-accent/60"
+    />
   );
 }
 

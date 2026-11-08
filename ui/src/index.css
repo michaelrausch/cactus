@@ -29,6 +29,9 @@
   --color-syntax-string: var(--syntax-string);
   --color-syntax-number: var(--syntax-number);
   --color-syntax-literal: var(--syntax-literal);
+  --color-template-resolved: var(--template-resolved);
+  --color-captured: var(--captured);
+  --color-shadow: var(--shadow);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -67,6 +70,27 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+/*
+ * The type scale, in px because the root is 14px (Tailwind's rem sizes would
+ * land on 10.5px and 12.25px). Use these, not `text-[11px]`.
+ */
+@theme {
+  --text-2xs: 10px;
+  --text-xs: 11px;
+  --text-sm: 13px;
+  --text-base: 14px;
+  --text-lg: 16px;
+}
+
+/* The one keyboard focus ring for custom controls. */
+@utility focus-ring {
+  outline: none;
+  &:focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 1px;
+  }
 }
 
 @layer base {

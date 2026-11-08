@@ -68,7 +68,7 @@ export async function runFolder(dir: string): Promise<void> {
   // Runs read from disk, so unsaved edits would silently not take part.
   useUiStore.getState().askConfirm({
     title: "Unsaved changes",
-    description: `${unsaved.length === 1 ? unsaved[0] : `${unsaved.length} scenarios`} ha${unsaved.length === 1 ? "s" : "ve"} unsaved edits. A run uses the saved files.`,
+    description: `${unsaved.length === 1 ? unsaved[0] : `${unsaved.length} requests`} ha${unsaved.length === 1 ? "s" : "ve"} unsaved edits. A run uses the saved files.`,
     action: "Save and run",
     destructive: false,
     onConfirm: async () => {

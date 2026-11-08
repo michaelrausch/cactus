@@ -118,7 +118,7 @@ function stageAfterSaving(paths: ScenarioPath[], proceed: () => Promise<void>): 
   }
   useUiStore.getState().askConfirm({
     title: "Unsaved changes",
-    description: "Some scenarios have unsaved edits, which staging won't include unless they are saved.",
+    description: "Some requests have unsaved edits, which staging won't include unless they are saved.",
     action: "Save and stage",
     destructive: false,
     onConfirm: async () => {
@@ -240,7 +240,7 @@ export function switchBranch(name: string): void {
   }
   useUiStore.getState().askConfirm({
     title: "Unsaved changes",
-    description: `Some scenarios have unsaved edits. Save them to take them to ${name}, or switch and keep them as unsaved edits.`,
+    description: `Some requests have unsaved edits. Save them to take them to ${name}, or switch and keep them as unsaved edits.`,
     action: "Save all and switch",
     destructive: false,
     onConfirm: async () => {

@@ -78,6 +78,13 @@
   --syntax-string: oklch(0.845 0.143 165);
   --syntax-number: oklch(0.879 0.169 91.6);
   --syntax-literal: oklch(0.811 0.111 293.6);
+
+  /* A `{{name}}` that resolves, and values written by set-variable actions. */
+  --template-resolved: oklch(0.88 0.1 182);
+  --captured: oklch(0.86 0.13 182);
+
+  /* Drop shadows under raised surfaces (used with an alpha, e.g. `shadow-shadow/20`). */
+  --shadow: oklch(0 0 0);
 }
 
 /* ---------- Variations: same layout and contrast, a different hue. ---------- */
@@ -191,7 +198,8 @@
   --brand-1: #65a30d;
   --brand-2: #16a34a;
   --brand-3: #0891b2;
-  --brand-foreground: oklch(1 0 0);
+  /* Dark: white on these greens is only ~3.3:1. */
+  --brand-foreground: oklch(0.2 0.02 60);
   --flower: #db2777;
   --glow-2: #f472b6;
   --glow-intensity: 0.8;
@@ -205,6 +213,10 @@
   --syntax-string: oklch(0.5 0.12 160);
   --syntax-number: oklch(0.55 0.15 55);
   --syntax-literal: oklch(0.5 0.2 300);
+
+  --template-resolved: oklch(0.45 0.09 190);
+  --captured: oklch(0.45 0.09 190);
+  --shadow: oklch(0.3 0.04 60);
 }
 
 /* ---------- Fun. Still only tokens: no theme-specific code in components. ---------- */
@@ -419,7 +431,7 @@
   --app-font: "Lucida Grande", "Lucida Sans Unicode", "Helvetica Neue", Helvetica, Arial, sans-serif;
 
   --brand-1: #8cc8ff;
-  --brand-2: #2f7fe0;
+  --brand-2: #2470d8;
   --brand-3: #0b4fb5;
   --brand-foreground: #ffffff;
   /* The close button. */
@@ -439,6 +451,9 @@
   --syntax-string: #1e7f34;
   --syntax-number: #a0520b;
   --syntax-literal: #aa0d91;
+
+  --template-resolved: oklch(0.45 0.09 190);
+  --captured: oklch(0.45 0.09 190);
 }
 
 /* windows 95: silver chrome, navy, white fields, square corners. Bevels are below. */
@@ -492,6 +507,9 @@
   --syntax-string: #008000;
   --syntax-number: #a04000;
   --syntax-literal: #800080;
+
+  --template-resolved: oklch(0.4 0.09 190);
+  --captured: oklch(0.4 0.09 190);
 }
 
 /*

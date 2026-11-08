@@ -19,8 +19,8 @@ function Line({ line }: { line: DiffLine }) {
   const style = LINE_STYLES[line.kind];
   return (
     <div className={cn("grid grid-cols-[2.75rem_2.75rem_1fr]", style.className)}>
-      <span className="pr-2 text-right text-muted-foreground/60 select-none">{line.oldLine ?? ""}</span>
-      <span className="pr-2 text-right text-muted-foreground/60 select-none">{line.newLine ?? ""}</span>
+      <span className="pr-2 text-right text-muted-foreground select-none">{line.oldLine ?? ""}</span>
+      <span className="pr-2 text-right text-muted-foreground select-none">{line.newLine ?? ""}</span>
       <span className="pr-4 whitespace-pre">
         <span className="select-none">{style.prefix} </span>
         {line.text}

@@ -11,6 +11,8 @@ export interface ColumnOptions {
   /** Colour and complete `{{name}}` placeholders. */
   templates?: boolean;
   suggest?: Suggester;
+  /** Draw the text as dots, e.g. for secrets. */
+  masked?: boolean;
 }
 
 interface KeyValueTableProps {
@@ -48,7 +50,7 @@ interface CellProps {
 }
 
 function Cell({ value, placeholder, options, onChange }: CellProps) {
-  if (options?.templates || options?.suggest) {
+  if (!options?.masked && (options?.templates || options?.suggest)) {
     return (
       <TemplateField
         // Sized like `Input` (`w-full`) so both columns share the row evenly.
@@ -56,6 +58,7 @@ function Cell({ value, placeholder, options, onChange }: CellProps) {
         fieldClassName={TEMPLATE_CELL_CLASS}
         value={value}
         placeholder={placeholder}
+        aria-label={placeholder}
         templates={options.templates ?? false}
         suggest={options.suggest}
         onChange={onChange}
@@ -64,8 +67,10 @@ function Cell({ value, placeholder, options, onChange }: CellProps) {
   }
   return (
     <Input
+      type={options?.masked ? "password" : "text"}
       className={CELL_CLASS}
       placeholder={placeholder}
+      aria-label={placeholder}
       value={value}
       spellCheck={false}
       onChange={(e) => onChange(e.target.value)}
@@ -116,12 +121,13 @@ export function KeyValueTable({
         return (
           <div
             key={row.id}
-            className={cn("group flex items-center border-b last:border-b-0", !row.enabled && "opacity-45")}
+            className={cn("group flex items-center border-b last:border-b-0", !row.enabled && "opacity-60")}
           >
             {toggles && (
               <label className="grid w-8 shrink-0 place-items-center self-stretch">
                 <input
                   type="checkbox"
+                  aria-label={row.key ? `Enable ${row.key}` : "Enable row"}
                   className="size-3.5 accent-brand-2"
                   checked={row.enabled}
                   disabled={isBlank}
@@ -144,10 +150,12 @@ export function KeyValueTable({
             />
             <button
               type="button"
-              className="invisible grid w-8 shrink-0 place-items-center self-stretch text-muted-foreground group-hover:visible hover:text-foreground disabled:invisible"
+              // Faded rather than hidden, so it stays in the tab order.
+              className="grid w-8 shrink-0 place-items-center self-stretch text-muted-foreground opacity-0 focus-ring group-hover:opacity-100 hover:text-foreground focus-visible:opacity-100 disabled:invisible"
               disabled={isBlank}
               onClick={() => removeRow(row.id)}
               title="Remove"
+              aria-label={row.key ? `Remove ${row.key}` : "Remove row"}
             >
               <X className="size-3.5" />
             </button>

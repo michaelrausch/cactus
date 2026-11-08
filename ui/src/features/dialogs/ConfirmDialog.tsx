@@ -26,7 +26,8 @@ export function ConfirmDialog() {
           <DialogDescription>{confirm?.description}</DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button variant="ghost" onClick={close}>
+          {/* A destructive action never takes Enter: focus starts on Cancel. */}
+          <Button variant="ghost" autoFocus={destructive} onClick={close}>
             Cancel
           </Button>
           {confirm?.alternative && (
@@ -36,7 +37,7 @@ export function ConfirmDialog() {
           )}
           <Button
             variant={destructive ? "destructive" : "default"}
-            autoFocus
+            autoFocus={!destructive}
             onClick={() => choose(confirm?.onConfirm)}
           >
             {confirm?.action}

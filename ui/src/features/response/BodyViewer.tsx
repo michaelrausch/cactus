@@ -20,7 +20,7 @@ function ViewToggle({
   onChange: (v: BodyView) => void;
 }) {
   return (
-    <div className="flex rounded-md border p-0.5 text-xs">
+    <div role="group" aria-label="Body view" className="flex rounded-md border p-0.5 text-xs">
       {BODY_VIEWS.map((option) => {
         // Searching always shows raw text, so the tree option reads as inactive.
         const selected = view === option && !(option === "tree" && searching);
@@ -28,10 +28,11 @@ function ViewToggle({
           <button
             type="button"
             key={option}
+            aria-pressed={selected}
             onClick={() => onChange(option)}
             className={cn(
-              "rounded px-2 py-0.5 capitalize",
-              selected ? "bg-accent text-foreground" : "text-muted-foreground",
+              "rounded px-2 py-0.5 capitalize focus-ring",
+              selected ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground",
             )}
           >
             {option}

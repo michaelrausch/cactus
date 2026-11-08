@@ -23,6 +23,8 @@ export const commands = {
 	setActiveEnv: (project: string, name: string | null, options?: InvokeOptions) => __TAURI_INVOKE<null>("set_active_env", { project, name }, options),
 	loadEnv: (project: string, file: EnvFile, options?: InvokeOptions) => __TAURI_INVOKE<{ [key in string]: string }>("load_env", { project, file }, options),
 	saveEnv: (project: string, file: EnvFile, env: { [key in string]: string }, options?: InvokeOptions) => __TAURI_INVOKE<null>("save_env", { project, file, env }, options),
+	renameEnv: (project: string, from: string, to: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("rename_env", { project, from, to }, options),
+	deleteEnv: (project: string, name: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("delete_env", { project, name }, options),
 	/**
 	 *  The names of every variable a request at `path` can use with the active
 	 *  env, for highlighting and completing `{{name}}`. Values stay out of the UI.

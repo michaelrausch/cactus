@@ -38,7 +38,7 @@ export function createScenarioIn(dir: string): void {
   const project = currentProject();
   if (!project) return;
   useUiStore.getState().askPrompt({
-    title: dir ? `New scenario in ${dir}/` : "New scenario",
+    title: dir ? `New request in ${dir}/` : "New request",
     placeholder: "Get user",
     initial: "",
     onSubmit: (title) =>
@@ -99,7 +99,7 @@ export function deleteScenario(path: ScenarioPath): void {
   const project = currentProject();
   if (!project) return;
   useUiStore.getState().askConfirm({
-    title: "Delete scenario?",
+    title: "Delete request?",
     description: `${path} will be deleted from disk, along with its history.`,
     action: "Delete",
     onConfirm: () =>

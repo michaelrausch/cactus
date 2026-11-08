@@ -1,6 +1,6 @@
 import type { HistoryEntry } from "@/api/client";
 import { StatusCode } from "@/components/StatusCode";
-import { timeAgo } from "@/lib/format";
+import { formatDuration, timeAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useResponseStore } from "@/stores/responseStore";
 
@@ -24,7 +24,7 @@ export function HistoryList() {
         >
           <StatusCode status={entry.response.status} className="w-8 font-semibold" />
           <span className="min-w-0 flex-1 truncate font-mono text-muted-foreground">{entry.response.url}</span>
-          <span className="text-muted-foreground tabular-nums">{entry.response.timeMs}ms</span>
+          <span className="text-muted-foreground tabular-nums">{formatDuration(entry.response.timeMs)}</span>
           <span className="w-8 text-right text-muted-foreground">{timeAgo(entry.at)}</span>
         </button>
       ))}
