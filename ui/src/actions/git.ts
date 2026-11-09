@@ -3,12 +3,13 @@
  * Every change refreshes the status, which also keeps the diff pane current.
  */
 import { toast } from "sonner";
-import { backend, type BranchInfo, type FileStatus, type ScenarioPath } from "@/api/client";
+import { backend, type BranchInfo, type FileStatus, type GitIdentity, type ProjectPath } from "@/api/client";
 import { isUntracked, nextSelection, sameSelection, unstagePaths, type DiffSelection } from "@/domain/git";
-import { errorMessage, reportErrors } from "@/lib/errors";
+import { errorMessage, reportErrors, warnQuietly } from "@/lib/errors";
 import { dirtyPaths, useEditorStore } from "@/stores/editorStore";
 import { useGitStore } from "@/stores/gitStore";
 import { useProjectStore } from "@/stores/projectStore";
+import { useSettingsStore } from "@/stores/settingsStore";
 import { useUiStore } from "@/stores/uiStore";
 import { refreshEntries, refreshEnvs } from "./project";
 import { hasUnsavedChanges, saveAll } from "./saving";
@@ -31,17 +32,17 @@ export async function refreshGitStatus(): Promise<void> {
     const status = await backend.gitStatus(project);
     if (request !== latestStatusRequest) return;
     const git = useGitStore.getState();
-    git.loaded(status);
+    git.statusLoaded(status);
     const selection = status ? nextSelection(status, git.selected) : null;
-    if (!sameSelection(selection, git.selected)) git.select(selection);
+    if (!sameSelection(selection, git.selected)) git.selectionChanged(selection);
     await loadDiff(selection);
   } catch (error) {
-    if (request === latestStatusRequest) useGitStore.getState().failed(errorMessage(error));
+    if (request === latestStatusRequest) useGitStore.getState().statusFailed(errorMessage(error));
   }
 }
 
 export async function showDiff(selection: DiffSelection): Promise<void> {
-  useGitStore.getState().select(selection);
+  useGitStore.getState().selectionChanged(selection);
   await loadDiff(selection);
 }
 
@@ -49,16 +50,11 @@ async function loadDiff(selection: DiffSelection | null): Promise<void> {
   const project = currentProject();
   const isCurrent = () => sameSelection(useGitStore.getState().selected, selection);
   if (!project || !selection) {
-    useGitStore.getState().setDiff(null);
+    useGitStore.getState().diffLoaded(null);
     return;
   }
-  try {
-    const diff = await backend.gitDiff(project, selection.path, selection.side);
-    if (isCurrent()) useGitStore.getState().setDiff(diff);
-  } catch (error) {
-    console.warn(`Couldn't load diff: ${errorMessage(error)}`);
-    if (isCurrent()) useGitStore.getState().setDiff(null);
-  }
+  const diff = await warnQuietly(() => backend.gitDiff(project, selection.path, selection.side), "Couldn't load diff");
+  if (isCurrent()) useGitStore.getState().diffLoaded(diff ?? null);
 }
 
 /** Open the Changes dialog, or offer to set up a repository when there is none. */
@@ -79,7 +75,6 @@ export function initRepository(): void {
     description:
       "This makes the collection folder a git repository, so its changes can be reviewed and committed here. Local state in .cactus/ stays out of it.",
     action: "Set up git",
-    destructive: false,
     onConfirm: async () => {
       const project = currentProject();
       if (!project) return;
@@ -94,7 +89,7 @@ export function initRepository(): void {
 }
 
 /** Close the dialog and show the request in the editor. */
-export async function openInEditor(path: ScenarioPath): Promise<void> {
+export async function openInEditor(path: ProjectPath): Promise<void> {
   if (!useProjectStore.getState().entries.some((entry) => entry.relPath === path)) return;
   useUiStore.getState().setGitDialogOpen(false);
   await selectScenario(path);
@@ -111,7 +106,7 @@ async function changeIndex(work: (project: string) => Promise<unknown>, context:
  * Staging takes the files as they are on disk, so offer to save any of
  * `paths` with unsaved edits first.
  */
-function stageAfterSaving(paths: ScenarioPath[], proceed: () => Promise<void>): void {
+function stageAfterSaving(paths: ProjectPath[], proceed: () => Promise<void>): void {
   if (paths.length === 0) {
     void proceed();
     return;
@@ -120,7 +115,6 @@ function stageAfterSaving(paths: ScenarioPath[], proceed: () => Promise<void>): 
     title: "Unsaved changes",
     description: "Some requests have unsaved edits, which staging won't include unless they are saved.",
     action: "Save and stage",
-    destructive: false,
     onConfirm: async () => {
       if (await saveAll(paths)) await proceed();
     },
@@ -128,12 +122,12 @@ function stageAfterSaving(paths: ScenarioPath[], proceed: () => Promise<void>): 
   });
 }
 
-const unsavedAmong = (paths: ScenarioPath[] | null): ScenarioPath[] => {
+const unsavedAmong = (paths: ProjectPath[] | null): ProjectPath[] => {
   const dirty = dirtyPaths(useEditorStore.getState().buffers);
   return paths ? dirty.filter((path) => paths.includes(path)) : dirty;
 };
 
-export function stage(paths: ScenarioPath[]): void {
+export function stage(paths: ProjectPath[]): void {
   stageAfterSaving(unsavedAmong(paths), () =>
     changeIndex((project) => backend.gitStage(project, paths), "Stage failed"),
   );
@@ -154,6 +148,7 @@ export function discard(file: FileStatus): void {
   const untracked = isUntracked(file);
   useUiStore.getState().askConfirm({
     title: untracked ? "Delete file?" : "Discard changes?",
+    destructive: true,
     description: untracked
       ? `${file.path} isn't tracked by git, so discarding it deletes the file.`
       : `The unstaged changes to ${file.path} will be lost. Staged changes are kept.`,
@@ -165,10 +160,18 @@ export function discard(file: FileStatus): void {
 export function discardAll(count: number): void {
   useUiStore.getState().askConfirm({
     title: "Discard all changes?",
+    destructive: true,
     description: `The unstaged changes to ${count === 1 ? "1 file" : `${count} files`} will be lost, and untracked files deleted. Staged changes are kept.`,
     action: "Discard all",
     onConfirm: () => changeIndex((project) => backend.gitDiscardAll(project), "Discard failed"),
   });
+}
+
+/** The identity from Settings, or null to let git config decide. */
+function commitAuthor(): GitIdentity | null {
+  const name = useSettingsStore.getState().commitIdentity.name.trim();
+  const email = useSettingsStore.getState().commitIdentity.email.trim();
+  return name && email ? { name, email } : null;
 }
 
 /** Commit what is staged. Resolves to whether it went through. */
@@ -176,7 +179,7 @@ export async function commit(message: string): Promise<boolean> {
   const project = currentProject();
   if (!project) return false;
   const committed = await reportErrors(async () => {
-    const summary = await backend.gitCommit(project, message);
+    const summary = await backend.gitCommit(project, message, commitAuthor());
     toast.success(`Committed ${summary.id}`, { description: summary.summary });
     return true;
   }, "Commit failed");
@@ -187,11 +190,8 @@ export async function commit(message: string): Promise<boolean> {
 export async function loadBranches(): Promise<void> {
   const project = currentProject();
   if (!project) return;
-  try {
-    useGitStore.getState().setBranches(await backend.gitBranches(project));
-  } catch (error) {
-    console.warn(`Couldn't list branches: ${errorMessage(error)}`);
-  }
+  const branches = await warnQuietly(() => backend.gitBranches(project), "Couldn't list branches");
+  if (branches) useGitStore.getState().branchesLoaded(branches);
 }
 
 /** After HEAD moves, files on disk may differ: re-read everything shown. */
@@ -208,13 +208,15 @@ export function createBranch(): void {
     placeholder: "feature/login",
     onSubmit: async (name) => {
       const project = currentProject();
-      if (!project || !name) return;
+      if (!project || !name) return false;
       const created = await reportErrors(async () => {
         await backend.gitCreateBranch(project, name, true);
         return true;
       }, "Couldn't create branch");
-      if (created) toast.success(`Switched to new branch ${name}`);
+      if (!created) return false;
+      toast.success(`Switched to new branch ${name}`);
       await afterSwitch();
+      return true;
     },
   });
 }
@@ -242,7 +244,6 @@ export function switchBranch(name: string): void {
     title: "Unsaved changes",
     description: `Some requests have unsaved edits. Save them to take them to ${name}, or switch and keep them as unsaved edits.`,
     action: "Save all and switch",
-    destructive: false,
     onConfirm: async () => {
       if (await saveAll()) await run();
     },
@@ -253,6 +254,7 @@ export function switchBranch(name: string): void {
 export function deleteBranch(branch: BranchInfo): void {
   useUiStore.getState().askConfirm({
     title: `Delete ${branch.name}?`,
+    destructive: true,
     description: branch.merged
       ? "Its commits are all on the current branch, so nothing is lost."
       : "It has commits that aren't on the current branch. Deleting it loses them.",

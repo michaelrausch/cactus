@@ -1,5 +1,6 @@
 /** Autocomplete for `{{name}}` placeholders and response expressions. */
 import type { HttpResponse } from "@/api/client";
+import { ASSERTION_OPERATORS } from "./http";
 import { openPlaceholder, placeholderTail } from "./template";
 
 export interface Suggestion {
@@ -164,47 +165,16 @@ export function expressionSuggester(response: HttpResponse | null): Suggester {
   };
 }
 
-/** Assertion operators, as the backend checks them. Those in `UNARY` take no value. */
-export const OPERATORS = [
-  "eq",
-  "neq",
-  "gt",
-  "gte",
-  "lt",
-  "lte",
-  "in",
-  "notIn",
-  "contains",
-  "notContains",
-  "startsWith",
-  "endsWith",
-  "matches",
-  "notMatches",
-  "length",
-  "isDefined",
-  "isUndefined",
-  "isNull",
-  "isNotNull",
-  "isEmpty",
-  "isNotEmpty",
-  "isString",
-  "isNumber",
-  "isBoolean",
-  "isArray",
-  "isJson",
-  "isTruthy",
-  "isFalsy",
-] as const;
-
-const UNARY = new Set<string>(OPERATORS.filter((op) => op.startsWith("is")));
+/** Operators that take no value: `isDefined`, `isEmpty`, and so on. */
+const UNARY = new Set<string>(ASSERTION_OPERATORS.filter((op) => op.startsWith("is")));
 
 /** Completes the operator at the start of an assertion condition such as `eq 200`. */
 export const operatorSuggester: Suggester = (text, cursor) => {
   const typed = text.slice(0, cursor);
-  if (/\s/.test(typed) || (OPERATORS as readonly string[]).includes(typed)) return [];
+  if (/\s/.test(typed) || (ASSERTION_OPERATORS as readonly string[]).includes(typed)) return [];
   const to = wordEnd(text, cursor);
   const hasValue = text.slice(to).trim() !== "";
-  return rankByQuery(OPERATORS, typed)
+  return rankByQuery(ASSERTION_OPERATORS, typed)
     .filter((op) => op !== typed)
     .map((op) => ({
       label: op,

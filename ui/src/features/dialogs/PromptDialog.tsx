@@ -25,6 +25,14 @@ export function PromptDialog() {
 /** Mounted per prompt, so its input starts from that prompt's initial value. */
 function PromptForm({ prompt, onDone }: { prompt: PromptRequest; onDone: () => void }) {
   const [value, setValue] = useState(prompt.initial);
+  const [submitting, setSubmitting] = useState(false);
+  /** Closes once the work is done; if it failed (and said so), the text stays to fix and retry. */
+  const submit = async () => {
+    setSubmitting(true);
+    const done = await prompt.onSubmit(value.trim());
+    setSubmitting(false);
+    if (done) onDone();
+  };
   return (
     <>
       <DialogHeader>
@@ -34,13 +42,14 @@ function PromptForm({ prompt, onDone }: { prompt: PromptRequest; onDone: () => v
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          void prompt.onSubmit(value.trim());
-          onDone();
+          if (!submitting) void submit();
         }}
       >
         <Input autoFocus value={value} placeholder={prompt.placeholder} onChange={(e) => setValue(e.target.value)} />
         <DialogFooter className="mt-4">
-          <Button type="submit">OK</Button>
+          <Button type="submit" disabled={submitting}>
+            OK
+          </Button>
         </DialogFooter>
       </form>
     </>

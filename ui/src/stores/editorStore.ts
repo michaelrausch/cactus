@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { Scenario, ScenarioPath } from "@/api/client";
+import type { Scenario, ProjectPath } from "@/api/client";
 import { stableStringify } from "@/lib/format";
 
 /** How the file on disk disagrees with an unsaved buffer. */
@@ -34,16 +34,16 @@ export const sameScenario = (a: Scenario, b: Scenario): boolean => a === b || ca
 export const isDirty = (buffer: Buffer | undefined): boolean =>
   !!buffer && buffer.scenario !== buffer.baseline && !sameScenario(buffer.scenario, buffer.baseline);
 
-export const dirtyPaths = (buffers: Record<ScenarioPath, Buffer>): ScenarioPath[] =>
-  (Object.keys(buffers) as ScenarioPath[]).filter((path) => isDirty(buffers[path]));
+export const dirtyPaths = (buffers: Record<ProjectPath, Buffer>): ProjectPath[] =>
+  (Object.keys(buffers) as ProjectPath[]).filter((path) => isDirty(buffers[path]));
 
 interface EditorState {
   /** The scenario being shown, if any. */
-  path: ScenarioPath | null;
+  path: ProjectPath | null;
   /** Shortcut for `buffers[path].scenario`. */
   scenario: Scenario | null;
   /** The open scenario, plus every other one with unsaved edits. */
-  buffers: Record<ScenarioPath, Buffer>;
+  buffers: Record<ProjectPath, Buffer>;
   /**
    * Bumped whenever the editor must discard its local text state and remount,
    * e.g. on switching scenario or reloading from disk.
@@ -51,26 +51,26 @@ interface EditorState {
   editorVersion: number;
 
   /** Show `path` with fresh content from disk. */
-  opened: (path: ScenarioPath, scenario: Scenario) => void;
+  opened: (path: ProjectPath, scenario: Scenario) => void;
   /** Show the buffer already held for `path`. */
-  shown: (path: ScenarioPath) => void;
+  shown: (path: ProjectPath) => void;
   edited: (scenario: Scenario) => void;
   /** `scenario` was written; `onDisk` is how it reads back, if that differs. */
-  saved: (path: ScenarioPath, scenario: Scenario, onDisk?: Scenario) => void;
+  saved: (path: ProjectPath, scenario: Scenario, onDisk?: Scenario) => void;
   /** Replace the buffer with what is on disk. */
-  reloaded: (path: ScenarioPath, scenario: Scenario) => void;
-  conflicted: (path: ScenarioPath, conflict: Conflict) => void;
-  moved: (from: ScenarioPath, to: ScenarioPath) => void;
+  reloaded: (path: ProjectPath, scenario: Scenario) => void;
+  conflicted: (path: ProjectPath, conflict: Conflict) => void;
+  moved: (from: ProjectPath, to: ProjectPath) => void;
   /** Drop the buffer, closing the editor if it was showing. */
-  removed: (path: ScenarioPath) => void;
+  removed: (path: ProjectPath) => void;
   /** Drop everything, e.g. when switching project. */
   reset: () => void;
 }
 
 /** Buffers worth keeping: the one in view and any with unsaved edits. */
-function keep(buffers: Record<ScenarioPath, Buffer>, current: ScenarioPath): Record<ScenarioPath, Buffer> {
-  const kept: Record<ScenarioPath, Buffer> = {};
-  for (const path of Object.keys(buffers) as ScenarioPath[]) {
+function keep(buffers: Record<ProjectPath, Buffer>, current: ProjectPath): Record<ProjectPath, Buffer> {
+  const kept: Record<ProjectPath, Buffer> = {};
+  for (const path of Object.keys(buffers) as ProjectPath[]) {
     const buffer = buffers[path];
     if (buffer && (path === current || isDirty(buffer))) kept[path] = buffer;
   }
@@ -78,10 +78,10 @@ function keep(buffers: Record<ScenarioPath, Buffer>, current: ScenarioPath): Rec
 }
 
 const withBuffer = (
-  buffers: Record<ScenarioPath, Buffer>,
-  path: ScenarioPath,
+  buffers: Record<ProjectPath, Buffer>,
+  path: ProjectPath,
   change: (buffer: Buffer) => Buffer,
-): Record<ScenarioPath, Buffer> => {
+): Record<ProjectPath, Buffer> => {
   const buffer = buffers[path];
   return buffer ? { ...buffers, [path]: change(buffer) } : buffers;
 };

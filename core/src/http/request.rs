@@ -1,5 +1,6 @@
 //! Turning a [`Scenario`] into an outgoing request.
 
+use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
 use std::time::Duration;
@@ -7,12 +8,13 @@ use std::time::Duration;
 use reqwest::header::{CONTENT_TYPE, HeaderMap, HeaderName, HeaderValue};
 use reqwest::{Method, RequestBuilder, multipart};
 
-use crate::collection::{ApiKeyPlacement, Auth, AuthMode, RequestDefaults};
+use crate::collection::model::selected_or_first;
+use crate::collection::{ApiKeyPlacement, Auth, AuthMode, Header, RequestDefaults};
 use crate::env::{Env, Substituter};
 use crate::scenario::{
     Body, FileVariant, FormField, MultipartField, ParamKind, PartKind, PartValue, Scenario, Timeout, TypedBody,
 };
-use crate::{Error, Result};
+use crate::{Error, ProjectPath, Result};
 
 const JSON_CONTENT_TYPE: &str = "application/json";
 const XML_CONTENT_TYPE: &str = "application/xml";
@@ -41,23 +43,22 @@ pub fn build_request(
     let mut vars = Substituter::new(env);
     let mut warnings = Vec::new();
     let http = &scenario.http;
-    let mut url = fill_path_params(&vars.apply(http.url.trim()), scenario, &mut vars);
+    let url = fill_path_params(&vars.apply(http.url.trim()), scenario, &mut vars);
     let method = parse_method(&http.method)?;
     let auth = effective_auth(http.auth.as_ref(), inherited);
     let mut headers = HeaderMap::new();
+    let mut builder = client.request(method, &url);
     if let Some(Auth::Mode(AuthMode::ApiKey { key, value, placement })) = auth {
         let (key, value) = (vars.apply(key.trim()), vars.apply(value));
         match placement {
-            Some(ApiKeyPlacement::Query) => url = with_query_pair(&url, &key, &value),
-            _ => insert_header(&mut headers, &key, &value)?,
+            // `query` encodes the pair and keeps any `#fragment` last.
+            Some(ApiKeyPlacement::Query) => builder = builder.query(&[(key, value)]),
+            _ => set_header(&mut headers, &key, &value)?,
         }
     }
     // Auth goes first so an explicit Authorization header overrides it.
-    let builder = apply_auth(client.request(method, &url), auth, &mut vars, &mut warnings);
-    let request_headers = inherited.iter().flat_map(|defaults| &defaults.headers).chain(&http.headers);
-    for header in request_headers.filter(|h| !h.disabled && !h.name.trim().is_empty()) {
-        insert_header(&mut headers, &vars.apply(header.name.trim()), &vars.apply(&header.value))?;
-    }
+    let builder = apply_auth(builder, auth, &mut vars, &mut warnings);
+    add_headers(&mut headers, inherited, &http.headers, &mut vars)?;
     let mut builder = attach_body(builder, &mut headers, project, http.body.as_ref(), &mut vars, &mut warnings)?;
     if let Some(Timeout::Millis(ms)) = scenario.settings.timeout {
         builder = builder.timeout(Duration::from_millis(ms));
@@ -104,12 +105,45 @@ fn apply_auth(
     }
 }
 
-fn insert_header(headers: &mut HeaderMap, name: &str, value: &str) -> Result<()> {
+/// Inherited headers, then the request's own. A folder's header replaces the
+/// collection's of the same name and a request's replaces both, but a name
+/// the request itself lists twice (`Cookie`, `Accept`) is sent twice.
+fn add_headers(
+    headers: &mut HeaderMap,
+    inherited: &[RequestDefaults],
+    own: &[Header],
+    vars: &mut Substituter,
+) -> Result<()> {
+    for header in inherited.iter().flat_map(|defaults| enabled(&defaults.headers)) {
+        set_header(headers, &vars.apply(header.name.trim()), &vars.apply(&header.value))?;
+    }
+    let mut seen = HashSet::new();
+    for header in enabled(own) {
+        let (name, value) = parse_header(&vars.apply(header.name.trim()), &vars.apply(&header.value))?;
+        if seen.insert(name.clone()) {
+            headers.insert(name, value);
+        } else {
+            headers.append(name, value);
+        }
+    }
+    Ok(())
+}
+
+fn enabled(headers: &[Header]) -> impl Iterator<Item = &Header> {
+    headers.iter().filter(|h| !h.disabled && !h.name.trim().is_empty())
+}
+
+fn set_header(headers: &mut HeaderMap, name: &str, value: &str) -> Result<()> {
+    let (name, value) = parse_header(name, value)?;
+    headers.insert(name, value);
+    Ok(())
+}
+
+fn parse_header(name: &str, value: &str) -> Result<(HeaderName, HeaderValue)> {
     let header_name =
         HeaderName::from_bytes(name.as_bytes()).map_err(|_| Error::InvalidHeaderName(name.to_string()))?;
     let header_value = HeaderValue::from_str(value).map_err(|_| Error::InvalidHeaderValue(name.to_string()))?;
-    headers.insert(header_name, header_value);
-    Ok(())
+    Ok((header_name, header_value))
 }
 
 /// Replace `:name` path segments with the enabled path params' values.
@@ -134,13 +168,6 @@ fn fill_path_params(url: &str, scenario: &Scenario, vars: &mut Substituter) -> S
         })
         .collect();
     format!("{}{rest}", filled.join("/"))
-}
-
-fn with_query_pair(url: &str, name: &str, value: &str) -> String {
-    let (base, hash) = url.split_once('#').map_or((url, None), |(base, hash)| (base, Some(hash)));
-    let separator = if base.contains('?') { '&' } else { '?' };
-    let hash = hash.map_or_else(String::new, |h| format!("#{h}"));
-    format!("{base}{separator}{name}={value}{hash}")
 }
 
 fn attach_body(
@@ -224,9 +251,8 @@ fn file_body(
     project: &Path,
     variants: &[FileVariant],
 ) -> Result<RequestBuilder> {
-    let Some(chosen) = variants.iter().find(|v| v.selected).or(variants.first()) else { return Ok(builder) };
-    let path = project.join(&chosen.file_path);
-    let data = fs::read(&path).map_err(|source| Error::AttachmentUnreadable { path: path.clone(), source })?;
+    let Some(chosen) = selected_or_first(variants, |v| v.selected) else { return Ok(builder) };
+    let data = read_file_in_project(project, &chosen.file_path)?;
     if let Ok(content_type) = HeaderValue::from_str(&chosen.content_type)
         && !chosen.content_type.is_empty()
     {
@@ -236,10 +262,18 @@ fn file_body(
 }
 
 fn read_attachment(project: &Path, file: &str) -> Result<multipart::Part> {
-    let path = project.join(file);
-    let data = fs::read(&path).map_err(|source| Error::AttachmentUnreadable { path: path.clone(), source })?;
-    let file_name = path.file_name().map_or_default(|n| n.to_string_lossy().into_owned());
+    let data = read_file_in_project(project, file)?;
+    let file_name = file.rsplit(['/', '\\']).next().unwrap_or(file).to_string();
     Ok(multipart::Part::bytes(data).file_name(file_name))
+}
+
+/// Attachments are read from inside the project only. A request file may come
+/// from anyone (a cloned repository, an import), so an absolute or `../` path
+/// would let it upload any file on the machine when it is sent.
+fn read_file_in_project(project: &Path, file: &str) -> Result<Vec<u8>> {
+    let relative = ProjectPath::parse(file).map_err(|_| Error::AttachmentOutsideProject(file.to_string()))?;
+    let path = relative.resolve(project);
+    fs::read(&path).map_err(Error::file(&path))
 }
 
 #[cfg(test)]
@@ -333,6 +367,28 @@ mod tests {
     }
 
     #[test]
+    fn api_key_query_is_encoded() {
+        let mut s = request("GET", "http://h/x?a=1#top");
+        s.http.auth = Some(Auth::Mode(AuthMode::ApiKey {
+            key: "api key".into(),
+            value: "a&b=c".into(),
+            placement: Some(ApiKeyPlacement::Query),
+        }));
+        let req = build(Path::new("."), &s, &[], &Env::new()).unwrap().request;
+        assert_eq!(req.url().as_str(), "http://h/x?a=1&api+key=a%26b%3Dc#top");
+    }
+
+    #[test]
+    fn repeated_request_headers_are_all_sent() {
+        let collection = RequestDefaults { headers: vec![Header::new("Accept", "text/plain")], ..Default::default() };
+        let mut s = request("GET", "http://h/");
+        s.http.headers = vec![Header::new("Accept", "application/json"), Header::new("Accept", "text/html")];
+        let req = build(Path::new("."), &s, &[collection], &Env::new()).unwrap().request;
+        let accept: Vec<_> = req.headers().get_all("accept").iter().collect();
+        assert_eq!(accept, ["application/json", "text/html"]);
+    }
+
+    #[test]
     fn form_multipart_and_file_bodies() {
         let dir = tempfile::tempdir().unwrap();
         fs::write(dir.path().join("f.txt"), "FILEDATA").unwrap();
@@ -360,7 +416,12 @@ mod tests {
 
         s.http.body =
             Some(Body::Typed(TypedBody::MultipartForm { data: vec![part("f", PartKind::File, "missing.txt")] }));
-        assert!(matches!(build(dir.path(), &s, &[], &env), Err(Error::AttachmentUnreadable { .. })));
+        assert!(matches!(build(dir.path(), &s, &[], &env), Err(Error::File { .. })));
+        for outside in ["/etc/hosts", "../f.txt", "{{dir}}/../f.txt"] {
+            s.http.body =
+                Some(Body::Typed(TypedBody::MultipartForm { data: vec![part("f", PartKind::File, outside)] }));
+            assert!(matches!(build(dir.path(), &s, &[], &env), Err(Error::AttachmentOutsideProject(_))), "{outside}");
+        }
 
         s.http.body = Some(Body::Typed(TypedBody::File {
             data: vec![FileVariant { file_path: "f.txt".into(), content_type: "text/plain".into(), selected: true }],

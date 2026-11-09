@@ -8,7 +8,7 @@ use crate::clock::now_unix_millis;
 use crate::history::{self, HistoryEntry};
 use crate::http::{self, Response, scenario_passed};
 use crate::scenario::{self, Scenario, ScenarioEntry};
-use crate::{Error, Result, ScenarioPath, collection, env};
+use crate::{Error, ProjectPath, Result, env};
 
 /// Send one request with what its collection and folders set and the
 /// merged env (`env_name` overrides the active one), persist the variables
@@ -16,13 +16,12 @@ use crate::{Error, Result, ScenarioPath, collection, env};
 pub async fn send_and_record(
     client: &reqwest::Client,
     project: &Path,
-    path: &ScenarioPath,
+    path: &ProjectPath,
     scenario: &Scenario,
     env_name: Option<&str>,
 ) -> Result<Response> {
-    let inherited = collection::defaults_chain(project, path.dir())?;
-    let vars = env::resolve_for_request(project, env_name, &inherited, &scenario.runtime.variables)?;
-    let response = http::send(client, project, scenario, &inherited, &vars).await?;
+    let scope = env::resolve_for_request(project, env_name, path.dir(), &scenario.runtime.variables)?;
+    let response = http::send(client, project, scenario, &scope.inherited, &scope.vars).await?;
     if !response.captured.is_empty() {
         env::merge_captured(project, &response.captured)?;
     }
@@ -31,7 +30,7 @@ pub async fn send_and_record(
 }
 
 /// History is a convenience; failing to write it shouldn't fail the request.
-fn record_history(project: &Path, path: &ScenarioPath, response: &Response) {
+fn record_history(project: &Path, path: &ProjectPath, response: &Response) {
     let entry = HistoryEntry { at: now_unix_millis(), response: response.clone() };
     let _ = history::push(project, path, entry);
 }
@@ -40,7 +39,7 @@ fn record_history(project: &Path, path: &ScenarioPath, response: &Response) {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct RunResult {
-    pub rel_path: ScenarioPath,
+    pub rel_path: ProjectPath,
     pub title: String,
     pub ok: bool,
     pub response: Option<Response>,

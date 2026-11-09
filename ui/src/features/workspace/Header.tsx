@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { isDirty, useEditorStore } from "@/stores/editorStore";
 import { useGitStore } from "@/stores/gitStore";
 import { useProjectStore } from "@/stores/projectStore";
+import { hasResponseContent, useResponseStore } from "@/stores/responseStore";
 import { useUiStore } from "@/stores/uiStore";
 
 const Separator = () => <span className="text-muted-foreground/50">/</span>;
@@ -122,6 +123,7 @@ function ScenarioActions() {
 export function Header() {
   const project = useProjectStore((s) => s.project);
   const responseVisible = useUiStore((s) => s.responseVisible);
+  const hasResponse = useResponseStore(hasResponseContent);
   return (
     <header className="relative flex h-12 shrink-0 items-center gap-2 px-4">
       {project && (
@@ -130,13 +132,15 @@ export function Header() {
           <div className="ml-auto flex items-center gap-1">
             <GitChip />
             <ScenarioActions />
-            <IconButton
-              label={withShortcut("Toggle response", "toggleResponse")}
-              onClick={() => useUiStore.getState().toggleResponse()}
-              active={responseVisible}
-            >
-              <PanelRight />
-            </IconButton>
+            {hasResponse && (
+              <IconButton
+                label={withShortcut("Toggle response", "toggleResponse")}
+                onClick={() => useUiStore.getState().toggleResponse()}
+                active={responseVisible}
+              >
+                <PanelRight />
+              </IconButton>
+            )}
           </div>
         </>
       )}

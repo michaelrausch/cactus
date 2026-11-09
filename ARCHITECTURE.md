@@ -23,10 +23,12 @@ ui/         React front end for the desktop app.
 | `.cactus/secrets.json`    | Local secrets, the values of `secret: true` variables                         | no        |
 | `.cactus/captured.json`   | Values written by set-variable actions                                        | no        |
 | `.cactus/state.json`      | Active environment                                                            | no        |
-| `.cactus/history/*.json`  | Last responses per request (`a/b.yml` → `a__b.json`)                          | no        |
+| `.cactus/history/*.json`  | Last responses per request (`a/b.yml` → `a%2Fb.json`)                         | no        |
 
-All path rules live in `core/src/layout.rs`. Request paths are a validated
-newtype (`ScenarioPath`) that can never escape the project. Requests are listed
+All path rules live in `core/src/layout.rs`. Paths in the project (requests,
+attachments, the files git lists) are a validated newtype (`ProjectPath`) that
+can never escape the project. Attachments are read through it too, so a
+request file from someone else can't upload a file from outside the project. Requests are listed
 and run in tree order: at each level, folders and requests sorted together by
 `seq`, as Bruno does.
 
@@ -61,7 +63,9 @@ says so in the response's `warnings`.
 | `runner`                                          | Send + persist captures + record history; folder runs                                                                                              |
 | `history`, `recent`, `state`, `storage`, `layout` | Persistence                                                                                                                                        |
 
-Errors are typed (`core/src/error.rs`) and reach the UI as their message.
+Errors are typed (`core/src/error.rs`) and reach the UI as their message. An
+I/O failure on a known file is `Error::File`, which names the file; attach the
+path with `.map_err(Error::file(&path))`.
 
 **Git** uses libgit2 through `git2`, vendored and without network features,
 so it builds the same on Linux and Windows with no OpenSSL. It sits behind the
@@ -99,6 +103,16 @@ Data flows one way: **component → action → backend → store → component**
 
 Stores never import each other or actions, which keeps the graph acyclic
 (enforced by `import/no-cycle`). Cross-store work belongs in `actions/`.
+Store methods are named for what happened (`opened`, `saved`,
+`historyLoaded`, `statusFailed`); plain UI flags use setters
+(`setEnvDialogOpen`). Components read app state only in `features/`: the
+editor hands template fields their variable names through
+`KnownNamesContext`.
+
+Errors in actions: user-initiated work goes through `reportErrors(work,
+context)`, which shows a toast; background work whose failure only costs a
+hint (highlighting, a diff preview) goes through `warnQuietly`. Nothing calls
+`toast.error` or `console.warn` directly.
 
 Nothing is saved automatically. Edits live in `editorStore` buffers (the open
 scenario plus any other with unsaved edits), which are dirty until saved with
@@ -116,12 +130,16 @@ whenever its draft state must reset.
 **Edit another OpenCollection field.** Add it to `core/src/scenario/model.rs`
 (or `collection/model.rs`) under its spec name, with
 `#[serde(default, skip_serializing_if = ...)]` so files without it still load
-and stay minimal, and `lenient_string` for strings hand-written YAML may type as
-numbers. Until a field is in the model, saves leave it untouched. Regenerate the
+and stay minimal, and `LenientString` for strings hand-written YAML may type
+as numbers (`value: 8080`). Until a field is in the model, saves leave it untouched. Regenerate the
 bindings, then add an editor tab under `ui/src/features/editor/tabs/` that takes
 `ScenarioTabProps`. The UI must hold a request exactly as the backend writes it
 (empty lists left out, query params mirroring the URL), or every save looks
-like an outside change and reloads the editor.
+like an outside change and reloads the editor. Query-param syncing is
+implemented on both sides, so its cases live in one fixture
+(`core/tests/fixtures/query-params.json`) that both test suites run. Other
+things the UI copies from core (assertion operators, layer file names) are
+checked by `core/tests/ui_contract.rs`.
 
 ## Checks
 

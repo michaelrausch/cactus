@@ -30,7 +30,7 @@ export const AUTH_KIND_LABELS: Record<AuthKind, string> = {
 
 export const isAuthKind = (value: string): value is AuthKind => (AUTH_KINDS as readonly string[]).includes(value);
 
-/** Operators cactus checks, as Bruno names them. */
+/** Operators cactus checks, as Bruno names them. Mirrors `ASSERTION_OPERATORS` in core (checked by core/tests/ui_contract.rs). */
 export const ASSERTION_OPERATORS = [
   "eq",
   "neq",

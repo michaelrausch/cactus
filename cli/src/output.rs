@@ -80,14 +80,14 @@ pub fn format_import_summary(summary: &ImportSummary) -> String {
 
 #[cfg(test)]
 mod tests {
-    use cactus_core::ScenarioPath;
+    use cactus_core::ProjectPath;
 
     use super::*;
 
     #[test]
     fn error_result_line() {
         let result = RunResult {
-            rel_path: ScenarioPath::parse("a.yml").unwrap(),
+            rel_path: ProjectPath::parse("a.yml").unwrap(),
             title: "A".into(),
             ok: false,
             response: None,

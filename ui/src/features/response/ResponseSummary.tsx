@@ -3,9 +3,8 @@ import type { HttpResponse } from "@/api/client";
 import { StatusCode } from "@/components/StatusCode";
 import { formatBytes, formatDuration, timeAgo } from "@/lib/format";
 
-/** Status, timing and size line, plus warning, unresolved, captured and failed-capture chips. */
+/** Status, timing and size line, plus warning, unresolved and failed-capture chips. */
 export function ResponseSummary({ response, historyAt }: { response: HttpResponse; historyAt: number | null }) {
-  const captured = Object.entries(response.captured);
   return (
     <>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
@@ -22,10 +21,7 @@ export function ResponseSummary({ response, historyAt }: { response: HttpRespons
           </span>
         )}
       </div>
-      {(response.warnings.length > 0 ||
-        response.unresolved.length > 0 ||
-        captured.length > 0 ||
-        response.captureFailures.length > 0) && (
+      {(response.warnings.length > 0 || response.unresolved.length > 0 || response.captureFailures.length > 0) && (
         <div className="flex flex-wrap gap-1.5 text-xs">
           {response.warnings.map((warning) => (
             <span key={warning} className="rounded-full bg-warning/10 px-2 py-0.5 text-warning">
@@ -48,15 +44,6 @@ export function ResponseSummary({ response, historyAt }: { response: HttpRespons
               title={`${failure.expression}: ${failure.reason}`}
             >
               capture {failure.name} failed
-            </span>
-          ))}
-          {captured.map(([name, value]) => (
-            <span
-              key={name}
-              className="max-w-60 truncate rounded-full bg-captured/10 px-2 py-0.5 text-captured"
-              title={value}
-            >
-              captured {name}
             </span>
           ))}
         </div>

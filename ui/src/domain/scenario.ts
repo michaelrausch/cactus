@@ -1,10 +1,15 @@
 import type { Auth, AuthMode, Body, FormField, Header, MultipartField, Param, Scenario, TypedBody } from "@/api/client";
 import { AUTH_KINDS, BODY_KINDS, TEXT_BODY_KINDS, type AuthKind, type BodyKind, type TextBodyKind } from "./http";
-import { parseQuery } from "./query";
+import { parseQuery, withQuery } from "./query";
+import { makeRow, type Row } from "./rows";
 
 const PATH_PARAM_PREFIX = ":";
 /** `{{name}}` placeholders, which make otherwise valid JSON fail to parse. */
 const PLACEHOLDER = /\{\{[^}]*\}\}/g;
+
+/** The request's own active variables, which may not be saved yet. */
+export const ownVariableNames = (variables: NonNullable<Scenario["runtime"]>["variables"]): string[] =>
+  (variables ?? []).filter((v) => !v.disabled && v.name.trim()).map((v) => v.name.trim());
 
 export const displayTitle = (scenario: Scenario): string => scenario.info.name || "Untitled";
 
@@ -149,6 +154,27 @@ export function withUrl(scenario: Scenario, url: string): Scenario {
   }
   const { params: _previous, ...http } = scenario.http;
   return { ...scenario, http: params.length > 0 ? { ...http, url, params } : { ...http, url } };
+}
+
+/** The query table: the URL's pairs, which are sent, then the disabled query params, which aren't. */
+export const queryRows = (scenario: Scenario): Row[] => [
+  ...parseQuery(scenario.http.url),
+  ...(scenario.http.params ?? [])
+    .filter((param) => param.type === "query" && param.disabled)
+    .map((param) => makeRow(param.name, param.value, false)),
+];
+
+/** Enabled rows go into the URL; disabled ones are kept as disabled query params. */
+export function withQueryRows(scenario: Scenario, rows: Row[]): Scenario {
+  const url = withQuery(
+    scenario.http.url,
+    rows.filter((row) => row.enabled),
+  );
+  const disabled = rows
+    .filter((row) => !row.enabled)
+    .map((row): Param => ({ name: row.key, value: row.value, type: "query", disabled: true }));
+  const kept = (scenario.http.params ?? []).filter((param) => !(param.type === "query" && param.disabled));
+  return withUrl({ ...scenario, http: { ...scenario.http, params: [...kept, ...disabled] } }, url);
 }
 
 /** Empty lists are left out, as the backend writes them. */

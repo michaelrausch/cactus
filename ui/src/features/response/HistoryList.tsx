@@ -7,7 +7,7 @@ import { useResponseStore } from "@/stores/responseStore";
 export function HistoryList() {
   const history = useResponseStore((s) => s.history);
   const historyAt = useResponseStore((s) => s.historyAt);
-  const pickHistory = useResponseStore((s) => s.pickHistory);
+  const historyEntryPicked = useResponseStore((s) => s.historyEntryPicked);
 
   if (history.length === 0) return <p className="text-xs text-muted-foreground">No history yet.</p>;
   return (
@@ -16,7 +16,7 @@ export function HistoryList() {
         <button
           type="button"
           key={entry.at}
-          onClick={() => pickHistory(entry)}
+          onClick={() => historyEntryPicked(entry)}
           className={cn(
             "flex items-center gap-3 rounded-md px-2 py-1.5 text-left text-xs hover:bg-accent/60",
             entry.at === historyAt && "bg-accent",

@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate::http::Response;
 use crate::storage::{ensure_parent_dir, read_json_lenient, write_json};
 use crate::text::truncate_utf8;
-use crate::{Result, ScenarioPath, layout};
+use crate::{ProjectPath, Result, layout};
 
 const MAX_HISTORY_ENTRIES: usize = 10;
 /// Older entries are trimmed harder than live bodies to keep files small.
@@ -20,21 +20,21 @@ const MAX_HISTORY_BODY_BYTES: usize = 256 * 1024;
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct HistoryEntry {
     /// Unix epoch millis.
-    // Exposed to TypeScript as `number`: epoch millis stay far below 2^53.
-    #[cfg_attr(feature = "specta", specta(type = u32))]
+    // A JS `number`, accepting precision loss: epoch millis stay far below 2^53.
+    #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
     pub at: u64,
     pub response: Response,
 }
 
 /// Newest first. A missing or corrupt history is simply empty.
-pub fn load(project: &Path, scenario: &ScenarioPath) -> Vec<HistoryEntry> {
+pub fn load(project: &Path, scenario: &ProjectPath) -> Vec<HistoryEntry> {
     read_json_lenient(&layout::history_file(project, scenario))
 }
 
 /// Prepend `entry`, keeping at most [`MAX_HISTORY_ENTRIES`]. The newest entry
 /// keeps its full body, since reopening a scenario shows it and a cut-off JSON
 /// body can't be parsed; only older entries are trimmed.
-pub fn push(project: &Path, scenario: &ScenarioPath, entry: HistoryEntry) -> Result<()> {
+pub fn push(project: &Path, scenario: &ProjectPath, entry: HistoryEntry) -> Result<()> {
     layout::ensure_workspace(project)?;
     let file = layout::history_file(project, scenario);
     ensure_parent_dir(&file)?;
@@ -48,12 +48,12 @@ pub fn push(project: &Path, scenario: &ScenarioPath, entry: HistoryEntry) -> Res
 }
 
 /// Best effort: a scenario without history is not an error.
-pub fn clear(project: &Path, scenario: &ScenarioPath) {
+pub fn clear(project: &Path, scenario: &ProjectPath) {
     let _ = fs::remove_file(layout::history_file(project, scenario));
 }
 
 /// Best effort, like [`clear`].
-pub fn rename(project: &Path, from: &ScenarioPath, to: &ScenarioPath) {
+pub fn rename(project: &Path, from: &ProjectPath, to: &ProjectPath) {
     let _ = fs::rename(layout::history_file(project, from), layout::history_file(project, to));
 }
 
@@ -92,7 +92,7 @@ mod tests {
     #[test]
     fn newest_entry_keeps_full_body() {
         let dir = tempfile::tempdir().unwrap();
-        let path = ScenarioPath::parse("a.yml").unwrap();
+        let path = ProjectPath::parse("a.yml").unwrap();
         let big = "x".repeat(MAX_HISTORY_BODY_BYTES + 10);
 
         push(dir.path(), &path, entry(1, &big)).unwrap();

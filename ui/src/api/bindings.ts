@@ -11,13 +11,13 @@ export const commands = {
 	/**  Re-list, and re-watch so folders created since opening are covered. */
 	listScenarios: (project: string, options?: InvokeOptions) => __TAURI_INVOKE<ScenarioEntry[]>("list_scenarios", { project }, options),
 	recentProjects: (options?: InvokeOptions) => __TAURI_INVOKE<string[]>("recent_projects", undefined, options),
-	loadScenario: (project: string, path: ScenarioPath, options?: InvokeOptions) => __TAURI_INVOKE<Scenario_Serialize>("load_scenario", { project, path }, options),
-	saveScenario: (project: string, path: ScenarioPath, scenario: Scenario_Deserialize, options?: InvokeOptions) => __TAURI_INVOKE<null>("save_scenario", { project, path, scenario }, options),
-	createScenario: (project: string, dir: string, title: string, options?: InvokeOptions) => __TAURI_INVOKE<ScenarioPath>("create_scenario", { project, dir, title }, options),
-	duplicateScenario: (project: string, path: ScenarioPath, options?: InvokeOptions) => __TAURI_INVOKE<ScenarioPath>("duplicate_scenario", { project, path }, options),
-	deleteScenario: (project: string, path: ScenarioPath, options?: InvokeOptions) => __TAURI_INVOKE<null>("delete_scenario", { project, path }, options),
-	renameScenario: (project: string, from: ScenarioPath, to: ScenarioPath, options?: InvokeOptions) => __TAURI_INVOKE<null>("rename_scenario", { project, from, to }, options),
-	loadHistory: (project: string, path: ScenarioPath, options?: InvokeOptions) => __TAURI_INVOKE<HistoryEntry_Serialize[]>("load_history", { project, path }, options),
+	loadScenario: (project: string, path: ProjectPath, options?: InvokeOptions) => __TAURI_INVOKE<Scenario_Serialize>("load_scenario", { project, path }, options),
+	saveScenario: (project: string, path: ProjectPath, scenario: Scenario_Deserialize, options?: InvokeOptions) => __TAURI_INVOKE<null>("save_scenario", { project, path, scenario }, options),
+	createScenario: (project: string, dir: string, title: string, options?: InvokeOptions) => __TAURI_INVOKE<ProjectPath>("create_scenario", { project, dir, title }, options),
+	duplicateScenario: (project: string, path: ProjectPath, options?: InvokeOptions) => __TAURI_INVOKE<ProjectPath>("duplicate_scenario", { project, path }, options),
+	deleteScenario: (project: string, path: ProjectPath, options?: InvokeOptions) => __TAURI_INVOKE<null>("delete_scenario", { project, path }, options),
+	renameScenario: (project: string, from: ProjectPath, to: ProjectPath, options?: InvokeOptions) => __TAURI_INVOKE<null>("rename_scenario", { project, from, to }, options),
+	loadHistory: (project: string, path: ProjectPath, options?: InvokeOptions) => __TAURI_INVOKE<HistoryEntry_Serialize[]>("load_history", { project, path }, options),
 	listEnvs: (project: string, options?: InvokeOptions) => __TAURI_INVOKE<string[]>("list_envs", { project }, options),
 	activeEnv: (project: string, options?: InvokeOptions) => __TAURI_INVOKE<string | null>("active_env", { project }, options),
 	setActiveEnv: (project: string, name: string | null, options?: InvokeOptions) => __TAURI_INVOKE<null>("set_active_env", { project, name }, options),
@@ -27,21 +27,27 @@ export const commands = {
 	deleteEnv: (project: string, name: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("delete_env", { project, name }, options),
 	/**
 	 *  The names of every variable a request at `path` can use with the active
-	 *  env, for highlighting and completing `{{name}}`. Values stay out of the UI.
+	 *  env, for highlighting and completing `{{name}}`.
 	 */
-	variableNames: (project: string, path: ScenarioPath, options?: InvokeOptions) => __TAURI_INVOKE<string[]>("variable_names", { project, path }, options),
+	variableNames: (project: string, path: ProjectPath, options?: InvokeOptions) => __TAURI_INVOKE<string[]>("variable_names", { project, path }, options),
 	/**  `None` when the project isn't in a git repository. */
 	gitStatus: (project: string, options?: InvokeOptions) => __TAURI_INVOKE<GitStatus_Serialize | null>("git_status", { project }, options),
 	/**  Make the project folder a git repository. */
 	gitInit: (project: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("git_init", { project }, options),
-	gitStage: (project: string, paths: ScenarioPath[], options?: InvokeOptions) => __TAURI_INVOKE<null>("git_stage", { project, paths }, options),
-	gitUnstage: (project: string, paths: ScenarioPath[], options?: InvokeOptions) => __TAURI_INVOKE<null>("git_unstage", { project, paths }, options),
+	gitStage: (project: string, paths: ProjectPath[], options?: InvokeOptions) => __TAURI_INVOKE<null>("git_stage", { project, paths }, options),
+	gitUnstage: (project: string, paths: ProjectPath[], options?: InvokeOptions) => __TAURI_INVOKE<null>("git_unstage", { project, paths }, options),
 	gitStageAll: (project: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("git_stage_all", { project }, options),
 	gitUnstageAll: (project: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("git_unstage_all", { project }, options),
-	gitDiscard: (project: string, paths: ScenarioPath[], options?: InvokeOptions) => __TAURI_INVOKE<null>("git_discard", { project, paths }, options),
+	gitDiscard: (project: string, paths: ProjectPath[], options?: InvokeOptions) => __TAURI_INVOKE<null>("git_discard", { project, paths }, options),
 	gitDiscardAll: (project: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("git_discard_all", { project }, options),
-	gitDiff: (project: string, path: ScenarioPath, side: DiffSide, options?: InvokeOptions) => __TAURI_INVOKE<FileDiff_Serialize>("git_diff", { project, path, side }, options),
-	gitCommit: (project: string, message: string, options?: InvokeOptions) => __TAURI_INVOKE<CommitSummary>("git_commit", { project, message }, options),
+	gitDiff: (project: string, path: ProjectPath, side: DiffSide, options?: InvokeOptions) => __TAURI_INVOKE<FileDiff_Serialize>("git_diff", { project, path, side }, options),
+	/**  `author` overrides git config's identity when both parts are filled in. */
+	gitCommit: (project: string, message: string, author: GitIdentity | null, options?: InvokeOptions) => __TAURI_INVOKE<CommitSummary>("git_commit", { project, message, author }, options),
+	/**
+	 *  The identity git config gives, for the project's repository if one is
+	 *  open; `None` when it isn't set.
+	 */
+	gitConfiguredIdentity: (project: string | null, options?: InvokeOptions) => __TAURI_INVOKE<GitIdentity | null>("git_configured_identity", { project }, options),
 	gitBranches: (project: string, options?: InvokeOptions) => __TAURI_INVOKE<BranchInfo_Serialize[]>("git_branches", { project }, options),
 	/**  `checkout`: switch to the new branch too. (`switch` is reserved in TypeScript.) */
 	gitCreateBranch: (project: string, name: string, checkout: boolean, options?: InvokeOptions) => __TAURI_INVOKE<null>("git_create_branch", { project, name, checkout }, options),
@@ -52,7 +58,7 @@ export const commands = {
 	 *  Send the scenario as edited (it may not be saved yet). Resolves to
 	 *  `None` when cancelled.
 	 */
-	sendRequest: (project: string, path: ScenarioPath, scenario: Scenario_Deserialize, options?: InvokeOptions) => __TAURI_INVOKE<Response_Serialize | null>("send_request", { project, path, scenario }, options),
+	sendRequest: (project: string, path: ProjectPath, scenario: Scenario_Deserialize, options?: InvokeOptions) => __TAURI_INVOKE<Response_Serialize | null>("send_request", { project, path, scenario }, options),
 	/**
 	 *  Run every scenario under `dir`, emitting [`RunProgress`] per scenario.
 	 *  Resolves to `None` when cancelled.
@@ -75,12 +81,12 @@ export type ActionPhase = "before-request" | "after-response";
 export type ActionVariable = ActionVariable_Serialize | ActionVariable_Deserialize;
 
 export type ActionVariable_Deserialize = {
-	name?: string,
+	name?: LenientString,
 	scope?: string,
 };
 
 export type ActionVariable_Serialize = {
-	name: string,
+	name: LenientString,
 	scope: string,
 };
 
@@ -95,17 +101,17 @@ export type Assertion = Assertion_Serialize | Assertion_Deserialize;
 
 /**  A test run against each response, e.g. `res.status eq 200`. */
 export type Assertion_Deserialize = {
-	expression?: string,
-	operator?: string,
-	value?: string | null,
+	expression?: LenientString,
+	operator?: LenientString,
+	value?: LenientString | null,
 	disabled?: boolean,
 };
 
 /**  A test run against each response, e.g. `res.status eq 200`. */
 export type Assertion_Serialize = {
-	expression: string,
-	operator: string,
-	value?: string,
+	expression: LenientString,
+	operator: LenientString,
+	value?: LenientString,
 	disabled?: boolean,
 };
 
@@ -116,10 +122,10 @@ export type Auth = Auth_Serialize | Auth_Deserialize;
 export type AuthMode = AuthMode_Serialize | AuthMode_Deserialize;
 
 /**  The auth modes cactus can send. */
-export type AuthMode_Deserialize = { type: "bearer"; token?: string } | { type: "basic"; username?: string; password?: string } | { type: "apikey"; key?: string; value?: string; placement?: ApiKeyPlacement | null };
+export type AuthMode_Deserialize = { type: "bearer"; token?: LenientString } | { type: "basic"; username?: LenientString; password?: LenientString } | { type: "apikey"; key?: LenientString; value?: LenientString; placement?: ApiKeyPlacement | null };
 
 /**  The auth modes cactus can send. */
-export type AuthMode_Serialize = { type: "bearer"; token: string } | { type: "basic"; username: string; password: string } | { type: "apikey"; key: string; value: string; placement?: ApiKeyPlacement };
+export type AuthMode_Serialize = { type: "bearer"; token: LenientString } | { type: "basic"; username: LenientString; password: LenientString } | { type: "apikey"; key: LenientString; value: LenientString; placement?: ApiKeyPlacement };
 
 /**  `auth:` on a request, folder or collection. */
 export type Auth_Deserialize = Inherit | AuthMode_Deserialize | 
@@ -266,9 +272,9 @@ export type FileDiff_Serialize = {
 export type FileStatus = FileStatus_Serialize | FileStatus_Deserialize;
 
 export type FileStatus_Deserialize = {
-	path: ScenarioPath,
+	path: ProjectPath,
 	/**  The previous path of a staged rename, if it was in the project. */
-	renamedFrom?: ScenarioPath | null,
+	renamedFrom?: ProjectPath | null,
 	/**  The change in the index, which the next commit records. */
 	staged?: ChangeKind | null,
 	/**  The change in the work tree that isn't staged. */
@@ -276,9 +282,9 @@ export type FileStatus_Deserialize = {
 };
 
 export type FileStatus_Serialize = {
-	path: ScenarioPath,
+	path: ProjectPath,
 	/**  The previous path of a staged rename, if it was in the project. */
-	renamedFrom: ScenarioPath | null,
+	renamedFrom: ProjectPath | null,
 	/**  The change in the index, which the next commit records. */
 	staged: ChangeKind | null,
 	/**  The change in the work tree that isn't staged. */
@@ -304,20 +310,26 @@ export type FormField = FormField_Serialize | FormField_Deserialize;
 
 /**  `name=value` of a form body. */
 export type FormField_Deserialize = {
-	name?: string,
-	value?: string,
+	name?: LenientString,
+	value?: LenientString,
 	disabled?: boolean,
 };
 
 /**  `name=value` of a form body. */
 export type FormField_Serialize = {
-	name: string,
-	value: string,
+	name: LenientString,
+	value: LenientString,
 	disabled?: boolean,
 };
 
 /**  Project-relative paths of files that changed on disk. */
 export type FsChanged = string[];
+
+/**  Who a commit is by: `user.name` and `user.email`. */
+export type GitIdentity = {
+	name: string,
+	email: string,
+};
 
 export type GitStatus = GitStatus_Serialize | GitStatus_Deserialize;
 
@@ -352,15 +364,15 @@ export type Header = Header_Serialize | Header_Deserialize;
 
 /**  `name: value` sent with a request; `disabled` ones stay in the file. */
 export type Header_Deserialize = {
-	name?: string,
-	value?: string,
+	name?: LenientString,
+	value?: LenientString,
 	disabled?: boolean,
 };
 
 /**  `name: value` sent with a request; `disabled` ones stay in the file. */
 export type Header_Serialize = {
-	name: string,
-	value: string,
+	name: LenientString,
+	value: LenientString,
 	disabled?: boolean,
 };
 
@@ -381,8 +393,8 @@ export type HistoryEntry_Serialize = {
 export type Http = Http_Serialize | Http_Deserialize;
 
 export type Http_Deserialize = {
-	method?: string,
-	url?: string,
+	method?: LenientString,
+	url?: LenientString,
 	headers?: Header_Deserialize[],
 	/**
 	 *  Query params mirror the URL, which is what cactus edits and sends;
@@ -395,8 +407,8 @@ export type Http_Deserialize = {
 };
 
 export type Http_Serialize = {
-	method: string,
-	url: string,
+	method: LenientString,
+	url: LenientString,
 	headers?: Header_Serialize[],
 	/**
 	 *  Query params mirror the URL, which is what cactus edits and sends;
@@ -412,7 +424,7 @@ export type ImportFormat = "postman" | "openapi";
 
 export type ImportSummary = {
 	format: ImportFormat,
-	created: ScenarioPath[],
+	created: ProjectPath[],
 	/**  Variables added to the collection; existing ones are never overwritten. */
 	envVars: string[],
 };
@@ -422,17 +434,24 @@ export type Inherit = "inherit";
 
 export type JsonValue = null | boolean | number | null | string | JsonValue[] | { [key in string]: JsonValue };
 
+/**
+ *  A string field that tolerates hand-written YAML such as `value: 8080` or
+ *  `value: true`, which YAML reads as a number or a boolean. It reads and
+ *  writes as a plain string, and derefs to [`String`].
+ */
+export type LenientString = string;
+
 export type MultipartField = MultipartField_Serialize | MultipartField_Deserialize;
 
 export type MultipartField_Deserialize = {
-	name?: string,
+	name?: LenientString,
 	type?: PartKind,
 	value?: PartValue,
 	disabled?: boolean,
 };
 
 export type MultipartField_Serialize = {
-	name: string,
+	name: LenientString,
 	type: PartKind,
 	value: PartValue,
 	disabled?: boolean,
@@ -443,15 +462,15 @@ export type Param = Param_Serialize | Param_Deserialize;
 export type ParamKind = "query" | "path";
 
 export type Param_Deserialize = {
-	name?: string,
-	value?: string,
+	name?: LenientString,
+	value?: LenientString,
 	type: ParamKind,
 	disabled?: boolean,
 };
 
 export type Param_Serialize = {
-	name: string,
-	value: string,
+	name: LenientString,
+	value: LenientString,
 	type: ParamKind,
 	disabled?: boolean,
 };
@@ -461,17 +480,24 @@ export type PartKind = "text" | "file";
 /**  A file part's value is a path relative to the project, or several. */
 export type PartValue = string | string[];
 
+/**
+ *  A file's location relative to the project root, using `/` separators: a
+ *  request, an attachment or any other file in the project (git lists them all).
+ *  It can never point outside the project, so it is safe to join onto it.
+ */
+export type ProjectPath = string;
+
 export type RequestInfo = RequestInfo_Serialize | RequestInfo_Deserialize;
 
 export type RequestInfo_Deserialize = {
-	name?: string,
+	name?: LenientString,
 	type?: RequestType,
 	/**  Position among its siblings; Bruno lists and runs requests by it. */
 	seq?: number | null,
 };
 
 export type RequestInfo_Serialize = {
-	name: string,
+	name: LenientString,
 	type: RequestType,
 	/**  Position among its siblings; Bruno lists and runs requests by it. */
 	seq?: number | null,
@@ -533,7 +559,7 @@ export type RunProgress_Serialize = RunResult_Serialize;
 export type RunResult = RunResult_Serialize | RunResult_Deserialize;
 
 export type RunResult_Deserialize = {
-	relPath: ScenarioPath,
+	relPath: ProjectPath,
 	title: string,
 	ok: boolean,
 	response?: Response_Deserialize | null,
@@ -541,7 +567,7 @@ export type RunResult_Deserialize = {
 };
 
 export type RunResult_Serialize = {
-	relPath: ScenarioPath,
+	relPath: ProjectPath,
 	title: string,
 	ok: boolean,
 	response: Response_Serialize | null,
@@ -568,23 +594,17 @@ export type Scenario = Scenario_Serialize | Scenario_Deserialize;
 
 /**  Just enough of a scenario to render the sidebar. */
 export type ScenarioEntry = {
-	relPath: ScenarioPath,
+	relPath: ProjectPath,
 	title: string,
 	method: string,
 };
-
-/**
- *  A request file's location relative to the project root, using `/` separators.
- *  It can never point outside the project, so it is safe to join onto it.
- */
-export type ScenarioPath = string;
 
 export type Scenario_Deserialize = {
 	info?: RequestInfo_Deserialize,
 	http?: Http_Deserialize,
 	runtime?: Runtime_Deserialize,
 	settings?: Settings_Deserialize,
-	docs?: string,
+	docs?: LenientString,
 };
 
 export type Scenario_Serialize = {
@@ -592,7 +612,7 @@ export type Scenario_Serialize = {
 	http: Http_Serialize,
 	runtime?: Runtime_Serialize,
 	settings?: Settings_Serialize,
-	docs?: string,
+	docs?: LenientString,
 };
 
 /**  JavaScript run around the request. Kept, but cactus has no engine to run it. */
@@ -600,25 +620,25 @@ export type Script = Script_Serialize | Script_Deserialize;
 
 /**  JavaScript run around the request. Kept, but cactus has no engine to run it. */
 export type Script_Deserialize = {
-	type?: string,
-	code?: string,
+	type?: LenientString,
+	code?: LenientString,
 };
 
 /**  JavaScript run around the request. Kept, but cactus has no engine to run it. */
 export type Script_Serialize = {
-	type: string,
-	code: string,
+	type: LenientString,
+	code: LenientString,
 };
 
 export type Selector = Selector_Serialize | Selector_Deserialize;
 
 export type Selector_Deserialize = {
-	expression?: string,
+	expression?: LenientString,
 	method?: string,
 };
 
 export type Selector_Serialize = {
-	expression: string,
+	expression: LenientString,
 	method: string,
 };
 
@@ -663,12 +683,12 @@ export type TypedBody = TypedBody_Serialize | TypedBody_Deserialize;
 /**  The body kinds cactus sends. */
 export type TypedBody_Deserialize = 
 /**  JSON text, sent as written after `{{var}}` substitution. */
-{ type: "json"; data?: string } | { type: "text"; data?: string } | { type: "xml"; data?: string } | { type: "sparql"; data?: string } | { type: "form-urlencoded"; data?: FormField_Deserialize[] } | { type: "multipart-form"; data?: MultipartField_Deserialize[] } | { type: "file"; data?: FileVariant_Deserialize[] };
+{ type: "json"; data?: LenientString } | { type: "text"; data?: LenientString } | { type: "xml"; data?: LenientString } | { type: "sparql"; data?: LenientString } | { type: "form-urlencoded"; data?: FormField_Deserialize[] } | { type: "multipart-form"; data?: MultipartField_Deserialize[] } | { type: "file"; data?: FileVariant_Deserialize[] };
 
 /**  The body kinds cactus sends. */
 export type TypedBody_Serialize = 
 /**  JSON text, sent as written after `{{var}}` substitution. */
-{ type: "json"; data: string } | { type: "text"; data: string } | { type: "xml"; data: string } | { type: "sparql"; data: string } | { type: "form-urlencoded"; data: FormField_Serialize[] } | { type: "multipart-form"; data: MultipartField_Serialize[] } | { type: "file"; data: FileVariant_Serialize[] };
+{ type: "json"; data: LenientString } | { type: "text"; data: LenientString } | { type: "xml"; data: LenientString } | { type: "sparql"; data: LenientString } | { type: "form-urlencoded"; data: FormField_Serialize[] } | { type: "multipart-form"; data: MultipartField_Serialize[] } | { type: "file"; data: FileVariant_Serialize[] };
 
 /**
  *  A variable in a collection, folder, environment or request. A `secret`
@@ -680,17 +700,17 @@ export type Variable = Variable_Serialize | Variable_Deserialize;
 export type VariableValue = VariableValue_Serialize | VariableValue_Deserialize;
 
 /**  A variable's value: a string, `{type, data}`, or variants cactus keeps as written. */
-export type VariableValue_Deserialize = string | { type?: string; data?: string } | JsonValue;
+export type VariableValue_Deserialize = string | { type?: string; data?: LenientString } | JsonValue;
 
 /**  A variable's value: a string, `{type, data}`, or variants cactus keeps as written. */
-export type VariableValue_Serialize = string | { type: string; data: string } | JsonValue;
+export type VariableValue_Serialize = string | { type: string; data: LenientString } | JsonValue;
 
 /**
  *  A variable in a collection, folder, environment or request. A `secret`
  *  one has no value in the file: it comes from `.cactus/secrets.json`.
  */
 export type Variable_Deserialize = {
-	name?: string,
+	name?: LenientString,
 	value?: VariableValue_Deserialize | null,
 	secret?: boolean,
 	disabled?: boolean,
@@ -701,7 +721,7 @@ export type Variable_Deserialize = {
  *  one has no value in the file: it comes from `.cactus/secrets.json`.
  */
 export type Variable_Serialize = {
-	name: string,
+	name: LenientString,
 	value?: VariableValue_Serialize,
 	secret?: boolean,
 	disabled?: boolean,

@@ -10,6 +10,7 @@ import { useGitStore } from "@/stores/gitStore";
 import { useProjectStore } from "@/stores/projectStore";
 import { useResponseStore } from "@/stores/responseStore";
 import { ScenarioListItem } from "./ScenarioListItem";
+import { shortcutLabel } from "@/app/shortcuts";
 
 const FOLDER_ACTION =
   "focus-ring grid size-6 place-items-center rounded-md hover:bg-sidebar-accent hover:text-foreground";
@@ -75,7 +76,9 @@ export function ScenarioList({ filter }: { filter: string }) {
         <FolderSection key={group.dir} group={group} changes={changes} />
       ))}
       {project && entries.length === 0 && (
-        <p className="px-2 py-4 text-sm text-muted-foreground">No requests yet. Press Ctrl+N or import a collection.</p>
+        <p className="px-2 py-4 text-sm text-muted-foreground">
+          No requests yet. Press {shortcutLabel("newScenario")} or import a collection.
+        </p>
       )}
     </div>
   );

@@ -31,6 +31,15 @@ interface KeyValueTableProps {
   echo?: (rows: Row[]) => Row[];
   keyColumn?: ColumnOptions;
   valueColumn?: ColumnOptions;
+  /** A per-row choice shown before the value, e.g. text or file; rows without one show `fallback`. */
+  kinds?: RowKinds;
+  /** Exactly these rows: their keys can't be edited, and rows can't be added or removed. */
+  fixed?: boolean;
+}
+
+export interface RowKinds {
+  options: readonly { value: string; label: string }[];
+  fallback: string;
 }
 
 const unchanged = (rows: Row[]): Row[] => rows;
@@ -47,10 +56,11 @@ interface CellProps {
   placeholder: string;
   options: ColumnOptions | undefined;
   onChange: (value: string) => void;
+  readOnly?: boolean;
 }
 
-function Cell({ value, placeholder, options, onChange }: CellProps) {
-  if (!options?.masked && (options?.templates || options?.suggest)) {
+function Cell({ value, placeholder, options, onChange, readOnly = false }: CellProps) {
+  if (!readOnly && !options?.masked && (options?.templates || options?.suggest)) {
     return (
       <TemplateField
         // Sized like `Input` (`w-full`) so both columns share the row evenly.
@@ -73,14 +83,35 @@ function Cell({ value, placeholder, options, onChange }: CellProps) {
       aria-label={placeholder}
       value={value}
       spellCheck={false}
+      readOnly={readOnly}
       onChange={(e) => onChange(e.target.value)}
     />
   );
 }
 
+/** Cycles a row through `kinds` on click. */
+function KindButton({ row, kinds, onChange }: { row: Row; kinds: RowKinds; onChange: (kind: string) => void }) {
+  const current = row.kind ?? kinds.fallback;
+  const index = kinds.options.findIndex((option) => option.value === current);
+  const next = kinds.options[(index + 1) % kinds.options.length]?.value ?? kinds.fallback;
+  const label = kinds.options[index]?.label ?? current;
+  return (
+    <button
+      type="button"
+      title={`${label}: click to change`}
+      aria-label={`${row.key || "Row"} is ${label}; change`}
+      onClick={() => onChange(next)}
+      className="h-6 w-12 shrink-0 rounded-md text-[11px] text-muted-foreground focus-ring hover:bg-accent hover:text-foreground"
+    >
+      {label}
+    </button>
+  );
+}
+
 /**
- * Editable key/value list with a trailing blank row. It keeps its own rows,
- * so half-typed rows survive, and resets only when `rows` changes from outside.
+ * Editable key/value list with a trailing blank row (unless `fixed`). It
+ * keeps its own rows, so half-typed rows survive, and resets only when
+ * `rows` changes from outside.
  */
 export function KeyValueTable({
   rows,
@@ -91,20 +122,23 @@ export function KeyValueTable({
   echo = unchanged,
   keyColumn,
   valueColumn,
+  kinds,
+  fixed = false,
 }: KeyValueTableProps) {
-  const [local, setLocal] = useState<Row[]>(() => withTrailingBlank(rows));
+  const withBlank = fixed ? unchanged : withTrailingBlank;
+  const [local, setLocal] = useState<Row[]>(() => withBlank(rows));
   /** Fingerprint of the rows last seen from props or sent to `onChange`. */
   const [knownFingerprint, setKnownFingerprint] = useState(() => rowsFingerprint(rows));
 
   const incoming = rowsFingerprint(rows);
   if (incoming !== knownFingerprint) {
     setKnownFingerprint(incoming);
-    setLocal(withTrailingBlank(rows));
+    setLocal(withBlank(rows));
   }
 
   const commit = (next: Row[]) => {
     const last = next.at(-1);
-    const complete = !last || last.key || last.value ? withTrailingBlank(next) : next;
+    const complete = !fixed && (!last || last.key || last.value) ? withTrailingBlank(next) : next;
     const filled = filledRows(complete);
     setLocal(complete);
     setKnownFingerprint(rowsFingerprint(echo(filled)));
@@ -117,7 +151,7 @@ export function KeyValueTable({
   return (
     <div className="overflow-hidden rounded-lg border">
       {local.map((row, index) => {
-        const isBlank = index === local.length - 1;
+        const isBlank = !fixed && index === local.length - 1;
         return (
           <div
             key={row.id}
@@ -139,26 +173,30 @@ export function KeyValueTable({
               value={row.key}
               placeholder={keyPlaceholder}
               options={keyColumn}
+              readOnly={fixed}
               onChange={(key) => updateRow(row.id, { key })}
             />
             <div className="h-5 w-px shrink-0 bg-border" />
+            {kinds && <KindButton row={row} kinds={kinds} onChange={(kind) => updateRow(row.id, { kind })} />}
             <Cell
               value={row.value}
               placeholder={valuePlaceholder}
               options={valueColumn}
               onChange={(value) => updateRow(row.id, { value })}
             />
-            <button
-              type="button"
-              // Faded rather than hidden, so it stays in the tab order.
-              className="grid w-8 shrink-0 place-items-center self-stretch text-muted-foreground opacity-0 focus-ring group-hover:opacity-100 hover:text-foreground focus-visible:opacity-100 disabled:invisible"
-              disabled={isBlank}
-              onClick={() => removeRow(row.id)}
-              title="Remove"
-              aria-label={row.key ? `Remove ${row.key}` : "Remove row"}
-            >
-              <X className="size-3.5" />
-            </button>
+            {!fixed && (
+              <button
+                type="button"
+                // Faded rather than hidden, so it stays in the tab order.
+                className="grid w-8 shrink-0 place-items-center self-stretch text-muted-foreground opacity-0 focus-ring group-hover:opacity-100 hover:text-foreground focus-visible:opacity-100 disabled:invisible"
+                disabled={isBlank}
+                onClick={() => removeRow(row.id)}
+                title="Remove"
+                aria-label={row.key ? `Remove ${row.key}` : "Remove row"}
+              >
+                <X className="size-3.5" />
+              </button>
+            )}
           </div>
         );
       })}

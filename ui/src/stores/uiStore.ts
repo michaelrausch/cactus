@@ -5,18 +5,23 @@ export interface PromptRequest {
   description?: string;
   initial: string;
   placeholder?: string;
-  onSubmit: (value: string) => Promise<void> | void;
+  /** Resolves to whether the prompt is done; on `false` (e.g. the work failed) it stays open. */
+  onSubmit: (value: string) => Promise<boolean> | boolean;
 }
 
-export interface ConfirmRequest {
-  title: string;
-  description: string;
+export interface ConfirmChoice {
   action: string;
   onConfirm: () => Promise<void> | void;
-  /** Whether the main action destroys something; true unless set. */
+  /** Whether choosing it destroys something (unsaved edits, a file), which is shown in red. */
   destructive?: boolean;
-  /** A second choice shown left of the main action, e.g. "Discard". */
-  alternative?: { action: string; onConfirm: () => Promise<void> | void };
+}
+
+/** The main choice; a destructive one never takes Enter, so focus starts on Cancel. */
+export interface ConfirmRequest extends ConfirmChoice {
+  title: string;
+  description: string;
+  /** A second choice shown left of the main one, e.g. "Discard changes". */
+  alternative?: ConfirmChoice;
 }
 
 interface UiState {

@@ -1,13 +1,12 @@
 import { useEffect, useImperativeHandle, useState, type KeyboardEvent, type Ref } from "react";
 import { Eye, EyeOff, Pencil, Trash2 } from "lucide-react";
-import { toast } from "sonner";
 import { backend, type EnvFile } from "@/api/client";
 import { KeyValueTable } from "@/components/KeyValueTable";
 import { Button } from "@/components/ui/button";
 import { DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { envLayerInfo } from "@/domain/envFiles";
 import { recordFromRows, rowsFingerprint, rowsFromRecord, type Row } from "@/domain/rows";
-import { errorMessage, reportErrors } from "@/lib/errors";
+import { reportErrors } from "@/lib/errors";
 
 /** What the dialog around the editor needs to guard unsaved edits. */
 export interface EnvLayerEditorHandle {
@@ -37,14 +36,15 @@ export function EnvLayerEditor({ project, file, ref, onRename, onDelete }: EnvLa
 
   useEffect(() => {
     let current = true;
-    backend.loadEnv(project, file).then(
-      (env) => {
+    void reportErrors(
+      async () => {
+        const env = await backend.loadEnv(project, file);
         if (!current) return;
         const loaded = rowsFromRecord(env);
         setRows(loaded);
         setSavedFingerprint(rowsFingerprint(loaded));
       },
-      (error: unknown) => toast.error(errorMessage(error)),
+      `Couldn't load ${envLayerInfo(file).path}`,
     );
     return () => {
       current = false;
@@ -85,7 +85,7 @@ export function EnvLayerEditor({ project, file, ref, onRename, onDelete }: EnvLa
             </span>
           )}
         </DialogTitle>
-        <DialogDescription>{info.note}</DialogDescription>
+        <DialogDescription className="sr-only">The variables in {info.path}.</DialogDescription>
       </DialogHeader>
       <div className="min-h-0 flex-1 overflow-auto">
         {rows && (

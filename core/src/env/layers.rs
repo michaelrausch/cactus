@@ -1,6 +1,6 @@
 //! The env layers and how they merge.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::fs;
 use std::path::Path;
 
@@ -59,7 +59,8 @@ pub fn save(project: &Path, file: &EnvFile, env: &Env) -> Result<()> {
         EnvFile::Named(name) => {
             let mut environment = load_environment(project, name)?;
             merge_values(&mut environment.variables, env);
-            fs::create_dir_all(layout::environments_dir(project))?;
+            let dir = layout::environments_dir(project);
+            fs::create_dir_all(&dir).map_err(Error::file(&dir))?;
             collection::write(&layout::environment_file(project, name), &environment)
         }
         EnvFile::Secrets => {
@@ -80,24 +81,26 @@ fn load_environment(project: &Path, name: &str) -> Result<Environment> {
 }
 
 fn active_values(variables: &[Variable]) -> Env {
-    variables.iter().filter(|v| v.is_active()).map(|v| (v.name.clone(), v.resolved_value())).collect()
+    variables.iter().filter(|v| v.is_active()).map(|v| (v.name.to_string(), v.resolved_value())).collect()
 }
 
 /// Make the active variables match `env`: change values in place, drop the
-/// missing, append the new. Untouched variables stay exactly as written.
+/// missing, append the new. Untouched variables stay exactly as written, and
+/// a name written twice keeps both entries, each given the new value.
 fn merge_values(variables: &mut Vec<Variable>, env: &Env) {
-    let mut remaining = env.clone();
     variables.retain_mut(|variable| {
         if !variable.is_active() {
             return true;
         }
-        let Some(value) = remaining.remove(&variable.name) else { return false };
-        if variable.resolved_value() != value {
-            variable.value = Some(VariableValue::Text(value));
+        let Some(value) = env.get(variable.name.as_str()) else { return false };
+        if variable.resolved_value() != *value {
+            variable.value = Some(VariableValue::Text(value.clone()));
         }
         true
     });
-    variables.extend(remaining.into_iter().map(|(name, value)| Variable::new(name, value)));
+    let written: HashSet<&str> = variables.iter().filter(|v| v.is_active()).map(|v| v.name.as_str()).collect();
+    let added = env.iter().filter(|(name, _)| !written.contains(name.as_str()));
+    variables.extend(added.map(|(name, value)| Variable::new(name.clone(), value.clone())).collect::<Vec<_>>());
 }
 
 /// Names of the environments in `environments/`, sorted.
@@ -125,7 +128,7 @@ pub fn rename_named(project: &Path, from: &str, to: &str) -> Result<()> {
     if target.exists() {
         return Err(Error::AlreadyExists(format!("environment {to}")));
     }
-    fs::rename(&source, &target)?;
+    fs::rename(&source, &target).map_err(Error::file(&source))?;
     let mut environment = load_environment(project, to)?;
     environment.name = to.into();
     collection::write(&target, &environment)?;
@@ -138,7 +141,8 @@ pub fn rename_named(project: &Path, from: &str, to: &str) -> Result<()> {
 /// Delete environment `name`; if it was active, no environment is.
 pub fn delete_named(project: &Path, name: &str) -> Result<()> {
     validate_env_name(name)?;
-    fs::remove_file(layout::environment_file(project, name))?;
+    let file = layout::environment_file(project, name);
+    fs::remove_file(&file).map_err(Error::file(&file))?;
     if state::load(project).env.as_deref() == Some(name) {
         set_active(project, None)?;
     }
@@ -164,25 +168,56 @@ pub fn set_active(project: &Path, name: Option<String>) -> Result<()> {
 /// the named env, secrets, captured. `named` picks the env; `None` means
 /// the active one.
 pub fn resolve(project: &Path, named: Option<&str>) -> Result<Env> {
-    resolve_for_request(project, named, &[], &[])
+    let root = collection::load_root(project)?;
+    merge_layers(project, named, &root.request.variables, &[], &[])
 }
 
-/// [`resolve`] for one request: the variables of its folders (`inherited`
-/// past the collection's own, outermost first) and then its own go between
-/// the named env and secrets, so a folder or request can override an
-/// environment but local secrets still win.
+/// What a request in folder `dir` inherits and the variables it sees.
+pub struct RequestScope {
+    /// The collection's defaults, then each folder's down to `dir`; see
+    /// [`collection::defaults_chain`].
+    pub inherited: Vec<RequestDefaults>,
+    pub vars: Env,
+}
+
+/// [`resolve`] for one request in folder `dir`: the variables of its folders
+/// (outermost first) and then its own go between the named env and secrets,
+/// so a folder or request can override an environment but local secrets
+/// still win.
 pub fn resolve_for_request(
     project: &Path,
     named: Option<&str>,
-    inherited: &[RequestDefaults],
+    dir: &str,
+    request_variables: &[Variable],
+) -> Result<RequestScope> {
+    let inherited = collection::defaults_chain(project, dir)?;
+    let (collection_variables, folders) = match inherited.split_first() {
+        Some((root, folders)) => (root.variables.as_slice(), folders),
+        None => (&[][..], &[][..]),
+    };
+    let vars = merge_layers(project, named, collection_variables, folders, request_variables)?;
+    Ok(RequestScope { inherited, vars })
+}
+
+/// The names of every variable a request in `dir` can use with the active
+/// env, sorted.
+pub fn names_in_scope(project: &Path, dir: &str) -> Result<Vec<String>> {
+    Ok(resolve_for_request(project, None, dir, &[])?.vars.into_keys().collect())
+}
+
+fn merge_layers(
+    project: &Path,
+    named: Option<&str>,
+    collection_variables: &[Variable],
+    folders: &[RequestDefaults],
     request_variables: &[Variable],
 ) -> Result<Env> {
     let named = named.map(str::to_string).or_else(|| active(project));
-    let mut merged = load(project, &EnvFile::Base)?;
+    let mut merged = active_values(collection_variables);
     if let Some(name) = named {
         merged.extend(load(project, &EnvFile::Named(name))?);
     }
-    for folder in inherited.iter().skip(1) {
+    for folder in folders {
         merged.extend(active_values(&folder.variables));
     }
     merged.extend(active_values(request_variables));
@@ -223,13 +258,17 @@ mod tests {
         assert_eq!(fs::read_to_string(p.join(".cactus/.gitignore")).unwrap(), "*\n");
         assert!(save(p, &EnvFile::Named("../x".into()), &Env::new()).is_err());
 
-        let folder = RequestDefaults { variables: vec![Variable::new("c", "folder")], ..Default::default() };
+        collection::ensure_folder(p, "f").unwrap();
+        let folder_file = layout::folder_file(p, "f");
+        let mut folder: collection::Folder = collection::read(&folder_file).unwrap();
+        folder.request.variables.push(Variable::new("c", "folder"));
+        collection::write(&folder_file, &folder).unwrap();
+        assert_eq!(resolve_for_request(p, None, "f", &[]).unwrap().vars["c"], "folder");
         let request = [Variable::new("c", "request"), Variable::new("d", "request")];
-        let for_request =
-            resolve_for_request(p, None, &[RequestDefaults::default(), folder.clone()], &request[..1]).unwrap();
-        assert_eq!(for_request["c"], "request");
-        let for_request = resolve_for_request(p, None, &[RequestDefaults::default(), folder], &request).unwrap();
-        assert_eq!(for_request["d"], "secret");
+        let scope = resolve_for_request(p, None, "f", &request[..1]).unwrap();
+        assert_eq!((scope.inherited.len(), scope.vars["c"].as_str()), (2, "request"));
+        assert_eq!(resolve_for_request(p, None, "f", &request).unwrap().vars["d"], "secret");
+        assert_eq!(names_in_scope(p, "f").unwrap(), ["a", "b", "c", "d", "e"]);
     }
 
     #[test]
@@ -255,6 +294,14 @@ mod tests {
         assert_eq!(list_named(p).unwrap(), ["prod"]);
         assert_eq!(active(p), None);
         assert!(delete_named(p, "../x").is_err());
+    }
+
+    #[test]
+    fn saving_keeps_every_entry_of_a_repeated_name() {
+        let mut variables = vec![Variable::new("a", "1"), Variable::new("a", "2"), Variable::new("gone", "x")];
+        merge_values(&mut variables, &env(&[("a", "3"), ("new", "4")]));
+        let pairs: Vec<_> = variables.iter().map(|v| (v.name.as_str(), v.resolved_value())).collect();
+        assert_eq!(pairs, [("a", "3".into()), ("a", "3".into()), ("new", "4".into())]);
     }
 
     #[test]

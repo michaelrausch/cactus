@@ -26,11 +26,10 @@ export async function openProject(path?: string): Promise<void> {
     title: "Unsaved changes",
     description: "Some requests have unsaved edits, which opening another folder would lose.",
     action: "Save all and open",
-    destructive: false,
     onConfirm: async () => {
       if (await saveAll()) await loadProject(folder);
     },
-    alternative: { action: "Discard changes", onConfirm: () => loadProject(folder) },
+    alternative: { action: "Discard changes", onConfirm: () => loadProject(folder), destructive: true },
   });
 }
 
@@ -41,14 +40,14 @@ async function loadProject(folder: string): Promise<void> {
     useEditorStore.getState().reset();
     useResponseStore.getState().reset();
     const [, recent] = await Promise.all([refreshEnvs(), backend.recentProjects()]);
-    useProjectStore.getState().setRecentProjects(recent);
+    useProjectStore.getState().recentProjectsLoaded(recent);
   });
 }
 
 /** Reopen the most recently used project on launch. */
 export async function restoreLastProject(): Promise<void> {
   const recent = await backend.recentProjects();
-  useProjectStore.getState().setRecentProjects(recent);
+  useProjectStore.getState().recentProjectsLoaded(recent);
   if (recent[0]) await openProject(recent[0]);
 }
 
@@ -57,7 +56,7 @@ export async function refreshEntries(): Promise<void> {
   if (!project) return;
   const entries = await backend.listScenarios(project);
   // The project may have been switched while listing; don't show the old one's scenarios.
-  if (currentProject() === project) useProjectStore.getState().setEntries(entries);
+  if (currentProject() === project) useProjectStore.getState().entriesListed(entries);
 }
 
 export async function refreshEnvs(): Promise<void> {
@@ -65,7 +64,7 @@ export async function refreshEnvs(): Promise<void> {
   if (!project) return;
   const [envs, activeEnv] = await Promise.all([backend.listEnvs(project), backend.activeEnv(project)]);
   if (currentProject() !== project) return;
-  useProjectStore.getState().setEnvs(envs, activeEnv);
+  useProjectStore.getState().envsLoaded(envs, activeEnv);
 }
 
 export async function selectEnv(name: string | null): Promise<void> {
@@ -73,7 +72,7 @@ export async function selectEnv(name: string | null): Promise<void> {
   if (!project) return;
   await reportErrors(async () => {
     await backend.setActiveEnv(project, name);
-    useProjectStore.getState().setActiveEnv(name);
+    useProjectStore.getState().envSelected(name);
   });
 }
 
@@ -87,7 +86,7 @@ export async function importCollection(): Promise<void> {
     await refreshEntries();
     await refreshEnvs();
     toast.success(`Imported ${summary.created.length} requests from ${summary.format}`, {
-      description: summary.envVars.length ? `Added to env.json: ${summary.envVars.join(", ")}` : undefined,
+      description: summary.envVars.length ? `Added to opencollection.yml: ${summary.envVars.join(", ")}` : undefined,
     });
   });
 }

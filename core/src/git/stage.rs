@@ -9,10 +9,10 @@ use git2::build::CheckoutBuilder;
 
 use super::repo::ProjectRepo;
 use super::status::status;
-use crate::{Result, ScenarioPath};
+use crate::{ProjectPath, Result};
 
 /// Stage the files as they are now, deletions included.
-pub fn stage(project: &Path, paths: &[ScenarioPath]) -> Result<()> {
+pub fn stage(project: &Path, paths: &[ProjectPath]) -> Result<()> {
     let repo = ProjectRepo::require(project)?;
     let mut index = repo.repo.index()?;
     for path in paths {
@@ -40,7 +40,7 @@ pub fn stage_all(project: &Path) -> Result<()> {
 
 /// Put the files' index entries back as they were at HEAD; the work tree is
 /// untouched. Before the first commit this removes them from the index.
-pub fn unstage(project: &Path, paths: &[ScenarioPath]) -> Result<()> {
+pub fn unstage(project: &Path, paths: &[ProjectPath]) -> Result<()> {
     let repo = ProjectRepo::require(project)?;
     reset(&repo, paths.iter().map(|path| repo.repo_path(path)).collect())
 }
@@ -59,7 +59,7 @@ fn reset(repo: &ProjectRepo, pathspec: Vec<String>) -> Result<()> {
 
 /// Throw away the files' unstaged changes: tracked files go back to their
 /// staged content, untracked ones are deleted. Staged changes are kept.
-pub fn discard(project: &Path, paths: &[ScenarioPath]) -> Result<()> {
+pub fn discard(project: &Path, paths: &[ProjectPath]) -> Result<()> {
     let repo = ProjectRepo::require(project)?;
     let index = repo.repo.index()?;
     let mut checkout = CheckoutBuilder::new();
@@ -101,8 +101,8 @@ mod tests {
     use super::super::testing::{commit_all, init, write};
     use super::*;
 
-    fn path(rel: &str) -> ScenarioPath {
-        ScenarioPath::parse(rel).unwrap()
+    fn path(rel: &str) -> ProjectPath {
+        ProjectPath::parse(rel).unwrap()
     }
 
     fn kinds(project: &Path) -> Vec<(String, Option<ChangeKind>, Option<ChangeKind>)> {

@@ -46,16 +46,20 @@ const isSetVariable = (action: Action): action is SetVariable =>
 
 const setVariables = (scenario: Scenario): SetVariable[] => (scenario.runtime?.actions ?? []).filter(isSetVariable);
 
-/** Set-variable actions as `name` | `expression` rows. */
+/** Set-variable actions as `name` | `expression` rows, each carrying its action. */
 export const varRows = (scenario: Scenario): Row[] =>
-  setVariables(scenario).map((set) => makeRow(set.variable.name, set.selector.expression, !set.disabled));
+  setVariables(scenario).map((set) =>
+    Object.assign(makeRow(set.variable.name, set.selector.expression, !set.disabled), { origin: set }),
+  );
 
-/** Rows become set-variable actions, keeping each existing one's phase and scope; other actions stay. */
+/**
+ * Rows become set-variable actions. A row made from an action keeps that
+ * action's phase, scope and selector method; other actions stay.
+ */
 export function withVarRows(scenario: Scenario, rows: Row[]): Scenario {
-  const existing = setVariables(scenario);
   const others = (scenario.runtime?.actions ?? []).filter((action) => !isSetVariable(action));
-  const sets = rows.map((row, index): SetVariable => {
-    const base = existing[index];
+  const sets = rows.map((row): SetVariable => {
+    const base = row.origin as SetVariable | undefined;
     const { disabled: _previous, ...kept } = base ?? {
       type: "set-variable",
       phase: "after-response",

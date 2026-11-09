@@ -4,7 +4,7 @@ import { varRows, withVarRows } from "@/domain/assertions";
 import { useExpressionSuggester } from "@/hooks/useExpressionSuggester";
 import type { ScenarioTabProps } from "../types";
 
-export function VarsTab({ scenario, onChange }: ScenarioTabProps) {
+export function OutputsTab({ scenario, onChange }: ScenarioTabProps) {
   const rows = useMemo(() => varRows(scenario), [scenario]);
   const suggestExpression = useExpressionSuggester();
   return (

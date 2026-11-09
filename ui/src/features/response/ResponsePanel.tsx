@@ -103,8 +103,9 @@ function ChecksTabLabel({ response }: { response: HttpResponse }) {
 }
 
 /** The response's tabs; with no response (the send failed), only History. */
-function ResponseTabs({ response, historyAt }: { response: HttpResponse | null; historyAt: number | null }) {
+function ResponseTabs({ response }: { response: HttpResponse | null }) {
   const historyCount = useResponseStore((s) => s.history.length);
+  const shownVersion = useResponseStore((s) => s.shownVersion);
   return (
     <Tabs defaultValue={response ? "body" : "history"} className="min-h-0 flex-1 gap-3">
       <TabsList variant="line" className="h-8 gap-2">
@@ -131,7 +132,7 @@ function ResponseTabs({ response, historyAt }: { response: HttpResponse | null; 
         <>
           <TabsContent value="body" className="min-h-0">
             {/* Remount per response so search and view state start fresh. */}
-            <BodyViewer key={`${response.url}:${historyAt}:${response.timeMs}`} response={response} />
+            <BodyViewer key={shownVersion} response={response} />
           </TabsContent>
           <TabsContent value="headers" className="min-h-0 overflow-auto">
             <HeadersTable response={response} />
@@ -153,6 +154,7 @@ export function ResponsePanel() {
   const error = useResponseStore((s) => s.error);
   const historyAt = useResponseStore((s) => s.historyAt);
   const sending = useResponseStore((s) => s.sending);
+  const shownVersion = useResponseStore((s) => s.shownVersion);
 
   if (!response && !error && !sending) return <NothingSentYet />;
   return (
@@ -163,13 +165,11 @@ export function ResponsePanel() {
       <div className={cn("flex min-h-0 flex-1 flex-col gap-3 transition-opacity", sending && "opacity-50")}>
         {response && (
           // Remount per response so it fades in on every send or history pick.
-          <div key={`${historyAt}:${response.timeMs}`} className="animate-in duration-150 fade-in-0">
+          <div key={shownVersion} className="animate-in duration-150 fade-in-0">
             <ResponseSummary response={response} historyAt={historyAt} />
           </div>
         )}
-        {(response || error) && (
-          <ResponseTabs key={response ? "response" : "failed"} response={response} historyAt={historyAt} />
-        )}
+        {(response || error) && <ResponseTabs key={response ? "response" : "failed"} response={response} />}
       </div>
     </div>
   );

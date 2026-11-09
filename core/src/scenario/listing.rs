@@ -9,9 +9,9 @@ use serde::{Deserialize, Serialize};
 use walkdir::{DirEntry, WalkDir};
 
 use super::model::default_method;
-use crate::collection::model::lenient_string;
+use crate::collection::model::LenientString;
 use crate::collection::{self, Folder};
-use crate::{Error, Result, ScenarioPath, layout};
+use crate::{Error, ProjectPath, Result, layout};
 
 /// Folders that never hold scenarios but can be huge.
 const IGNORED_DIRS: &[&str] = &["node_modules", "target", "dist", "build", "vendor", "__pycache__", "venv"];
@@ -27,7 +27,7 @@ const UNPARSEABLE_METHOD: &str = "???";
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct ScenarioEntry {
-    pub rel_path: ScenarioPath,
+    pub rel_path: ProjectPath,
     pub title: String,
     pub method: String,
 }
@@ -43,16 +43,16 @@ pub(crate) struct ScenarioHeader {
 
 #[derive(Deserialize, Default)]
 struct HeaderInfo {
-    #[serde(default, deserialize_with = "lenient_string")]
-    name: String,
+    #[serde(default)]
+    name: LenientString,
     #[serde(default)]
     seq: Option<f64>,
 }
 
 #[derive(Deserialize)]
 struct HeaderHttp {
-    #[serde(default = "default_method", deserialize_with = "lenient_string")]
-    method: String,
+    #[serde(default = "default_method")]
+    method: LenientString,
 }
 
 impl Default for HeaderHttp {
@@ -126,16 +126,14 @@ pub fn list(project: &Path) -> Result<Vec<ScenarioEntry>> {
 /// request. Anything without a `seq` sorts after its numbered siblings.
 fn tree_position(
     project: &Path,
-    path: &ScenarioPath,
+    path: &ProjectPath,
     seq: Option<f64>,
     folder_seqs: &mut HashMap<String, Option<f64>>,
 ) -> Vec<(f64, String)> {
     let unnumbered = |seq: Option<f64>| seq.unwrap_or(f64::INFINITY);
     let mut position = Vec::new();
-    let mut dir = String::new();
-    for name in path.dir().split('/').filter(|part| !part.is_empty()) {
-        dir = if dir.is_empty() { name.to_string() } else { format!("{dir}/{name}") };
-        let folder_seq = *folder_seqs.entry(dir.clone()).or_insert_with(|| folder_seq(project, &dir));
+    for (dir, name) in layout::folder_prefixes(path.dir()) {
+        let folder_seq = *folder_seqs.entry(dir).or_insert_with_key(|dir| folder_seq(project, dir));
         position.push((unnumbered(folder_seq), name.to_string()));
     }
     position.push((unnumbered(seq), path.file_name().to_string()));
@@ -155,7 +153,7 @@ pub(crate) fn next_seq(project: &Path, dir: &str) -> f64 {
         .filter_map(std::result::Result::ok)
         .filter_map(|entry| {
             let name = entry.file_name().to_string_lossy().into_owned();
-            let rel = ScenarioPath::in_dir(dir, &name).ok()?;
+            let rel = ProjectPath::in_dir(dir, &name).ok()?;
             if entry.path().is_dir() {
                 folder_seq(project, rel.as_str())
             } else {
@@ -171,16 +169,16 @@ fn read_entry(project: &Path, entry: &DirEntry) -> Option<(ScenarioEntry, Option
     if !entry.file_type().is_file() || too_big {
         return None;
     }
-    let rel_path = ScenarioPath::from_absolute(project, entry.path())?;
+    let rel_path = ProjectPath::from_absolute(project, entry.path())?;
     if !layout::is_request_file(rel_path.as_str()) {
         return None;
     }
     let header = ScenarioHeader::read(entry.path());
-    let title = if header.info.name.is_empty() { fallback_title(&rel_path) } else { header.info.name };
-    Some((ScenarioEntry { rel_path, title, method: header.http.method }, header.info.seq))
+    let title = if header.info.name.is_empty() { fallback_title(&rel_path) } else { header.info.name.0 };
+    Some((ScenarioEntry { rel_path, title, method: header.http.method.0 }, header.info.seq))
 }
 
-fn fallback_title(path: &ScenarioPath) -> String {
+fn fallback_title(path: &ProjectPath) -> String {
     path.as_str().trim_end_matches(layout::REQUEST_EXTENSION).to_string()
 }
 

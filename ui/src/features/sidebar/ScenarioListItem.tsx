@@ -74,7 +74,7 @@ export const ScenarioListItem = memo(function ScenarioListItem({
         <RowAction label="Duplicate" onClick={() => void duplicateScenario(path)}>
           <Copy className="size-3.5" />
         </RowAction>
-        <RowAction label="Rename file" onClick={() => renameScenario(path)}>
+        <RowAction label="Rename request" onClick={() => renameScenario(path)}>
           <Pencil className="size-3.5" />
         </RowAction>
         <RowAction label="Delete" onClick={() => deleteScenario(path)}>

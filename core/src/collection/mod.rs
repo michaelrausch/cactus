@@ -12,11 +12,11 @@ use std::path::Path;
 
 pub use file::{read, read_if_exists, write};
 pub use model::{
-    ApiKeyPlacement, Auth, AuthMode, CollectionRoot, Environment, Folder, Header, Inherit, RequestDefaults, Variable,
-    VariableValue,
+    ApiKeyPlacement, Auth, AuthMode, CollectionRoot, Environment, Folder, Header, Inherit, LenientString,
+    RequestDefaults, Variable, VariableValue,
 };
 
-use crate::{Result, layout, scenario};
+use crate::{Error, Result, layout, scenario};
 
 /// The project's `opencollection.yml`, or a fresh one named after the folder.
 pub fn load_root(project: &Path) -> Result<CollectionRoot> {
@@ -41,15 +41,15 @@ pub fn ensure_root(project: &Path) -> Result<()> {
 /// Create folder `dir` (`""` is the root) and a `folder.yml` for it and
 /// every parent that lacks one.
 pub fn ensure_folder(project: &Path, dir: &str) -> Result<()> {
-    let mut path = String::new();
-    for name in dir.split('/').filter(|part| !part.is_empty()) {
-        let parent = path.clone();
-        path = if path.is_empty() { name.to_string() } else { format!("{path}/{name}") };
-        fs::create_dir_all(project.join(&path))?;
+    let mut parent = String::new();
+    for (path, name) in layout::folder_prefixes(dir) {
+        let folder = project.join(&path);
+        fs::create_dir_all(&folder).map_err(Error::file(&folder))?;
         let file = layout::folder_file(project, &path);
         if !file.exists() {
             write(&file, &Folder::named(name, scenario::next_seq(project, &parent)))?;
         }
+        parent = path;
     }
     Ok(())
 }
@@ -59,9 +59,7 @@ pub fn ensure_folder(project: &Path, dir: &str) -> Result<()> {
 /// `folder.yml` contribute nothing.
 pub fn defaults_chain(project: &Path, dir: &str) -> Result<Vec<RequestDefaults>> {
     let mut chain = vec![load_root(project)?.request];
-    let mut path = String::new();
-    for name in dir.split('/').filter(|part| !part.is_empty()) {
-        path = if path.is_empty() { name.to_string() } else { format!("{path}/{name}") };
+    for (path, _) in layout::folder_prefixes(dir) {
         if let Some(folder) = read_if_exists::<Folder>(&layout::folder_file(project, &path))? {
             chain.push(folder.request);
         }

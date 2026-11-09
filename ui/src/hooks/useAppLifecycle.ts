@@ -27,13 +27,12 @@ function guardClose(event: { preventDefault: () => void }): void {
   event.preventDefault();
   useUiStore.getState().askConfirm({
     title: "Unsaved changes",
-    description: "Some scenarios have unsaved edits, which closing would lose.",
+    description: "Some requests have unsaved edits, which closing would lose.",
     action: "Save all and close",
-    destructive: false,
     onConfirm: async () => {
       if (await saveAll()) closeWindow();
     },
-    alternative: { action: "Discard changes", onConfirm: closeWindow },
+    alternative: { action: "Discard changes", onConfirm: closeWindow, destructive: true },
   });
 }
 

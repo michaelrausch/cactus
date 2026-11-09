@@ -1,7 +1,7 @@
 import { toast } from "sonner";
-import { backend, backendEvents, type HttpResponse, type RunResult, type ScenarioPath } from "@/api/client";
+import { backend, backendEvents, type HttpResponse, type RunResult, type ProjectPath } from "@/api/client";
 import { isWithinDir } from "@/domain/paths";
-import { errorMessage, reportErrors } from "@/lib/errors";
+import { errorMessage, reportErrors, warnQuietly } from "@/lib/errors";
 import { dirtyPaths, useEditorStore } from "@/stores/editorStore";
 import { useProjectStore } from "@/stores/projectStore";
 import { useResponseStore } from "@/stores/responseStore";
@@ -10,9 +10,6 @@ import { useUiStore } from "@/stores/uiStore";
 import { selectScenario } from "./scenario";
 import { saveAll } from "./saving";
 import { refreshVariableNames } from "./variables";
-
-/** As kept by the backend (`core/src/history.rs`). */
-const MAX_HISTORY_ENTRIES = 10;
 
 /** A capture that found nothing leaves the variable stale, which is easy to miss. */
 function alertCaptureFailures(response: HttpResponse): void {
@@ -39,11 +36,9 @@ export async function sendCurrentScenario(): Promise<void> {
     responses.sendSucceeded(path, response);
     alertCaptureFailures(response);
     if (Object.keys(response.captured).length > 0) void refreshVariableNames();
-    // The backend has just recorded it; prepending saves re-reading the whole file.
-    if (useEditorStore.getState().path === path) {
-      const { history, setHistory } = useResponseStore.getState();
-      setHistory([{ at: Date.now(), response }, ...history].slice(0, MAX_HISTORY_ENTRIES));
-    }
+    // The backend has just recorded it, and trimmed what it keeps; show its list.
+    const history = await warnQuietly(() => backend.loadHistory(project, path), "Couldn't reload history");
+    if (history && useEditorStore.getState().path === path) useResponseStore.getState().historyUpdated(history);
   } catch (error) {
     responses.sendFailed(errorMessage(error));
   } finally {
@@ -70,7 +65,6 @@ export async function runFolder(dir: string): Promise<void> {
     title: "Unsaved changes",
     description: `${unsaved.length === 1 ? unsaved[0] : `${unsaved.length} requests`} ha${unsaved.length === 1 ? "s" : "ve"} unsaved edits. A run uses the saved files.`,
     action: "Save and run",
-    destructive: false,
     onConfirm: async () => {
       if (await saveAll(unsaved)) await runSaved(dir);
     },
@@ -90,9 +84,7 @@ async function runSaved(dir: string): Promise<void> {
   useRunStore.getState().started(dir, total);
   const unlisten = await backendEvents.runProgress.listen((event) => recordRunResult(event.payload));
   try {
-    await backend.runFolder(project, dir);
-  } catch (error) {
-    toast.error(errorMessage(error));
+    await reportErrors(() => backend.runFolder(project, dir), "Run failed");
   } finally {
     unlisten();
     useRunStore.getState().finished();
@@ -104,11 +96,11 @@ async function runSaved(dir: string): Promise<void> {
 /** A run may have added history for the open scenario. */
 async function reloadOpenHistory(project: string): Promise<void> {
   const { path } = useEditorStore.getState();
-  if (path) useResponseStore.getState().showHistory(await backend.loadHistory(project, path));
+  if (path) useResponseStore.getState().historyLoaded(await backend.loadHistory(project, path));
 }
 
 /** Results can only be opened once the run is over. */
-export function openRunResult(path: ScenarioPath): void {
+export function openRunResult(path: ProjectPath): void {
   const { run, dismissed } = useRunStore.getState();
   if (!run?.done) return;
   dismissed();

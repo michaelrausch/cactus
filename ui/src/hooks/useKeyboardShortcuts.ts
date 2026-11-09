@@ -6,6 +6,7 @@ import { saveScenario } from "@/actions/saving";
 import { createScenarioIn, duplicateScenario } from "@/actions/scenario";
 import { shortcutForKey, type ShortcutId } from "@/app/shortcuts";
 import { useEditorStore } from "@/stores/editorStore";
+import { hasResponseContent, useResponseStore } from "@/stores/responseStore";
 import { useUiStore } from "@/stores/uiStore";
 
 const SHORTCUT_ACTIONS: Record<ShortcutId, () => void> = {
@@ -23,7 +24,9 @@ const SHORTCUT_ACTIONS: Record<ShortcutId, () => void> = {
   },
   variables: () => useUiStore.getState().setEnvDialogOpen(true),
   changes: openChanges,
-  toggleResponse: () => useUiStore.getState().toggleResponse(),
+  toggleResponse: () => {
+    if (hasResponseContent(useResponseStore.getState())) useUiStore.getState().toggleResponse();
+  },
   settings: () => useUiStore.getState().setSettingsOpen(true),
 };
 

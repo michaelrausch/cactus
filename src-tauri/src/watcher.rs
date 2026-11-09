@@ -3,7 +3,7 @@
 use std::path::Path;
 use std::time::Duration;
 
-use cactus_core::layout::WORKSPACE_DIR;
+use cactus_core::layout::TEMP_FILE_SUFFIX;
 use cactus_core::scenario;
 use notify_debouncer_mini::notify::{RecommendedWatcher, RecursiveMode, Watcher};
 use notify_debouncer_mini::{DebounceEventResult, Debouncer, new_debouncer};
@@ -13,7 +13,6 @@ use tauri_specta::Event;
 use crate::events::FsChanged;
 
 const WATCH_DEBOUNCE: Duration = Duration::from_millis(150);
-const TEMP_FILE_SUFFIX: &str = ".tmp";
 
 /// Stops watching when dropped.
 pub struct ProjectWatcher {
@@ -57,22 +56,17 @@ fn watch_project(watcher: &mut dyn Watcher, project: &Path) {
     }
 }
 
-/// Sorted, deduplicated project-relative paths, minus our own writes and
-/// anything the listing leaves out.
+/// Sorted, deduplicated project-relative paths, minus atomic-write temp files
+/// and anything the listing leaves out (`.cactus/` included, as a dot-folder).
 fn changed_relative_paths<'a>(root: &Path, paths: impl Iterator<Item = &'a Path>) -> Vec<String> {
     let mut relative: Vec<String> = paths
         .filter_map(|path| path.strip_prefix(root).ok())
         .map(|path| path.to_string_lossy().replace('\\', "/"))
-        .filter(|path| !is_own_write(path) && !scenario::is_ignored(path))
+        .filter(|path| !path.ends_with(TEMP_FILE_SUFFIX) && !scenario::is_ignored(path))
         .collect();
     relative.sort();
     relative.dedup();
     relative
-}
-
-/// `.cactus/` state and atomic-write temp files are written by the app itself.
-fn is_own_write(relative: &str) -> bool {
-    relative.starts_with(WORKSPACE_DIR) || relative.ends_with(TEMP_FILE_SUFFIX)
 }
 
 #[cfg(test)]

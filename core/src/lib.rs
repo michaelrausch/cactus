@@ -4,7 +4,7 @@
 
 mod clock;
 mod error;
-mod scenario_path;
+mod project_path;
 #[cfg(feature = "specta")]
 mod specta_types;
 mod state;
@@ -25,5 +25,5 @@ pub mod runner;
 pub mod scenario;
 
 pub use error::{Error, Result};
+pub use project_path::ProjectPath;
 pub use reqwest;
-pub use scenario_path::ScenarioPath;

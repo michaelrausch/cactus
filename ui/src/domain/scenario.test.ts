@@ -1,5 +1,6 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import type { Scenario } from "@/api/client";
+import type { Param, Scenario } from "@/api/client";
 import {
   authKind,
   bodyKind,
@@ -7,13 +8,26 @@ import {
   displayTitle,
   jsonProblem,
   pathParamNames,
+  queryRows,
   switchBodyKind,
   withAuth,
   withBody,
   withHeaders,
   withPathParamValues,
+  withQueryRows,
   withUrl,
 } from "./scenario";
+
+interface SharedQueryCase {
+  case: string;
+  url: string;
+  params: Param[];
+  expected: Param[];
+}
+
+const sharedQueryCases = JSON.parse(
+  readFileSync(new URL("../../../core/tests/fixtures/query-params.json", import.meta.url), "utf8"),
+) as SharedQueryCase[];
 
 const scenario = (http: Partial<Scenario["http"]> = {}): Scenario => ({
   info: { name: "", type: "http" },
@@ -93,21 +107,29 @@ describe("scenario", () => {
     expect("params" in withUrl(renamed, "/users").http).toBe(false);
   });
 
-  it("rebuilds query params like the backend, in place", () => {
-    const s = scenario({
-      params: [
-        { name: "id", value: "7", type: "path" },
-        { name: "old", value: "0", type: "query" },
-        { name: "off", value: "1", type: "query", disabled: true },
-      ],
+  // The same cases as `query_params_match_the_shared_cases` in core/src/scenario/model.rs:
+  // what the editor holds has to be what a save writes.
+  describe.each(sharedQueryCases)("query params like the backend: $case", ({ url, params, expected }) => {
+    it("match", () => {
+      expect(withUrl(scenario({ params }), url).http.params ?? []).toEqual(expected);
     });
-    // Same case as `query_params_follow_the_url` in core/src/scenario/model.rs.
-    const next = withUrl(s, "http://h/:id?a=1&b={{x}}#top");
-    expect(next.http.params?.map((p) => [p.name, p.value])).toEqual([
-      ["id", "7"],
-      ["a", "1"],
-      ["off", "1"],
-      ["b", "{{x}}"],
+  });
+
+  it("keeps disabled query params out of the URL", () => {
+    const s = withUrl(scenario({ params: [{ name: "off", value: "1", type: "query", disabled: true }] }), "/x?a=1");
+    const rows = queryRows(s);
+    expect(rows.map((row) => [row.key, row.enabled])).toEqual([
+      ["a", true],
+      ["off", false],
+    ]);
+    const toggled = withQueryRows(
+      s,
+      rows.map((row) => Object.assign(row, { enabled: !row.enabled })),
+    );
+    expect(toggled.http.url).toBe("/x?off=1");
+    expect(toggled.http.params).toEqual([
+      { name: "off", value: "1", type: "query" },
+      { name: "a", value: "1", type: "query", disabled: true },
     ]);
   });
 

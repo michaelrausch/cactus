@@ -32,11 +32,10 @@ export function EnvDialog() {
       title: "Save changes?",
       description: `You have unsaved changes to ${path}.`,
       action: "Save",
-      destructive: false,
       onConfirm: async () => {
         if (await editor.current?.save()) leave();
       },
-      alternative: { action: "Discard", onConfirm: leave },
+      alternative: { action: "Discard", onConfirm: leave, destructive: true },
     });
   };
 
@@ -67,12 +66,15 @@ export function EnvDialog() {
         description: "Letters, digits, - and _ only. It becomes the file name.",
         initial: from,
         onSubmit: async (to) => {
-          if (!to || to === from) return;
-          await reportErrors(async () => {
+          if (!to) return false;
+          if (to === from) return true;
+          const renamed = await reportErrors(async () => {
             await backend.renameEnv(project, from, to);
             await refreshEnvs();
             setSelected({ kind: "named", name: to });
+            return true;
           }, "Rename failed");
+          return renamed ?? false;
         },
       }),
     );
@@ -80,6 +82,7 @@ export function EnvDialog() {
   const deleteEnv = (name: string) =>
     useUiStore.getState().askConfirm({
       title: `Delete ${name}?`,
+      destructive: true,
       description: `environments/${name}.yml will be deleted from disk.`,
       action: "Delete",
       onConfirm: () =>

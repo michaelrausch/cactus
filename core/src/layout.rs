@@ -12,7 +12,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::{Result, ScenarioPath};
+use crate::{Error, ProjectPath, Result};
 
 pub const COLLECTION_FILE: &str = "opencollection.yml";
 pub const FOLDER_FILE: &str = "folder.yml";
@@ -26,9 +26,9 @@ const SECRETS_FILE: &str = "secrets.json";
 const CAPTURED_FILE: &str = "captured.json";
 const STATE_FILE: &str = "state.json";
 const HISTORY_DIR: &str = "history";
-/// History files are flat, so folder separators are encoded in the name.
-const HISTORY_PATH_SEPARATOR: &str = "__";
 const HISTORY_EXTENSION: &str = ".json";
+/// Appended to a file name while it is being written; the watcher ignores it.
+pub const TEMP_FILE_SUFFIX: &str = ".tmp";
 
 pub fn collection_file(project: &Path) -> PathBuf {
     project.join(COLLECTION_FILE)
@@ -68,8 +68,9 @@ pub fn workspace_dir(project: &Path) -> PathBuf {
 pub fn ensure_workspace(project: &Path) -> Result<PathBuf> {
     let dir = workspace_dir(project);
     if !dir.exists() {
-        fs::create_dir_all(&dir)?;
-        fs::write(dir.join(".gitignore"), WORKSPACE_GITIGNORE)?;
+        fs::create_dir_all(&dir).map_err(Error::file(&dir))?;
+        let gitignore = dir.join(".gitignore");
+        fs::write(&gitignore, WORKSPACE_GITIGNORE).map_err(Error::file(&gitignore))?;
     }
     Ok(dir)
 }
@@ -86,11 +87,26 @@ pub fn captured_file(project: &Path) -> PathBuf {
     workspace_dir(project).join(CAPTURED_FILE)
 }
 
-/// `a/b.yml` → `.cactus/history/a__b.json`.
-pub fn history_file(project: &Path, scenario: &ScenarioPath) -> PathBuf {
-    let flat = scenario.as_str().replace('/', HISTORY_PATH_SEPARATOR);
-    let stem = flat.strip_suffix(REQUEST_EXTENSION).unwrap_or(&flat);
+/// `a/b.yml` → `.cactus/history/a%2Fb.json`. History files are flat, so the
+/// folder separator is percent-encoded, and `%` itself too, which keeps
+/// every request's file distinct (`a/b.yml` and `a%2Fb.yml` included).
+pub fn history_file(project: &Path, scenario: &ProjectPath) -> PathBuf {
+    let path = scenario.as_str();
+    let stem = path.strip_suffix(REQUEST_EXTENSION).unwrap_or(path).replace('%', "%25").replace('/', "%2F");
     workspace_dir(project).join(HISTORY_DIR).join(format!("{stem}{HISTORY_EXTENSION}"))
+}
+
+/// Each folder on the way down to `dir` (`""` is the root), as its path
+/// and its name: `"a/b"` → `("a", "a")`, `("a/b", "b")`.
+pub fn folder_prefixes(dir: &str) -> impl Iterator<Item = (String, &str)> {
+    let mut path = String::new();
+    dir.split('/').filter(|part| !part.is_empty()).map(move |name| {
+        if !path.is_empty() {
+            path.push('/');
+        }
+        path.push_str(name);
+        (path.clone(), name)
+    })
 }
 
 #[cfg(test)]
@@ -111,7 +127,16 @@ mod tests {
 
     #[test]
     fn history_file_flattens_folders() {
-        let path = history_file(Path::new("/p"), &ScenarioPath::parse("a/b.yml").unwrap());
-        assert_eq!(path, Path::new("/p/.cactus/history/a__b.json"));
+        let file = |rel: &str| history_file(Path::new("/p"), &ProjectPath::parse(rel).unwrap());
+        assert_eq!(file("a/b.yml"), Path::new("/p/.cactus/history/a%2Fb.json"));
+        assert_ne!(file("a/b.yml"), file("a__b.yml"));
+        assert_ne!(file("a/b.yml"), file("a%2Fb.yml"));
+    }
+
+    #[test]
+    fn folder_prefixes_walk_down() {
+        let prefixes: Vec<_> = folder_prefixes("a/b/").collect();
+        assert_eq!(prefixes, [("a".to_string(), "a"), ("a/b".to_string(), "b")]);
+        assert_eq!(folder_prefixes("").count(), 0);
     }
 }

@@ -6,18 +6,18 @@ use std::path::Path;
 use super::listing::next_seq;
 use super::model::Scenario;
 use crate::text::slugify;
-use crate::{Error, Result, ScenarioPath, collection, history, layout};
+use crate::{Error, ProjectPath, Result, collection, history, layout};
 
 const UNTITLED: &str = "untitled";
 const COPY_SUFFIX: &str = " copy";
 
-pub fn load(project: &Path, path: &ScenarioPath) -> Result<Scenario> {
+pub fn load(project: &Path, path: &ProjectPath) -> Result<Scenario> {
     collection::read(&path.resolve(project))
 }
 
 /// Save by editing the file in place: comments and anything cactus doesn't
 /// edit stay as they are.
-pub fn save(project: &Path, path: &ScenarioPath, scenario: &Scenario) -> Result<()> {
+pub fn save(project: &Path, path: &ProjectPath, scenario: &Scenario) -> Result<()> {
     let mut scenario = scenario.clone();
     scenario.sync_query_params();
     collection::write(&path.resolve(project), &scenario)
@@ -26,7 +26,7 @@ pub fn save(project: &Path, path: &ScenarioPath, scenario: &Scenario) -> Result<
 /// Write `scenario` under `dir` with a free file name derived from its title,
 /// placed after its siblings. Creates `opencollection.yml` and the folders'
 /// `folder.yml` files if they're missing.
-pub fn create(project: &Path, dir: &str, scenario: &Scenario) -> Result<ScenarioPath> {
+pub fn create(project: &Path, dir: &str, scenario: &Scenario) -> Result<ProjectPath> {
     collection::ensure_root(project)?;
     collection::ensure_folder(project, dir)?;
     let path = next_free_path(project, dir, &slug_for(&scenario.info.name))?;
@@ -37,31 +37,32 @@ pub fn create(project: &Path, dir: &str, scenario: &Scenario) -> Result<Scenario
     Ok(path)
 }
 
-pub fn create_blank(project: &Path, dir: &str, title: &str) -> Result<ScenarioPath> {
+pub fn create_blank(project: &Path, dir: &str, title: &str) -> Result<ProjectPath> {
     create(project, dir, &Scenario::titled(title))
 }
 
 /// Copy a request next to the original, titled "<title> copy". The copy is
 /// written fresh, so the original's comments don't come along.
-pub fn duplicate(project: &Path, path: &ScenarioPath) -> Result<ScenarioPath> {
+pub fn duplicate(project: &Path, path: &ProjectPath) -> Result<ProjectPath> {
     let mut scenario = load(project, path)?;
     let title = if scenario.info.name.is_empty() { UNTITLED } else { &scenario.info.name };
-    scenario.info.name = format!("{title}{COPY_SUFFIX}");
+    scenario.info.name = format!("{title}{COPY_SUFFIX}").into();
     create(project, path.dir(), &scenario)
 }
 
 /// Delete a request along with its history.
-pub fn delete(project: &Path, path: &ScenarioPath) -> Result<()> {
-    fs::remove_file(path.resolve(project))?;
+pub fn delete(project: &Path, path: &ProjectPath) -> Result<()> {
+    let file = path.resolve(project);
+    fs::remove_file(&file).map_err(Error::file(&file))?;
     history::clear(project, path);
     Ok(())
 }
 
 /// Move a request (and its history), refusing to overwrite or to take a
 /// name that would no longer be read as a request.
-pub fn rename(project: &Path, from: &ScenarioPath, to: &ScenarioPath) -> Result<()> {
+pub fn rename(project: &Path, from: &ProjectPath, to: &ProjectPath) -> Result<()> {
     if !layout::is_request_file(to.as_str()) {
-        return Err(Error::InvalidScenarioPath(to.to_string()));
+        return Err(Error::InvalidPath(to.to_string()));
     }
     let source = from.resolve(project);
     let target = to.resolve(project);
@@ -69,7 +70,7 @@ pub fn rename(project: &Path, from: &ScenarioPath, to: &ScenarioPath) -> Result<
         return Err(Error::AlreadyExists(to.to_string()));
     }
     collection::ensure_folder(project, to.dir())?;
-    fs::rename(source, target)?;
+    fs::rename(&source, &target).map_err(Error::file(&source))?;
     history::rename(project, from, to);
     Ok(())
 }
@@ -86,11 +87,11 @@ fn slug_for(title: &str) -> String {
 }
 
 /// `slug.yml`, else `slug-2.yml`, `slug-3.yml`, … whichever is free first.
-fn next_free_path(project: &Path, dir: &str, slug: &str) -> Result<ScenarioPath> {
+fn next_free_path(project: &Path, dir: &str, slug: &str) -> Result<ProjectPath> {
     let extension = layout::REQUEST_EXTENSION;
     for n in 1.. {
         let file_name = if n == 1 { format!("{slug}{extension}") } else { format!("{slug}-{n}{extension}") };
-        let candidate = ScenarioPath::in_dir(dir, &file_name)?;
+        let candidate = ProjectPath::in_dir(dir, &file_name)?;
         if !is_taken(project, &candidate) {
             return Ok(candidate);
         }
@@ -100,7 +101,7 @@ fn next_free_path(project: &Path, dir: &str, slug: &str) -> Result<ScenarioPath>
 
 /// Names that would be read as collection, folder or environment files are
 /// never free.
-fn is_taken(project: &Path, candidate: &ScenarioPath) -> bool {
+fn is_taken(project: &Path, candidate: &ProjectPath) -> bool {
     !layout::is_request_file(candidate.as_str()) || candidate.resolve(project).exists()
 }
 
@@ -110,8 +111,8 @@ mod tests {
     use crate::collection::{Auth, AuthMode, Header};
     use crate::scenario::{Body, TypedBody};
 
-    fn path(rel: &str) -> ScenarioPath {
-        ScenarioPath::parse(rel).unwrap()
+    fn path(rel: &str) -> ProjectPath {
+        ProjectPath::parse(rel).unwrap()
     }
 
     const HAND_WRITTEN: &str = r#"# Hand-written; comments must survive.
@@ -195,7 +196,7 @@ examples:
         let a = create_blank(p, "", "a").unwrap();
         let b = create_blank(p, "", "b").unwrap();
         assert!(matches!(rename(p, &a, &b), Err(Error::AlreadyExists(_))));
-        assert!(matches!(rename(p, &a, &path("x/folder.yml")), Err(Error::InvalidScenarioPath(_))));
+        assert!(matches!(rename(p, &a, &path("x/folder.yml")), Err(Error::InvalidPath(_))));
         rename(p, &a, &path("moved/a.yml")).unwrap();
         assert!(p.join("moved/a.yml").exists() && p.join("moved/folder.yml").exists());
     }
