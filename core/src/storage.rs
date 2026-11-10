@@ -4,6 +4,7 @@ use std::ffi::OsString;
 use std::fs;
 use std::io::{self, ErrorKind};
 use std::path::Path;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::thread;
 use std::time::Duration;
 
@@ -44,9 +45,12 @@ pub fn write_json<T: Serialize>(path: &Path, value: &T) -> Result<()> {
 
 /// Write via a temp file and rename, so readers and file watchers never
 /// observe a half-written file.
-/// The temp file is removed if the write fails.
+/// The temp file is removed if the write fails. Each write gets its own temp
+/// file, so concurrent writes to one path can't rename each other's away.
 pub fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
+    static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
     let mut tmp: OsString = path.as_os_str().to_owned();
+    tmp.push(format!(".{}-{}", std::process::id(), NEXT_TEMP.fetch_add(1, Ordering::Relaxed)));
     tmp.push(TEMP_FILE_SUFFIX);
     let tmp = Path::new(&tmp);
     let written = fs::write(tmp, bytes).and_then(|()| rename_with_retry(tmp, path));
@@ -87,6 +91,18 @@ mod tests {
         write_atomic(&path, b"one").unwrap();
         write_atomic(&path, b"two").unwrap();
         assert_eq!(fs::read(&path).unwrap(), b"two");
+        assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 1);
+    }
+
+    #[test]
+    fn concurrent_writes_to_one_path_all_succeed() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("recent.json");
+        thread::scope(|s| {
+            for _ in 0..8 {
+                s.spawn(|| write_atomic(&path, b"x").unwrap());
+            }
+        });
         assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 1);
     }
 
