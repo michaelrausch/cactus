@@ -2,10 +2,14 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { toast } from "sonner";
 import { backend } from "@/api/client";
 import { reportErrors } from "@/lib/errors";
+import { useCritterStore } from "@/stores/critterStore";
 import { useEditorStore } from "@/stores/editorStore";
+import { useMonitorStore } from "@/stores/monitorStore";
 import { useProjectStore } from "@/stores/projectStore";
 import { useResponseStore } from "@/stores/responseStore";
 import { useUiStore } from "@/stores/uiStore";
+import { refreshCritters } from "./critters";
+import { refreshSchedules } from "./monitors";
 import { saveAll, hasUnsavedChanges } from "./saving";
 
 const IMPORT_FILTERS = [{ name: "Postman / OpenAPI", extensions: ["json", "yaml", "yml"] }];
@@ -39,7 +43,15 @@ async function loadProject(folder: string): Promise<void> {
     useProjectStore.getState().opened(folder, entries);
     useEditorStore.getState().reset();
     useResponseStore.getState().reset();
-    const [, recent] = await Promise.all([refreshEnvs(), backend.recentProjects()]);
+    useCritterStore.getState().reset();
+    useMonitorStore.getState().reset();
+    useUiStore.getState().setView("editor");
+    const [, , , recent] = await Promise.all([
+      refreshEnvs(),
+      refreshCritters(),
+      refreshSchedules(),
+      backend.recentProjects(),
+    ]);
     useProjectStore.getState().recentProjectsLoaded(recent);
   });
 }

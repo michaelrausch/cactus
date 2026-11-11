@@ -11,8 +11,11 @@ export interface CommitIdentity {
 interface SettingsState {
   themeId: ThemeId;
   commitIdentity: CommitIdentity;
+  /** Whether idle critters bob and blink. */
+  animateCritters: boolean;
   setTheme: (themeId: ThemeId) => void;
   setCommitIdentity: (identity: Partial<CommitIdentity>) => void;
+  setAnimateCritters: (animate: boolean) => void;
 }
 
 /**
@@ -27,13 +30,15 @@ export const useSettingsStore = create<SettingsState>()(
     (set) => ({
       themeId: DEFAULT_THEME,
       commitIdentity: { name: "", email: "" },
+      animateCritters: true,
       setTheme: (themeId) => set({ themeId }),
       setCommitIdentity: (identity) => set((s) => ({ commitIdentity: { ...s.commitIdentity, ...identity } })),
+      setAnimateCritters: (animateCritters) => set({ animateCritters }),
     }),
     {
       name: "cactus.settings",
       version: 1,
-      partialize: ({ themeId, commitIdentity }) => ({ themeId, commitIdentity }),
+      partialize: ({ themeId, commitIdentity, animateCritters }) => ({ themeId, commitIdentity, animateCritters }),
       merge: (persisted, current) => {
         const saved = persisted as Partial<SettingsState> | undefined;
         return {
@@ -41,6 +46,7 @@ export const useSettingsStore = create<SettingsState>()(
           // A theme saved by another version may not exist any more.
           themeId: resolveTheme(saved?.themeId).id,
           commitIdentity: { ...current.commitIdentity, ...saved?.commitIdentity },
+          animateCritters: saved?.animateCritters ?? current.animateCritters,
         };
       },
     },

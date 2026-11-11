@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { openPlaceholder, placeholderTail, templateParts } from "./template";
+import { describePlaceholders, openPlaceholder, placeholderTail, templateParts } from "./template";
+
+describe("describePlaceholders", () => {
+  it("lists each placeholder once with its source", () => {
+    const details = { baseUrl: "staging", token: "Bob's context · auth/login.yml, 2m ago" };
+    expect(describePlaceholders("{{baseUrl}}/me?t={{ token }}&again={{baseUrl}}&x={{nope}}", details)).toBe(
+      "baseUrl: staging\ntoken: Bob's context · auth/login.yml, 2m ago\nnope: not set",
+    );
+    expect(describePlaceholders("plain", details)).toBe("");
+  });
+});
 
 describe("templateParts", () => {
   it("finds placeholders the way the backend does", () => {

@@ -8,6 +8,7 @@ import { IconButton } from "@/components/IconButton";
 import { Logo } from "@/components/Logo";
 import { useProjectStore } from "@/stores/projectStore";
 import { useUiStore } from "@/stores/uiStore";
+import { CritterPicker } from "./CritterPicker";
 import { EnvPicker } from "./EnvPicker";
 import { ProjectSwitcher } from "./ProjectSwitcher";
 import { ScenarioList } from "./ScenarioList";
@@ -15,7 +16,7 @@ import { ScenarioList } from "./ScenarioList";
 function ScenarioToolbar({ filter, onFilterChange }: { filter: string; onFilterChange: (value: string) => void }) {
   return (
     <div className="flex items-center gap-1 px-2 pb-2">
-      <div className="flex h-8 flex-1 items-center gap-2 rounded-lg bg-sidebar-accent/50 px-2.5 text-muted-foreground focus-within:bg-sidebar-accent focus-within:ring-1 focus-within:ring-ring">
+      <div className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-lg bg-sidebar-accent/50 px-2.5 text-muted-foreground focus-within:bg-sidebar-accent focus-within:ring-1 focus-within:ring-ring">
         <Search className="size-3.5 shrink-0" />
         <input
           value={filter}
@@ -75,7 +76,12 @@ export function Sidebar() {
       </div>
       {hasProject && <ScenarioToolbar filter={filter} onFilterChange={setFilter} />}
       <ScenarioList filter={filter} />
-      {hasProject && <EnvPicker />}
+      {hasProject && (
+        <div className="flex items-center gap-1 border-t border-sidebar-border p-2">
+          <EnvPicker />
+          <CritterPicker />
+        </div>
+      )}
     </div>
   );
 }

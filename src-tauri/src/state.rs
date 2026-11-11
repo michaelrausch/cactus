@@ -5,12 +5,15 @@ use cactus_core::http::build_client;
 use cactus_core::reqwest;
 use tokio::sync::oneshot;
 
+use crate::scheduler::Scheduler;
 use crate::watcher::ProjectWatcher;
 
 /// Process-wide state shared by every command.
 pub struct AppState {
     pub client: reqwest::Client,
     pub recent_projects_file: PathBuf,
+    /// Runs the open project's enabled flows on their timers.
+    pub scheduler: Scheduler,
     cancel: CancelSlot,
     /// Watches the open project; replaced when another project opens.
     watcher: Mutex<Option<ProjectWatcher>>,
@@ -18,7 +21,13 @@ pub struct AppState {
 
 impl AppState {
     pub fn new(recent_projects_file: PathBuf) -> Self {
-        Self { client: build_client(), recent_projects_file, cancel: CancelSlot::default(), watcher: Mutex::default() }
+        Self {
+            client: build_client(),
+            recent_projects_file,
+            scheduler: Scheduler::default(),
+            cancel: CancelSlot::default(),
+            watcher: Mutex::default(),
+        }
     }
 
     pub fn replace_watcher(&self, watcher: Option<ProjectWatcher>) {

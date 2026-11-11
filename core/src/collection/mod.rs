@@ -10,6 +10,7 @@ mod patch;
 use std::fs;
 use std::path::Path;
 
+pub(crate) use emit::to_yaml;
 pub use file::{read, read_if_exists, write};
 pub use model::{
     ApiKeyPlacement, Auth, AuthMode, CollectionRoot, Environment, Folder, Header, Inherit, LenientString,
@@ -59,12 +60,19 @@ pub fn ensure_folder(project: &Path, dir: &str) -> Result<()> {
 /// `folder.yml` contribute nothing.
 pub fn defaults_chain(project: &Path, dir: &str) -> Result<Vec<RequestDefaults>> {
     let mut chain = vec![load_root(project)?.request];
+    chain.extend(folder_defaults(project, dir)?.into_iter().map(|(_, defaults)| defaults));
+    Ok(chain)
+}
+
+/// The folders' part of [`defaults_chain`], each with its path.
+pub fn folder_defaults(project: &Path, dir: &str) -> Result<Vec<(String, RequestDefaults)>> {
+    let mut folders = Vec::new();
     for (path, _) in layout::folder_prefixes(dir) {
         if let Some(folder) = read_if_exists::<Folder>(&layout::folder_file(project, &path))? {
-            chain.push(folder.request);
+            folders.push((path, folder.request));
         }
     }
-    Ok(chain)
+    Ok(folders)
 }
 
 fn folder_name(project: &Path) -> String {

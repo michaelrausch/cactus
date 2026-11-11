@@ -20,17 +20,28 @@ interface EnvLayerEditorProps {
   file: EnvFile;
   ref?: Ref<EnvLayerEditorHandle>;
   /** For a named environment. */
-  onRename: (name: string) => void;
-  onDelete: (name: string) => void;
+  onRename?: (name: string) => void;
+  onDelete?: (name: string) => void;
+  onSaved?: () => void;
+  /** Laid out on a page rather than in a dialog, e.g. a critter's Context tab. */
+  inline?: boolean;
 }
 
 /** Edits one layer file. Mount with a `key` per file so it loads fresh. */
-export function EnvLayerEditor({ project, file, ref, onRename, onDelete }: EnvLayerEditorProps) {
+export function EnvLayerEditor({
+  project,
+  file,
+  ref,
+  onRename,
+  onDelete,
+  onSaved,
+  inline = false,
+}: EnvLayerEditorProps) {
   const [rows, setRows] = useState<Row[] | null>(null);
   /** Fingerprint of the rows as they are on disk. */
   const [savedFingerprint, setSavedFingerprint] = useState<string | null>(null);
   const info = envLayerInfo(file);
-  const secret = file.kind === "secrets";
+  const secret = file.kind === "secrets" || file.kind === "critterSecrets";
   /** Secrets start hidden, so a screen share doesn't show them. */
   const [revealed, setRevealed] = useState(!secret);
 
@@ -61,6 +72,7 @@ export function EnvLayerEditor({ project, file, ref, onRename, onDelete }: EnvLa
     });
     if (!saved) return false;
     setSavedFingerprint(rowsFingerprint(rows));
+    onSaved?.();
     return true;
   };
 
@@ -74,49 +86,68 @@ export function EnvLayerEditor({ project, file, ref, onRename, onDelete }: EnvLa
 
   useImperativeHandle(ref, () => ({ hasUnsavedChanges: () => dirty, save }));
 
+  const title = (
+    <>
+      {info.label} <span className="font-mono text-xs font-normal text-muted-foreground">{info.path}</span>
+      {dirty && (
+        <span className="size-1.5 self-center rounded-full bg-warning" title="Unsaved changes">
+          <span className="sr-only">Unsaved changes</span>
+        </span>
+      )}
+    </>
+  );
+  const buttons = (
+    <>
+      {file.kind === "named" && onRename && onDelete && (
+        <>
+          <Button variant="ghost" onClick={() => onRename(file.name)}>
+            <Pencil /> Rename…
+          </Button>
+          <Button variant="ghost" className="hover:text-danger sm:mr-auto" onClick={() => onDelete(file.name)}>
+            <Trash2 /> Delete…
+          </Button>
+        </>
+      )}
+      {secret && (
+        <Button variant="ghost" className="sm:mr-auto" aria-pressed={revealed} onClick={() => setRevealed(!revealed)}>
+          {revealed ? <EyeOff /> : <Eye />} {revealed ? "Hide values" : "Show values"}
+        </Button>
+      )}
+      {file.kind === "captured" && (
+        <Button variant="ghost" onClick={() => setRows([])}>
+          <Trash2 /> Clear all
+        </Button>
+      )}
+      <Button onClick={() => void save()} disabled={!dirty}>
+        Save
+      </Button>
+    </>
+  );
+  const table = (
+    <div className="min-h-0 flex-1 overflow-auto">
+      {rows && (
+        <KeyValueTable rows={rows} onChange={setRows} keyPlaceholder="Variable" valueColumn={{ masked: !revealed }} />
+      )}
+    </div>
+  );
+
+  if (inline) {
+    return (
+      <div className="flex min-w-0 flex-col" onKeyDown={onKeyDown}>
+        <h3 className="mb-3 flex items-baseline gap-2 text-sm font-semibold">{title}</h3>
+        {table}
+        <div className="mt-3 flex flex-wrap justify-end gap-2">{buttons}</div>
+      </div>
+    );
+  }
   return (
     <div className="flex min-w-0 flex-1 flex-col p-5" onKeyDown={onKeyDown}>
       <DialogHeader className="mb-4">
-        <DialogTitle className="flex items-baseline gap-2">
-          {info.label} <span className="font-mono text-xs font-normal text-muted-foreground">{info.path}</span>
-          {dirty && (
-            <span className="size-1.5 self-center rounded-full bg-warning" title="Unsaved changes">
-              <span className="sr-only">Unsaved changes</span>
-            </span>
-          )}
-        </DialogTitle>
+        <DialogTitle className="flex items-baseline gap-2">{title}</DialogTitle>
         <DialogDescription className="sr-only">The variables in {info.path}.</DialogDescription>
       </DialogHeader>
-      <div className="min-h-0 flex-1 overflow-auto">
-        {rows && (
-          <KeyValueTable rows={rows} onChange={setRows} keyPlaceholder="Variable" valueColumn={{ masked: !revealed }} />
-        )}
-      </div>
-      <DialogFooter className="mt-4">
-        {file.kind === "named" && (
-          <>
-            <Button variant="ghost" onClick={() => onRename(file.name)}>
-              <Pencil /> Rename…
-            </Button>
-            <Button variant="ghost" className="hover:text-danger sm:mr-auto" onClick={() => onDelete(file.name)}>
-              <Trash2 /> Delete…
-            </Button>
-          </>
-        )}
-        {secret && (
-          <Button variant="ghost" className="sm:mr-auto" aria-pressed={revealed} onClick={() => setRevealed(!revealed)}>
-            {revealed ? <EyeOff /> : <Eye />} {revealed ? "Hide values" : "Show values"}
-          </Button>
-        )}
-        {file.kind === "captured" && (
-          <Button variant="ghost" onClick={() => setRows([])}>
-            <Trash2 /> Clear all
-          </Button>
-        )}
-        <Button onClick={() => void save()} disabled={!dirty}>
-          Save
-        </Button>
-      </DialogFooter>
+      {table}
+      <DialogFooter className="mt-4">{buttons}</DialogFooter>
     </div>
   );
 }

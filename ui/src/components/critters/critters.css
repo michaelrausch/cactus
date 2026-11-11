@@ -1,0 +1,227 @@
+/*
+ * Critter sprites (CritterSprite.tsx). Frames are stacked <g>s; keyframes
+ * show one at a time with steps(1), so pixels jump the way pixel art moves.
+ * Only `transform` and `visibility` animate. One sprite pixel is
+ * --critter-size / 16.
+ */
+
+:root {
+  --critter-filter: none;
+  --critter-outline: color-mix(in oklch, var(--foreground) 45%, transparent);
+}
+
+/* Phosphor is one green: the sprites go green too. */
+[data-theme="phosphor"] {
+  --critter-filter: grayscale(1) sepia(1) hue-rotate(70deg) saturate(3);
+}
+
+/* Light themes: a 1px outline so pale fur and shells stand off the background. No blur(), which is slow in WebKitGTK. */
+[data-theme="desert-day"],
+[data-theme="salt-flat"],
+[data-theme="adobe"],
+[data-theme="citrus"],
+[data-theme="aqua"],
+[data-theme="win95"],
+[data-theme="bubblegum"] {
+  --critter-filter: drop-shadow(1px 0 0 var(--critter-outline)) drop-shadow(-1px 0 0 var(--critter-outline))
+    drop-shadow(0 1px 0 var(--critter-outline)) drop-shadow(0 -1px 0 var(--critter-outline));
+}
+
+.critter {
+  --critter-px: calc(var(--critter-size) / 16);
+  position: relative;
+  display: inline-block;
+  flex: none;
+  width: var(--critter-size);
+  height: var(--critter-size);
+  line-height: 0;
+}
+
+.critter-art {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  filter: var(--critter-filter);
+}
+
+/* Frame 0 shows unless an animation says otherwise. */
+.critter-frame {
+  visibility: hidden;
+}
+.critter-frame[data-frame="0"] {
+  visibility: visible;
+}
+
+/* Idle: a slow bob and an occasional blink, offset per critter. */
+.critter[data-state="idle"] .critter-art {
+  animation: critter-bob 2.4s steps(1) infinite;
+  animation-delay: calc(var(--critter-seed) * -2.4s);
+}
+.critter[data-state="idle"] .critter-frame[data-frame="0"] {
+  animation: critter-blink-open 4.6s steps(1) infinite;
+  animation-delay: calc(var(--critter-seed) * -4.6s);
+}
+.critter[data-state="idle"] .critter-frame[data-frame="1"] {
+  animation: critter-blink-shut 4.6s steps(1) infinite;
+  animation-delay: calc(var(--critter-seed) * -4.6s);
+}
+
+/* Working: a run cycle. */
+.critter[data-state="work"] .critter-art {
+  animation: critter-trot 320ms steps(1) infinite;
+}
+.critter[data-state="work"] .critter-frame[data-frame="0"] {
+  animation: critter-step-a 320ms steps(1) infinite;
+}
+.critter[data-state="work"] .critter-frame[data-frame="1"] {
+  animation: critter-step-b 320ms steps(1) infinite;
+}
+
+/* Passed: one hop. Failed: one shake. */
+.critter[data-state="pass"] .critter-art {
+  animation: critter-hop 420ms var(--ease-snappy) 1;
+}
+.critter[data-state="fail"] .critter-art {
+  animation: critter-shake 360ms steps(1) 1;
+}
+
+/* Idle motion stops while the window is in the background, when turned off in Settings, or for a sleeping critter. */
+:root[data-window-blurred] .critter[data-state="idle"] .critter-art,
+:root[data-window-blurred] .critter[data-state="idle"] .critter-frame,
+:root[data-critters-still] .critter[data-state="idle"] .critter-art,
+:root[data-critters-still] .critter[data-state="idle"] .critter-frame,
+.critter[data-asleep] .critter-art,
+.critter[data-asleep] .critter-frame {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .critter-art,
+  .critter .critter-frame {
+    animation: none !important;
+  }
+}
+
+@keyframes critter-bob {
+  0% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(calc(var(--critter-px) * -1));
+  }
+}
+
+@keyframes critter-blink-open {
+  0% {
+    visibility: visible;
+  }
+  95% {
+    visibility: hidden;
+  }
+}
+
+@keyframes critter-blink-shut {
+  0% {
+    visibility: hidden;
+  }
+  95% {
+    visibility: visible;
+  }
+}
+
+@keyframes critter-trot {
+  0% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(calc(var(--critter-px) * -1));
+  }
+}
+
+@keyframes critter-step-a {
+  0% {
+    visibility: visible;
+  }
+  50% {
+    visibility: hidden;
+  }
+}
+
+@keyframes critter-step-b {
+  0% {
+    visibility: hidden;
+  }
+  50% {
+    visibility: visible;
+  }
+}
+
+@keyframes critter-hop {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  40% {
+    transform: translateY(calc(var(--critter-px) * -3));
+  }
+}
+
+@keyframes critter-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20%,
+  60% {
+    transform: translateX(var(--critter-px));
+  }
+  40%,
+  80% {
+    transform: translateX(calc(var(--critter-px) * -1));
+  }
+}
+
+/* Flow step cards (StepCard.tsx): one shake on failure, a pulsing border while running. */
+.flow-card[data-outcome="fail"] {
+  --critter-px: 2px;
+  animation: critter-shake 360ms steps(1) 1;
+}
+.flow-card[data-outcome="running"] {
+  animation: flow-card-pulse 1.2s ease-in-out infinite;
+}
+@keyframes flow-card-pulse {
+  50% {
+    border-color: var(--brand-2);
+  }
+}
+
+/* The state badge, so motion is never the only signal. */
+.critter-badge {
+  position: absolute;
+  right: calc(var(--critter-size) * -0.12);
+  bottom: calc(var(--critter-size) * -0.08);
+  display: grid;
+  place-items: center;
+  width: max(9px, calc(var(--critter-size) * 0.36));
+  height: max(9px, calc(var(--critter-size) * 0.36));
+  border-radius: 999px;
+  background: var(--popover);
+  color: var(--popover-foreground);
+  box-shadow: 0 0 0 1px var(--border);
+  font-size: max(7px, calc(var(--critter-size) * 0.24));
+  font-weight: 700;
+  line-height: 1;
+}
+.critter-badge svg {
+  width: 75%;
+  height: 75%;
+}
+.critter-badge[data-badge="pass"] {
+  background: var(--success);
+  color: var(--background);
+}
+.critter-badge[data-badge="fail"] {
+  background: var(--danger);
+  color: var(--background);
+}

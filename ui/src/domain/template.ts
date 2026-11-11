@@ -12,6 +12,16 @@ export interface TemplatePart {
   placeholder?: string;
 }
 
+/**
+ * One line per distinct placeholder in `text`, saying where its value comes
+ * from: `"token: Bob's context · auth/login.yml, 2m ago"`, or `"not set"`.
+ * Empty when `text` has none.
+ */
+export function describePlaceholders(text: string, details: Readonly<Record<string, string>>): string {
+  const names = new Set(templateParts(text).flatMap((part) => (part.placeholder ? [part.placeholder] : [])));
+  return [...names].map((name) => `${name}: ${details[name] ?? "not set"}`).join("\n");
+}
+
 /** Split `text` into plain runs and placeholders, in order. */
 export function templateParts(text: string): TemplatePart[] {
   const parts: TemplatePart[] = [];

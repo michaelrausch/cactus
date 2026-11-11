@@ -37,6 +37,12 @@ pub struct Response {
     pub capture_failures: Vec<CaptureFailure>,
     #[serde(default)]
     pub checks: Vec<Check>,
+    /// The critter it was sent as.
+    #[serde(default)]
+    pub critter: Option<String>,
+    /// Whether it was sent again after the critter logged in again on a 401.
+    #[serde(default)]
+    pub relogged: bool,
 }
 
 /// A set-variable action that couldn't select a value from the response.
@@ -49,7 +55,7 @@ pub struct CaptureFailure {
 }
 
 /// The outcome of one assertion.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct Check {
     pub name: String,
@@ -91,6 +97,8 @@ impl Response {
             captured: BTreeMap::new(),
             capture_failures: Vec::new(),
             checks: Vec::new(),
+            critter: None,
+            relogged: false,
         }
     }
 

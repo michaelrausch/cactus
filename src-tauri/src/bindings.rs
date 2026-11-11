@@ -2,8 +2,10 @@
 
 use tauri_specta::{Builder, collect_commands, collect_events};
 
-use crate::commands::{env, git, import, project, request, scenario};
-use crate::events::{FsChanged, RunProgress};
+use crate::commands::{critter, env, flow, git, import, project, request, scenario, schedule};
+use crate::events::{
+    ContextChanged, FlowProgress, FsChanged, MatrixProgress, MonitorAlert, RunProgress, ScheduledRunFinished,
+};
 
 #[cfg(debug_assertions)]
 const TYPESCRIPT_BINDINGS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../ui/src/api/bindings.ts");
@@ -28,7 +30,38 @@ pub fn builder() -> Builder<tauri::Wry> {
             env::save_env,
             env::rename_env,
             env::delete_env,
-            env::variable_names,
+            env::variable_sources,
+            env::base_variable_sources,
+            critter::list_critters,
+            critter::load_critter,
+            critter::save_critter,
+            critter::create_critter,
+            critter::rename_critter,
+            critter::duplicate_critter,
+            critter::delete_critter,
+            critter::active_critter,
+            critter::set_active_critter,
+            critter::load_context,
+            critter::restore_context,
+            critter::clear_context,
+            flow::list_flows,
+            flow::load_flow,
+            flow::save_flow,
+            flow::create_flow,
+            flow::rename_flow,
+            flow::delete_flow,
+            flow::load_flow_text,
+            flow::save_flow_text,
+            flow::parse_flow,
+            flow::flow_to_yaml,
+            flow::flow_variable_sources,
+            flow::run_flow,
+            flow::run_matrix,
+            schedule::set_schedule_enabled,
+            schedule::set_schedules_paused,
+            schedule::schedule_states,
+            schedule::load_run_log,
+            schedule::run_scheduled_now,
             git::git_status,
             git::git_init,
             git::git_stage,
@@ -49,7 +82,15 @@ pub fn builder() -> Builder<tauri::Wry> {
             request::run_folder,
             request::cancel_request,
         ])
-        .events(collect_events![FsChanged, RunProgress])
+        .events(collect_events![
+            FsChanged,
+            RunProgress,
+            FlowProgress,
+            MatrixProgress,
+            ScheduledRunFinished,
+            MonitorAlert,
+            ContextChanged
+        ])
 }
 
 /// Regenerate `ui/src/api/bindings.ts`; debug builds only, so the UI's types

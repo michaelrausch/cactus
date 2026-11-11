@@ -25,6 +25,11 @@ const savesInFlight = new Set<string>();
 export const isOwnRecentWrite = (path: string): boolean =>
   Date.now() - (lastWrittenAt.get(path) ?? -Infinity) < OWN_WRITE_WINDOW_MS;
 
+/** Record that we're writing `path` (a flow, say), so its change event is taken as our own echo. */
+export const markOwnWrite = (path: string): void => {
+  lastWrittenAt.set(path, Date.now());
+};
+
 /** Whether a save of `path` is under way. */
 export const isSaving = (path: string): boolean => savesInFlight.has(path);
 

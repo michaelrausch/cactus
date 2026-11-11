@@ -38,14 +38,19 @@ function rankByQuery(names: readonly string[], query: string): string[] {
 
 /** Completes the variable name inside an open `{{`. */
 export const placeholderSuggester =
-  (names: readonly string[]): Suggester =>
+  (names: readonly string[], details: Readonly<Record<string, string>> = {}): Suggester =>
   (text, cursor) => {
     const open = openPlaceholder(text, cursor);
     if (!open) return [];
     const to = cursor + placeholderTail(text, cursor);
     return rankByQuery(names, open.query)
       .slice(0, MAX_SUGGESTIONS)
-      .map((name) => ({ label: name, from: open.start, to, insert: `{{${name}}}` }));
+      .map((name) => {
+        const suggestion: Suggestion = { label: name, from: open.start, to, insert: `{{${name}}}` };
+        const detail = details[name];
+        if (detail) suggestion.detail = detail;
+        return suggestion;
+      });
   };
 
 /** The rest of the word the caret is in, so a completion replaces all of it. */

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { stagedFiles, unstagedFiles } from "@/domain/git";
-import { timeAgo } from "@/lib/format";
+import { TimeAgo } from "@/components/TimeAgo";
 import { useGitStore } from "@/stores/gitStore";
 import { useUiStore } from "@/stores/uiStore";
 import { BranchMenu } from "./BranchMenu";
@@ -25,7 +25,9 @@ function LastCommit({ commit: last }: { commit: CommitSummary | null }) {
     <p className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground" title={`${last.id} ${last.summary}`}>
       <GitCommitHorizontal className="size-3.5 shrink-0" />
       <span className="min-w-0 truncate">{last.summary}</span>
-      <span className="shrink-0">· {timeAgo(last.at)} ago</span>
+      <span className="shrink-0">
+        · <TimeAgo at={last.at} suffix=" ago" />
+      </span>
     </p>
   );
 }
@@ -108,10 +110,11 @@ export function GitDialog() {
   const clean = status.files.length === 0;
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="gap-0 p-0 sm:max-w-5xl">
+      <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-5xl">
         <DialogTitle className="sr-only">Changes</DialogTitle>
         <DialogDescription className="sr-only">Stage, review and commit changes to this collection.</DialogDescription>
-        <div className="flex h-[min(560px,calc(100vh-4rem))]">
+        {/* min-w-0: as a grid item it would otherwise grow to fit the widest diff line. */}
+        <div className="flex h-[min(560px,calc(100vh-4rem))] min-w-0">
           <div className="flex w-80 shrink-0 flex-col border-r bg-sidebar/60">
             <div className="flex shrink-0 flex-col gap-1 border-b px-4 py-3">
               <div className="flex min-w-0">
@@ -119,7 +122,7 @@ export function GitDialog() {
               </div>
               <LastCommit commit={status.lastCommit} />
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto p-2">
+            <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto p-2">
               <ChangeList side="staged" files={stagedFiles(status)} />
               <ChangeList side="unstaged" files={unstagedFiles(status)} />
             </div>

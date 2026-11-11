@@ -273,6 +273,8 @@ mod tests {
             captured: BTreeMap::new(),
             capture_failures: vec![],
             checks: vec![],
+            critter: None,
+            relogged: false,
         }
     }
 

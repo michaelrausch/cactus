@@ -1,6 +1,7 @@
 import { ArrowUp, Square } from "lucide-react";
 import { cancelInFlight, sendCurrentScenario } from "@/actions/request";
 import { withShortcut } from "@/app/shortcuts";
+import { CritterSprite } from "@/components/critters/CritterSprite";
 import { MethodBadge } from "@/components/MethodBadge";
 import { TemplateField } from "@/components/template/TemplateField";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -8,11 +9,31 @@ import { HTTP_METHODS } from "@/domain/http";
 import { withUrl } from "@/domain/scenario";
 import { cn } from "@/lib/utils";
 import { methodColor } from "@/theme/httpColors";
+import { selectActiveCritter, useCritterStore } from "@/stores/critterStore";
 import { useResponseStore } from "@/stores/responseStore";
 import type { ScenarioTabProps } from "./types";
 
+/** Who the request goes out as: the active critter, running while it sends. */
+function SenderSprite() {
+  const sending = useResponseStore((s) => s.sending);
+  const critter = useCritterStore(selectActiveCritter);
+  if (!critter) return null;
+  return (
+    <CritterSprite
+      species={critter.species}
+      size={16}
+      state={sending ? "work" : "idle"}
+      label={sending ? `${critter.name} is sending` : `Sending as ${critter.name}`}
+      seed={critter.id}
+      className="mx-1.5"
+    />
+  );
+}
+
 function SendButton() {
   const sending = useResponseStore((s) => s.sending);
+  const critter = useCritterStore(selectActiveCritter);
+  const sendLabel = critter ? `Send as ${critter.name}` : "Send";
   if (sending) {
     return (
       <button
@@ -30,8 +51,8 @@ function SendButton() {
     <button
       type="button"
       onClick={() => void sendCurrentScenario()}
-      title={withShortcut("Send", "send")}
-      aria-label="Send"
+      title={withShortcut(sendLabel, "send")}
+      aria-label={sendLabel}
       className="grid size-9 shrink-0 place-items-center rounded-lg bg-brand-2 text-brand-foreground shadow-md shadow-brand-2/20 focus-ring transition hover:brightness-110 active:scale-95"
     >
       <ArrowUp className="size-4" strokeWidth={2.5} />
@@ -70,6 +91,7 @@ export function UrlBar({ scenario, onChange }: ScenarioTabProps) {
         className="flex-1"
         fieldClassName="h-9 px-2 font-mono text-sm"
       />
+      <SenderSprite />
       <SendButton />
     </div>
   );

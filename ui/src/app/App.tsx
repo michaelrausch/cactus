@@ -1,6 +1,7 @@
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { NewCritterDialog } from "@/features/critters/NewCritterDialog";
 import { ConfirmDialog } from "@/features/dialogs/ConfirmDialog";
 import { PromptDialog } from "@/features/dialogs/PromptDialog";
 import { EnvDialog } from "@/features/env/EnvDialog";
@@ -36,6 +37,7 @@ export default function App() {
         <GitDialog />
         <SettingsDialog />
         <RunDialog />
+        <NewCritterDialog />
         <ScenarioSwitcher />
         <Toaster position="bottom-right" />
         {/* Theme effects drawn over everything, e.g. scanlines. */}

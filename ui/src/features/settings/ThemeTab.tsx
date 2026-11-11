@@ -73,24 +73,40 @@ function ThemeCard({ theme, selected, onSelect }: { theme: ThemeEntry; selected:
 export function ThemeTab() {
   const themeId = useSettingsStore((s) => s.themeId);
   const setTheme = useSettingsStore((s) => s.setTheme);
+  const animateCritters = useSettingsStore((s) => s.animateCritters);
+  const setAnimateCritters = useSettingsStore((s) => s.setAnimateCritters);
 
   return (
-    <div role="radiogroup" aria-label="Theme" className="flex flex-col gap-5">
-      {THEME_GROUPS.map(({ group, label }) => (
-        <section key={group} className="flex flex-col gap-2">
-          <h3 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{label}</h3>
-          <div className="grid grid-cols-2 gap-2 lg:grid-cols-3">
-            {THEMES.filter((theme) => theme.group === group).map((theme) => (
-              <ThemeCard
-                key={theme.id}
-                theme={theme}
-                selected={theme.id === themeId}
-                onSelect={() => setTheme(theme.id)}
-              />
-            ))}
-          </div>
-        </section>
-      ))}
+    <div className="flex flex-col gap-5">
+      <div role="radiogroup" aria-label="Theme" className="flex flex-col gap-5">
+        {THEME_GROUPS.map(({ group, label }) => (
+          <section key={group} className="flex flex-col gap-2">
+            <h3 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{label}</h3>
+            <div className="grid grid-cols-2 gap-2 lg:grid-cols-3">
+              {THEMES.filter((theme) => theme.group === group).map((theme) => (
+                <ThemeCard
+                  key={theme.id}
+                  theme={theme}
+                  selected={theme.id === themeId}
+                  onSelect={() => setTheme(theme.id)}
+                />
+              ))}
+            </div>
+          </section>
+        ))}
+      </div>
+      <section className="flex flex-col gap-2">
+        <h3 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Motion</h3>
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={animateCritters}
+            onChange={(event) => setAnimateCritters(event.target.checked)}
+            className="size-4 accent-(--brand-2)"
+          />
+          Animate idle critters
+        </label>
+      </section>
     </div>
   );
 }

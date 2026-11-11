@@ -5,6 +5,7 @@
 //! - `opencollection.yml`: the collection, its defaults and shared variables
 //! - `environments/<name>.yml`: one named environment each
 //! - `<folder>/folder.yml`: a folder's defaults
+//! - `critters/<id>/critter.yml` and `critters/<id>/flows/<flow>.yml`: personas
 //! - every other `*.yml`: one request
 //!
 //! Machine-local state lives in `.cactus/`, which ignores itself in git.
@@ -17,6 +18,9 @@ use crate::{Error, ProjectPath, Result};
 pub const COLLECTION_FILE: &str = "opencollection.yml";
 pub const FOLDER_FILE: &str = "folder.yml";
 pub const ENVIRONMENTS_DIR: &str = "environments";
+pub const CRITTERS_DIR: &str = "critters";
+pub const CRITTER_FILE: &str = "critter.yml";
+pub const FLOWS_DIR: &str = "flows";
 pub const REQUEST_EXTENSION: &str = ".yml";
 
 pub const WORKSPACE_DIR: &str = ".cactus";
@@ -27,6 +31,10 @@ const CAPTURED_FILE: &str = "captured.json";
 const STATE_FILE: &str = "state.json";
 const HISTORY_DIR: &str = "history";
 const HISTORY_EXTENSION: &str = ".json";
+const CRITTER_SECRETS_FILE: &str = "secrets.json";
+const CRITTER_CONTEXT_FILE: &str = "context.json";
+const RUNS_DIR: &str = "runs";
+const RUN_LOG_EXTENSION: &str = ".json";
 /// Appended to a file name while it is being written; the watcher ignores it.
 pub const TEMP_FILE_SUFFIX: &str = ".tmp";
 
@@ -56,8 +64,75 @@ pub fn environment_from_file_name(file_name: &str) -> Option<&str> {
 /// request rather than collection, folder or environment settings.
 pub fn is_request_file(rel_path: &str) -> bool {
     let file_name = rel_path.rsplit('/').next().unwrap_or(rel_path);
-    let in_environments = rel_path.strip_prefix(ENVIRONMENTS_DIR).is_some_and(|rest| rest.starts_with('/'));
-    rel_path.ends_with(REQUEST_EXTENSION) && rel_path != COLLECTION_FILE && file_name != FOLDER_FILE && !in_environments
+    let in_top_level = |dir: &str| rel_path.strip_prefix(dir).is_some_and(|rest| rest.starts_with('/'));
+    rel_path.ends_with(REQUEST_EXTENSION)
+        && rel_path != COLLECTION_FILE
+        && file_name != FOLDER_FILE
+        && !in_top_level(ENVIRONMENTS_DIR)
+        && !in_top_level(CRITTERS_DIR)
+}
+
+pub fn critters_dir(project: &Path) -> PathBuf {
+    project.join(CRITTERS_DIR)
+}
+
+/// `critters/<id>/`. `id` must already be validated.
+pub fn critter_dir(project: &Path, id: &str) -> PathBuf {
+    critters_dir(project).join(id)
+}
+
+pub fn critter_file(project: &Path, id: &str) -> PathBuf {
+    critter_dir(project, id).join(CRITTER_FILE)
+}
+
+pub fn flows_dir(project: &Path, id: &str) -> PathBuf {
+    critter_dir(project, id).join(FLOWS_DIR)
+}
+
+pub fn flow_file(project: &Path, id: &str, flow: &str) -> PathBuf {
+    flows_dir(project, id).join(format!("{flow}{REQUEST_EXTENSION}"))
+}
+
+/// `"login.yml"` → `Some("login")`.
+pub fn flow_from_file_name(file_name: &str) -> Option<&str> {
+    file_name.strip_suffix(REQUEST_EXTENSION)
+}
+
+/// `.cactus/critters/<id>/`: the critter's secrets, context and run logs.
+pub fn critter_workspace_dir(project: &Path, id: &str) -> PathBuf {
+    workspace_dir(project).join(CRITTERS_DIR).join(id)
+}
+
+pub fn critter_secrets_file(project: &Path, id: &str) -> PathBuf {
+    critter_workspace_dir(project, id).join(CRITTER_SECRETS_FILE)
+}
+
+pub fn critter_context_file(project: &Path, id: &str) -> PathBuf {
+    critter_workspace_dir(project, id).join(CRITTER_CONTEXT_FILE)
+}
+
+/// Run logs live with the critter's other local files, so renaming or
+/// deleting a critter takes them along.
+pub fn runs_dir(project: &Path, id: &str) -> PathBuf {
+    critter_workspace_dir(project, id).join(RUNS_DIR)
+}
+
+pub fn run_log_file(project: &Path, id: &str, flow: &str) -> PathBuf {
+    runs_dir(project, id).join(format!("{flow}{RUN_LOG_EXTENSION}"))
+}
+
+/// Which critter, and which of its flows, a project-relative path belongs
+/// to: `critters/bob/critter.yml` → `("bob", None)`,
+/// `critters/bob/flows/login.yml` → `("bob", Some("login"))`. Other files
+/// under a critter's folder count as the critter itself.
+pub fn critter_from_path(rel_path: &str) -> Option<(&str, Option<&str>)> {
+    let rest = rel_path.strip_prefix(CRITTERS_DIR)?.strip_prefix('/')?;
+    let (id, rest) = rest.split_once('/').unwrap_or((rest, ""));
+    if id.is_empty() {
+        return None;
+    }
+    let flow = rest.strip_prefix(FLOWS_DIR).and_then(|r| r.strip_prefix('/')).and_then(flow_from_file_name);
+    Some((id, flow.filter(|flow| !flow.is_empty() && !flow.contains('/'))))
 }
 
 pub fn workspace_dir(project: &Path) -> PathBuf {
@@ -121,8 +196,25 @@ mod tests {
         assert!(!is_request_file("opencollection.yml"));
         assert!(!is_request_file("auth/folder.yml"));
         assert!(!is_request_file("environments/dev.yml"));
+        assert!(!is_request_file("critters/bob/critter.yml"));
+        assert!(!is_request_file("critters/bob/flows/login.yml"));
+        assert!(is_request_file("api/critters/x.yml"));
+        assert!(is_request_file("critters.yml"));
         assert!(!is_request_file("notes.json"));
         assert_eq!(environment_from_file_name("dev.yml"), Some("dev"));
+    }
+
+    #[test]
+    fn critter_paths() {
+        assert_eq!(critter_from_path("critters/bob/critter.yml"), Some(("bob", None)));
+        assert_eq!(critter_from_path("critters/bob/flows/login.yml"), Some(("bob", Some("login"))));
+        assert_eq!(critter_from_path("critters/bob"), Some(("bob", None)));
+        assert_eq!(critter_from_path("critters/bob/flows/a/b.yml"), Some(("bob", None)));
+        assert_eq!(critter_from_path("critters/"), None);
+        assert_eq!(critter_from_path("crittersx/bob"), None);
+        assert_eq!(critter_from_path("auth/login.yml"), None);
+        let p = Path::new("/p");
+        assert_eq!(run_log_file(p, "bob", "health"), Path::new("/p/.cactus/critters/bob/runs/health.json"));
     }
 
     #[test]

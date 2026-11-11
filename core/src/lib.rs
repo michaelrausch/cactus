@@ -12,6 +12,7 @@ mod storage;
 mod text;
 
 pub mod collection;
+pub mod critter;
 pub mod env;
 #[cfg(feature = "git")]
 pub mod git;
@@ -20,6 +21,7 @@ pub mod http;
 pub mod import;
 pub mod jsonpath;
 pub mod layout;
+pub mod monitor;
 pub mod recent;
 pub mod runner;
 pub mod scenario;

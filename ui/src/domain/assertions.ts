@@ -6,10 +6,20 @@ const DEFAULT_OPERATOR = "eq";
 const isOperator = (word: string): boolean => (ASSERTION_OPERATORS as readonly string[]).includes(word);
 
 /** Shown as Bruno shows them: `res.status` | `eq 200`. */
-export const assertionRows = (scenario: Scenario): Row[] =>
-  (scenario.runtime?.assertions ?? []).map((a) =>
+export const rowsFromAssertions = (assertions: readonly Assertion[] | undefined): Row[] =>
+  (assertions ?? []).map((a) =>
     makeRow(a.expression, a.value === undefined ? a.operator : `${a.operator} ${a.value}`, !a.disabled),
   );
+
+/** The inverse of {@link rowsFromAssertions}; `disabled` is written only when set. */
+export const assertionsFromRows = (rows: Row[]): Assertion[] =>
+  rows.map((row) => ({
+    expression: row.key,
+    ...parseCondition(row.value),
+    ...(row.enabled ? {} : { disabled: true }),
+  }));
+
+export const assertionRows = (scenario: Scenario): Row[] => rowsFromAssertions(scenario.runtime?.assertions);
 
 /** `"eq 200"` → `eq` and `"200"`; text without a known operator means `eq` it. */
 export function parseCondition(text: string): Pick<Assertion, "operator" | "value"> {
@@ -30,13 +40,7 @@ const withRuntime = (scenario: Scenario, patch: Partial<NonNullable<Scenario["ru
 };
 
 export const withAssertionRows = (scenario: Scenario, rows: Row[]): Scenario =>
-  withRuntime(scenario, {
-    assertions: rows.map((row) => ({
-      expression: row.key,
-      ...parseCondition(row.value),
-      ...(row.enabled ? {} : { disabled: true }),
-    })),
-  });
+  withRuntime(scenario, { assertions: assertionsFromRows(rows) });
 
 export const activeAssertionCount = (scenario: Scenario): number =>
   (scenario.runtime?.assertions ?? []).filter((a) => !a.disabled).length;

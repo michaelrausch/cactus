@@ -23,28 +23,29 @@ export function EnvPicker() {
   const activeEnv = useProjectStore((s) => s.activeEnv);
 
   return (
-    <div className="flex items-center gap-1 border-t border-sidebar-border p-2">
-      <DropdownMenu>
-        <DropdownMenuTrigger className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-lg px-2 text-left text-sm focus-ring hover:bg-sidebar-accent">
-          <EnvDot active={!!activeEnv} />
-          <span className="min-w-0 flex-1 truncate">{activeEnv ?? "No environment"}</span>
-          <ChevronsUpDown className="size-3.5 text-muted-foreground" />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" side="top" className="w-56">
-          <DropdownMenuItem onSelect={() => void selectEnv(null)}>
-            <EnvDot active={false} /> No environment
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        title="Environment"
+        className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-lg px-2 text-left text-sm focus-ring hover:bg-sidebar-accent"
+      >
+        <EnvDot active={!!activeEnv} />
+        <span className="min-w-0 flex-1 truncate">{activeEnv ?? "None"}</span>
+        <ChevronsUpDown className="size-3.5 text-muted-foreground" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" side="top" className="w-56">
+        <DropdownMenuItem onSelect={() => void selectEnv(null)}>
+          <EnvDot active={false} /> None
+        </DropdownMenuItem>
+        {envs.map((name) => (
+          <DropdownMenuItem key={name} onSelect={() => void selectEnv(name)}>
+            <EnvDot active /> {name}
           </DropdownMenuItem>
-          {envs.map((name) => (
-            <DropdownMenuItem key={name} onSelect={() => void selectEnv(name)}>
-              <EnvDot active /> {name}
-            </DropdownMenuItem>
-          ))}
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={openEnvDialog}>
-            <SlidersHorizontal /> Edit variables…
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
+        ))}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={openEnvDialog}>
+          <SlidersHorizontal /> Edit variables…
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

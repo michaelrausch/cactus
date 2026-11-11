@@ -7,18 +7,19 @@ import { useProjectStore } from "@/stores/projectStore";
 let latestRequest = 0;
 
 /**
- * Reload the names of the variables the open scenario can use. Call it when
- * the scenario, the active env or any env layer may have changed.
+ * Reload the variables the open scenario can use and where each comes
+ * from. Call it when the scenario, the active env or critter, or any env
+ * layer may have changed.
  */
 export async function refreshVariableNames(): Promise<void> {
-  const { project, variableNamesLoaded } = useProjectStore.getState();
+  const { project, variableSourcesLoaded } = useProjectStore.getState();
   const { path } = useEditorStore.getState();
   const request = ++latestRequest;
   if (!project || !path) {
-    variableNamesLoaded(null);
+    variableSourcesLoaded(null, Date.now());
     return;
   }
   // Highlighting is a hint; without names nothing is flagged as unresolved.
-  const names = await warnQuietly(() => backend.variableNames(project, path), "Couldn't list variables");
-  if (request === latestRequest) variableNamesLoaded(names ?? null);
+  const sources = await warnQuietly(() => backend.variableSources(project, path), "Couldn't list variables");
+  if (request === latestRequest) variableSourcesLoaded(sources ?? null, Date.now());
 }

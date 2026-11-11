@@ -6,11 +6,13 @@ import {
   bodyKind,
   bodyText,
   displayTitle,
+  isAuthRequest,
   jsonProblem,
   pathParamNames,
   queryRows,
   switchBodyKind,
   withAuth,
+  withAuthTag,
   withBody,
   withHeaders,
   withPathParamValues,
@@ -37,6 +39,17 @@ const scenario = (http: Partial<Scenario["http"]> = {}): Scenario => ({
 describe("scenario", () => {
   it("titles untitled requests", () => {
     expect(displayTitle(scenario())).toBe("Untitled");
+  });
+
+  it("tags and untags auth requests, leaving no empty tag list", () => {
+    const tagged = withAuthTag(scenario(), true);
+    expect(tagged.info.tags).toEqual(["auth"]);
+    expect(isAuthRequest(tagged.info.tags)).toBe(true);
+    expect(withAuthTag(tagged, true).info.tags).toEqual(["auth"]);
+    expect("tags" in withAuthTag(tagged, false).info).toBe(false);
+    const smoke = { ...scenario(), info: { name: "", type: "http" as const, tags: ["smoke", "auth"] } };
+    expect(withAuthTag(smoke, false).info.tags).toEqual(["smoke"]);
+    expect(isAuthRequest(undefined)).toBe(false);
   });
 
   it("reads body kinds", () => {

@@ -1,33 +1,44 @@
 import { useMemo } from "react";
-import { Minus, Plus, Undo2 } from "lucide-react";
+import { CircleMinus, CirclePlus, Minus, Plus, RotateCcw, Undo2 } from "lucide-react";
 import type { DiffSide, FileStatus } from "@/api/client";
 import { discard, discardAll, openInEditor, showDiff, stage, stageAll, unstage, unstageAll } from "@/actions/git";
+import { CritterSprite } from "@/components/critters/CritterSprite";
 import { GitMarker } from "@/components/GitMarker";
 import { IconButton } from "@/components/IconButton";
+import { critterIdOf } from "@/domain/critterId";
 import { changeLabel, changeOn } from "@/domain/git";
 import { cn } from "@/lib/utils";
+import { useCritterStore } from "@/stores/critterStore";
 import { useGitStore } from "@/stores/gitStore";
 import { useProjectStore } from "@/stores/projectStore";
 
 /** Stage or unstage, plus discard for unstaged changes. */
-export function FileActions({ file, side }: { file: FileStatus; side: DiffSide }) {
+function FileActions({ file, side }: { file: FileStatus; side: DiffSide }) {
   if (side === "staged") {
     return (
       <IconButton label="Unstage" tone="sidebar" onClick={() => void unstage(file)}>
-        <Minus />
+        <CircleMinus />
       </IconButton>
     );
   }
   return (
     <>
       <IconButton label="Discard changes" tone="sidebar" onClick={() => discard(file)}>
-        <Undo2 />
+        <RotateCcw />
       </IconButton>
       <IconButton label="Stage" tone="sidebar" onClick={() => stage([file.path])}>
-        <Plus />
+        <CirclePlus />
       </IconButton>
     </>
   );
+}
+
+/** A critter's sprite on its files, so `critters/bob/…` reads as Bob's at a glance. */
+function CritterIcon({ path }: { path: string }) {
+  const id = critterIdOf(path);
+  const critter = useCritterStore((s) => (id ? s.critters.find((c) => c.id === id) : undefined));
+  if (!critter) return null;
+  return <CritterSprite species={critter.species} size={16} label={`${critter.name}'s`} seed={critter.id} />;
 }
 
 function ChangeRow({ file, side, titles }: { file: FileStatus; side: DiffSide; titles: Record<string, string> }) {
@@ -56,10 +67,11 @@ function ChangeRow({ file, side, titles }: { file: FileStatus; side: DiffSide; t
         className="flex h-full min-w-0 flex-1 items-center gap-2 rounded-md pl-2 text-left focus-ring"
       >
         <GitMarker kind={kind} />
-        <span className="shrink-0 truncate text-sm">{name}</span>
-        {detail && <span className="min-w-0 truncate text-xs text-muted-foreground">{detail}</span>}
+        <CritterIcon path={file.path} />
+        <span className="min-w-0 truncate text-sm">{name}</span>
+        {detail && <span className="min-w-0 shrink-[2] truncate text-xs text-muted-foreground">{detail}</span>}
       </button>
-      <span className="hidden items-center group-focus-within:flex group-hover:flex">
+      <span className="hidden shrink-0 items-center group-focus-within:flex group-hover:flex">
         <FileActions file={file} side={side} />
       </span>
     </div>

@@ -12,7 +12,9 @@ export interface EnvLayerInfo {
   path: string;
 }
 
-const FIXED_LAYERS: Record<Exclude<EnvFile["kind"], "named">, EnvLayerInfo> = {
+type NamedLayer = Extract<EnvFile, { name: string }>;
+
+const FIXED_LAYERS: Record<Exclude<EnvFile["kind"], NamedLayer["kind"]>, EnvLayerInfo> = {
   base: {
     label: "Shared",
     path: COLLECTION_FILE,
@@ -27,12 +29,21 @@ const FIXED_LAYERS: Record<Exclude<EnvFile["kind"], "named">, EnvLayerInfo> = {
   },
 };
 
+/** Mirrors `layout::critter_file` and friends in Rust. */
+const NAMED_LAYERS: Record<NamedLayer["kind"], (name: string) => EnvLayerInfo> = {
+  named: (name) => ({ label: name, path: `environments/${name}.yml` }),
+  critter: (name) => ({ label: "Variables", path: `critters/${name}/critter.yml` }),
+  critterSecrets: (name) => ({ label: "Secrets", path: `.cactus/critters/${name}/secrets.json` }),
+  critterContext: (name) => ({ label: "Captured", path: `.cactus/critters/${name}/context.json` }),
+};
+
+const hasName = (file: EnvFile): file is NamedLayer => "name" in file;
+
 export function envLayerInfo(file: EnvFile): EnvLayerInfo {
-  if (file.kind !== "named") return FIXED_LAYERS[file.kind];
-  return { label: file.name, path: `environments/${file.name}.yml` };
+  return hasName(file) ? NAMED_LAYERS[file.kind](file.name) : FIXED_LAYERS[file.kind];
 }
 
-export const envFileKey = (file: EnvFile): string => (file.kind === "named" ? `named:${file.name}` : file.kind);
+export const envFileKey = (file: EnvFile): string => (hasName(file) ? `${file.kind}:${file.name}` : file.kind);
 
 /** Every layer, lowest precedence first, as the backend merges them. */
 export const envLayers = (namedEnvs: string[]): EnvFile[] => [

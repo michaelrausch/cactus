@@ -20,6 +20,14 @@ describe("placeholderSuggester", () => {
     expect(suggest("{{tok", 5).map((s) => s.label)).toEqual(["token", "userToken"]);
   });
 
+  it("says where each name comes from", () => {
+    const withSources = placeholderSuggester(["baseUrl", "token"], { token: "Bob's context" });
+    expect(withSources("{{", 2).map((s) => [s.label, s.detail])).toEqual([
+      ["baseUrl", undefined],
+      ["token", "Bob's context"],
+    ]);
+  });
+
   it("replaces the whole placeholder", () => {
     const text = "{{ba}}/users";
     expect(apply(text, suggest(text, 4)[0])).toBe("{{baseUrl}}/users");

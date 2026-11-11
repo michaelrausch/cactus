@@ -13,6 +13,22 @@ export const ownVariableNames = (variables: NonNullable<Scenario["runtime"]>["va
 
 export const displayTitle = (scenario: Scenario): string => scenario.info.name || "Untitled";
 
+/** The tag that marks a request as one that logs in (`AUTH_TAG` in Rust). */
+export const AUTH_TAG = "auth";
+
+export const isAuthRequest = (tags: readonly string[] | undefined): boolean => (tags ?? []).includes(AUTH_TAG);
+
+/**
+ * Tag the request as one that logs in, or untag it. No tags means no `tags`
+ * key, as the backend writes it, so a round trip doesn't look like an edit.
+ */
+export function withAuthTag(scenario: Scenario, auth: boolean): Scenario {
+  const others = (scenario.info.tags ?? []).filter((tag) => tag !== AUTH_TAG);
+  const tags = auth ? [...others, AUTH_TAG] : others;
+  const { tags: _previous, ...info } = scenario.info;
+  return { ...scenario, info: tags.length > 0 ? { ...info, tags } : info };
+}
+
 const isTypedBody = (body: Body | undefined): body is TypedBody =>
   typeof body === "object" && body !== null && !Array.isArray(body) && typeof body["type"] === "string";
 
