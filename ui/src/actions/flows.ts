@@ -1,5 +1,12 @@
 import { toast } from "sonner";
-import { backend, type Flow, type FlowStepResult, type ProjectPath, type Scenario } from "@/api/client";
+import {
+  backend,
+  type Flow,
+  type FlowStepResult,
+  type FlowStepStart,
+  type ProjectPath,
+  type Scenario,
+} from "@/api/client";
 import { flowFilePath, uniqueCritterId } from "@/domain/critterId";
 import { flowFingerprint } from "@/domain/flowEdit";
 import { reportErrors, warnQuietly } from "@/lib/errors";
@@ -9,8 +16,10 @@ import { useProjectStore } from "@/stores/projectStore";
 import { useResponseStore } from "@/stores/responseStore";
 import { useUiStore } from "@/stores/uiStore";
 import { refreshCritters, updateCritter } from "./critters";
+import { refreshSchedules } from "./monitors";
 import { markOwnWrite } from "./saving";
 import { selectScenario } from "./scenario";
+import { ensureUnlocked } from "./secrets";
 
 /** How long typing in the YAML editor pauses before it is parsed. */
 const PARSE_DELAY_MS = 200;
@@ -35,9 +44,41 @@ export async function openFlow(critter: string, flow: string): Promise<void> {
   }, `Couldn't open ${flow}`);
 }
 
-/** Back to the flow list, after asking if there are unsaved edits. */
-export function closeFlow(): void {
-  guardUnsaved(() => flowStore().closed());
+const isOpen = (critter: string, flow: string): boolean => {
+  const { open } = flowStore();
+  return open?.critter === critter && open.flow === flow;
+};
+
+/** Show the open flow, `critter`'s, in the main pane. */
+function showOpenFlow(critter: string): void {
+  useCritterStore.getState().select(critter);
+  useUiStore.getState().setView("flow");
+}
+
+/**
+ * Show `flow` in the main pane, first asking about unsaved edits to a
+ * different open flow. Resolves to whether it is showing; never resolves
+ * if that question is cancelled.
+ */
+export function switchToFlow(critter: string, flow: string): Promise<boolean> {
+  if (isOpen(critter, flow)) {
+    showOpenFlow(critter);
+    return Promise.resolve(true);
+  }
+  return new Promise((resolve) =>
+    guardUnsaved(() => {
+      void openFlow(critter, flow).then(() => {
+        const opened = isOpen(critter, flow);
+        if (opened) showOpenFlow(critter);
+        resolve(opened);
+      });
+    }),
+  );
+}
+
+/** Show the flow and run it there, so each request can be watched as it goes. */
+export async function runFlow(critter: string, flow: string): Promise<void> {
+  if (await switchToFlow(critter, flow)) runOpenFlow();
 }
 
 /** Run `leave` once unsaved edits are saved or discarded, or right away if there are none. */
@@ -163,8 +204,9 @@ export async function saveOpenFlow(): Promise<boolean> {
     return true;
   }, "Couldn't save the flow");
   if (!saved) return false;
-  // The list shows step counts and schedules.
+  // The sidebar shows which flows have triggers; a saved schedule starts running.
   void reportErrors(refreshCritters);
+  void refreshSchedules();
   return true;
 }
 
@@ -190,17 +232,21 @@ export function runOpenFlow(): void {
 async function runSavedFlow(): Promise<void> {
   const project = currentProject();
   const { open, model } = flowStore();
-  if (!project || !open || !model) return;
+  if (!project || !open || !model || !(await ensureUnlocked())) return;
   flowStore().runStarted(model.steps.length);
   const run = await reportErrors(() => backend.runFlow(project, open.critter, open.flow, null), "Run failed");
   // `null` when cancelled by another send.
   flowStore().runFinished(run ?? null);
 }
 
+/** A step of a run is sending (the `FlowStepStarted` event). */
+export function flowStepStarted(critter: string, flow: string, start: FlowStepStart): void {
+  if (isOpen(critter, flow) && flowStore().run.running) flowStore().stepStarted(start);
+}
+
 /** A step of a run finished (the `FlowProgress` event). */
 export function flowStepFinished(critter: string, flow: string, step: FlowStepResult): void {
-  const { open, run } = flowStore();
-  if (open?.critter === critter && open.flow === flow && run.running) flowStore().stepFinished(step);
+  if (isOpen(critter, flow) && flowStore().run.running) flowStore().stepFinished(step);
 }
 
 /** Show a step's response in the response pane, next to its request. */
@@ -258,7 +304,7 @@ export function createFlow(critter: string): void {
       }, "Couldn't create the flow");
       if (!created) return false;
       await reportErrors(refreshCritters);
-      await openFlow(critter, id);
+      void switchToFlow(critter, id);
       return true;
     },
   });
@@ -330,7 +376,11 @@ export async function deleteFlow(critter: string, flow: string): Promise<void> {
   }, "Couldn't delete");
   if (!deleted) return;
   const { open } = flowStore();
-  if (open?.critter === critter && open.flow === flow) flowStore().closed();
+  if (open?.critter === critter && open.flow === flow) {
+    flowStore().closed();
+    const ui = useUiStore.getState();
+    if (ui.view === "flow") ui.setView("critter");
+  }
   await reportErrors(refreshCritters);
   toast(`Deleted ${flow}`, {
     duration: UNDO_MS,

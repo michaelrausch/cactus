@@ -1,6 +1,7 @@
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { AlertsBanner } from "@/features/critters/AlertsBanner";
 import { NewCritterDialog } from "@/features/critters/NewCritterDialog";
 import { ConfirmDialog } from "@/features/dialogs/ConfirmDialog";
 import { PromptDialog } from "@/features/dialogs/PromptDialog";
@@ -8,6 +9,7 @@ import { EnvDialog } from "@/features/env/EnvDialog";
 import { GitDialog } from "@/features/git/GitDialog";
 import { ScenarioSwitcher } from "@/features/palette/ScenarioSwitcher";
 import { RunDialog } from "@/features/run/RunDialog";
+import { SecretsDialogs } from "@/features/secrets/SecretsDialogs";
 import { SettingsDialog } from "@/features/settings/SettingsDialog";
 import { Sidebar } from "@/features/sidebar/Sidebar";
 import { Workspace } from "@/features/workspace/Workspace";
@@ -36,8 +38,10 @@ export default function App() {
         <EnvDialog />
         <GitDialog />
         <SettingsDialog />
+        {import.meta.env.SECRETS_ENCRYPTION && <SecretsDialogs />}
         <RunDialog />
         <NewCritterDialog />
+        <AlertsBanner />
         <ScenarioSwitcher />
         <Toaster position="bottom-right" />
         {/* Theme effects drawn over everything, e.g. scanlines. */}

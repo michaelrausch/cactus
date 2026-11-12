@@ -25,6 +25,7 @@ pub mod monitor;
 pub mod recent;
 pub mod runner;
 pub mod scenario;
+pub mod secrets;
 
 pub use error::{Error, Result};
 pub use project_path::ProjectPath;

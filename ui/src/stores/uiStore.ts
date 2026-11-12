@@ -24,11 +24,15 @@ export interface ConfirmRequest extends ConfirmChoice {
   alternative?: ConfirmChoice;
 }
 
-/** What fills the area right of the sidebar. */
-export type MainView = "editor" | "critters";
+/** What the main pane shows: the open request, the selected critter, or the open flow. */
+export type MainView = "editor" | "critter" | "flow";
+
+/** The tab shown for the selected critter. */
+export type CritterTab = "context" | "settings";
 
 interface UiState {
   view: MainView;
+  critterTab: CritterTab;
   newCritterOpen: boolean;
   prompt: PromptRequest | null;
   confirm: ConfirmRequest | null;
@@ -39,6 +43,7 @@ interface UiState {
   responseVisible: boolean;
 
   setView: (view: MainView) => void;
+  setCritterTab: (tab: CritterTab) => void;
   setNewCritterOpen: (open: boolean) => void;
   askPrompt: (prompt: PromptRequest) => void;
   askConfirm: (confirm: ConfirmRequest) => void;
@@ -55,6 +60,7 @@ interface UiState {
 
 export const useUiStore = create<UiState>()((set) => ({
   view: "editor",
+  critterTab: "context",
   newCritterOpen: false,
   prompt: null,
   confirm: null,
@@ -65,6 +71,7 @@ export const useUiStore = create<UiState>()((set) => ({
   responseVisible: true,
 
   setView: (view) => set({ view }),
+  setCritterTab: (critterTab) => set({ critterTab }),
   setNewCritterOpen: (newCritterOpen) => set({ newCritterOpen }),
   askPrompt: (prompt) => set({ prompt }),
   askConfirm: (confirm) => set({ confirm }),

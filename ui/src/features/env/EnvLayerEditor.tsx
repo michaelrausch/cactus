@@ -1,5 +1,6 @@
 import { useEffect, useImperativeHandle, useState, type KeyboardEvent, type Ref } from "react";
-import { Eye, EyeOff, Pencil, Trash2 } from "lucide-react";
+import { Eye, EyeOff, Lock, LockOpen, Pencil, Trash2 } from "lucide-react";
+import { ensureUnlocked } from "@/actions/secrets";
 import { backend, type EnvFile } from "@/api/client";
 import { KeyValueTable } from "@/components/KeyValueTable";
 import { Button } from "@/components/ui/button";
@@ -7,6 +8,7 @@ import { DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/co
 import { envLayerInfo } from "@/domain/envFiles";
 import { recordFromRows, rowsFingerprint, rowsFromRecord, type Row } from "@/domain/rows";
 import { reportErrors } from "@/lib/errors";
+import { useSecretsStore } from "@/stores/secretsStore";
 
 /** What the dialog around the editor needs to guard unsaved edits. */
 export interface EnvLayerEditorHandle {
@@ -44,14 +46,26 @@ export function EnvLayerEditor({
   const secret = file.kind === "secrets" || file.kind === "critterSecrets";
   /** Secrets start hidden, so a screen share doesn't show them. */
   const [revealed, setRevealed] = useState(!secret);
+  const encryption = useSecretsStore((s) => (secret ? (s.info?.status ?? null) : null));
+  const anySealed = useSecretsStore((s) => s.info?.hasSealedValues ?? false);
+  /** Locked with encrypted values: the layer shows its names only. */
+  const hidden = encryption === "locked" && anySealed;
+  const [lockedNames, setLockedNames] = useState<string[] | null>(null);
 
   useEffect(() => {
+    if (secret && encryption === null) return; // Until it's known whether values can be read.
     let current = true;
     void reportErrors(
       async () => {
+        if (hidden) {
+          const names = await backend.secretNames(project, file);
+          if (current) setLockedNames(names);
+          return;
+        }
         const env = await backend.loadEnv(project, file);
         if (!current) return;
         const loaded = rowsFromRecord(env);
+        setLockedNames(null);
         setRows(loaded);
         setSavedFingerprint(rowsFingerprint(loaded));
       },
@@ -60,12 +74,13 @@ export function EnvLayerEditor({
     return () => {
       current = false;
     };
-  }, [project, file]);
+  }, [project, file, secret, encryption, hidden]);
 
   const dirty = rows !== null && rowsFingerprint(rows) !== savedFingerprint;
 
   const save = async (): Promise<boolean> => {
     if (!rows) return true;
+    if (encryption === "locked" && !(await ensureUnlocked({ force: true }))) return false;
     const saved = await reportErrors(async () => {
       await backend.saveEnv(project, file, recordFromRows(rows));
       return true;
@@ -89,6 +104,12 @@ export function EnvLayerEditor({
   const title = (
     <>
       {info.label} <span className="font-mono text-xs font-normal text-muted-foreground">{info.path}</span>
+      {encryption && encryption !== "off" && (
+        <span className="text-xs font-normal text-muted-foreground">
+          {encryption === "locked" ? <Lock className="inline size-3" /> : <LockOpen className="inline size-3" />}{" "}
+          encrypted
+        </span>
+      )}
       {dirty && (
         <span className="size-1.5 self-center rounded-full bg-warning" title="Unsaved changes">
           <span className="sr-only">Unsaved changes</span>
@@ -108,25 +129,49 @@ export function EnvLayerEditor({
           </Button>
         </>
       )}
-      {secret && (
-        <Button variant="ghost" className="sm:mr-auto" aria-pressed={revealed} onClick={() => setRevealed(!revealed)}>
+      {hidden && (
+        <Button onClick={() => void ensureUnlocked({ force: true })}>
+          <LockOpen /> Unlock…
+        </Button>
+      )}
+      {secret && !hidden && (
+        <Button variant="ghost" aria-pressed={revealed} onClick={() => setRevealed(!revealed)}>
           {revealed ? <EyeOff /> : <Eye />} {revealed ? "Hide values" : "Show values"}
         </Button>
       )}
+      {secret && encryption === "off" && import.meta.env.SECRETS_ENCRYPTION && (
+        <Button variant="ghost" onClick={() => useSecretsStore.getState().setDialog("enable")}>
+          <Lock /> Encrypt…
+        </Button>
+      )}
+      {secret && <span className="hidden sm:mr-auto sm:block" />}
       {file.kind === "captured" && (
         <Button variant="ghost" onClick={() => setRows([])}>
           <Trash2 /> Clear all
         </Button>
       )}
-      <Button onClick={() => void save()} disabled={!dirty}>
-        Save
-      </Button>
+      {!hidden && (
+        <Button onClick={() => void save()} disabled={!dirty}>
+          Save
+        </Button>
+      )}
     </>
   );
   const table = (
     <div className="min-h-0 flex-1 overflow-auto">
-      {rows && (
-        <KeyValueTable rows={rows} onChange={setRows} keyPlaceholder="Variable" valueColumn={{ masked: !revealed }} />
+      {lockedNames ? (
+        <ul className="divide-y text-sm">
+          {lockedNames.map((name) => (
+            <li key={name} className="flex justify-between gap-4 px-2 py-1.5">
+              <span className="font-mono">{name}</span>
+              <span className="text-muted-foreground">encrypted</span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        rows && (
+          <KeyValueTable rows={rows} onChange={setRows} keyPlaceholder="Variable" valueColumn={{ masked: !revealed }} />
+        )
       )}
     </div>
   );

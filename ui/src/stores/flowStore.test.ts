@@ -1,19 +1,29 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import type { Flow, FlowStepResult } from "@/api/client";
+import type { Flow, FlowStepResult, FlowStepStart } from "@/api/client";
 import { selectFlowDirty, useFlowStore } from "./flowStore";
 
 const flow = (...requests: string[]): Flow => ({ name: "F", steps: requests.map((request) => ({ request })) });
 const store = () => useFlowStore.getState();
 
-const result = (index: number): FlowStepResult => ({
+const result = (index: number, ok = true): FlowStepResult => ({
   index,
   request: "a.yml",
   title: "A",
-  ok: true,
+  method: "GET",
+  url: "http://h/a",
+  ok,
   skipped: false,
   response: null,
   error: null,
   watched: {},
+});
+
+const start = (index: number): FlowStepStart => ({
+  index,
+  request: "a.yml",
+  title: "A",
+  method: "GET",
+  url: `http://h/${index}`,
 });
 
 describe("flowStore", () => {
@@ -63,6 +73,26 @@ describe("flowStore", () => {
     expect(store().run.running).toBe(false);
     store().edited(flow("a", "b"));
     expect(store().run.stale).toBe(true);
+  });
+
+  it("shows the run and follows it to the step that fails", () => {
+    store().edited(flow("a", "b", "c"));
+    store().runStarted(3);
+    expect(store().panel).toBe("run");
+    store().stepStarted(start(0));
+    store().stepFinished(result(0));
+    store().stepStarted(start(1));
+    expect(store().selected).toBe(1);
+    expect(store().run.started[1]?.url).toBe("http://h/1");
+    store().stepFinished(result(1, false));
+    store().runFinished({ at: 0, env: null, ok: false, elapsedMs: 5, steps: [result(0), result(1, false), result(2)] });
+    expect(store().selected).toBe(1);
+
+    // Picking another step stops following.
+    store().runStarted(3);
+    store().select(2);
+    store().stepStarted(start(0));
+    expect(store().selected).toBe(2);
   });
 
   it("tracks YAML edits separately from the model", () => {

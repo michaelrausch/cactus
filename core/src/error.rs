@@ -36,6 +36,10 @@ pub enum Error {
     FlowNotFound { critter: String, flow: String },
     #[error("every: {0:?}: use e.g. 30s, 5m or 1h; minimum 30s")]
     InvalidInterval(String),
+    #[error("the request has no URL")]
+    MissingUrl,
+    #[error("invalid URL {url:?}: {reason}")]
+    InvalidUrl { url: String, reason: String },
     #[error("invalid method: {0}")]
     InvalidMethod(String),
     #[error("invalid header name: {0}")]
@@ -50,6 +54,26 @@ pub enum Error {
     NotAFolder(PathBuf),
     #[error("not a Postman collection or OpenAPI spec")]
     UnrecognizedImportFormat,
+    #[error("Secrets are locked")]
+    SecretsLocked,
+    /// Headless, with sealed secrets and no way to ask for the password.
+    #[error("Secrets are encrypted. Pass --password-stdin or set CACTUS_SECRETS_PASSWORD.")]
+    PasswordRequired,
+    #[error("Wrong password")]
+    WrongPassword,
+    #[error("Use at least 8 characters")]
+    PasswordTooShort,
+    #[error("Encryption is already on")]
+    EncryptionAlreadyOn,
+    #[error("Encryption is off")]
+    EncryptionOff,
+    /// A malformed encrypted value, or one that doesn't open with a key that
+    /// opens the project's others.
+    #[error("Can't decrypt secrets: {0}")]
+    SecretCorrupt(String),
+    /// An encrypted value in a format this build doesn't know.
+    #[error("{0} needs a newer cactus")]
+    UnsupportedSecretFormat(String),
     #[cfg(feature = "git")]
     #[error("git: {}", .0.message())]
     Git(#[from] git2::Error),

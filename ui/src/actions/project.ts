@@ -4,13 +4,16 @@ import { backend } from "@/api/client";
 import { reportErrors } from "@/lib/errors";
 import { useCritterStore } from "@/stores/critterStore";
 import { useEditorStore } from "@/stores/editorStore";
+import { useFlowStore } from "@/stores/flowStore";
 import { useMonitorStore } from "@/stores/monitorStore";
 import { useProjectStore } from "@/stores/projectStore";
 import { useResponseStore } from "@/stores/responseStore";
+import { useSecretsStore } from "@/stores/secretsStore";
 import { useUiStore } from "@/stores/uiStore";
 import { refreshCritters } from "./critters";
 import { refreshSchedules } from "./monitors";
 import { saveAll, hasUnsavedChanges } from "./saving";
+import { refreshSecrets } from "./secrets";
 
 const IMPORT_FILTERS = [{ name: "Postman / OpenAPI", extensions: ["json", "yaml", "yml"] }];
 
@@ -45,11 +48,14 @@ async function loadProject(folder: string): Promise<void> {
     useResponseStore.getState().reset();
     useCritterStore.getState().reset();
     useMonitorStore.getState().reset();
+    useFlowStore.getState().closed();
+    useSecretsStore.getState().reset();
     useUiStore.getState().setView("editor");
-    const [, , , recent] = await Promise.all([
+    const [, , , , recent] = await Promise.all([
       refreshEnvs(),
       refreshCritters(),
       refreshSchedules(),
+      refreshSecrets(),
       backend.recentProjects(),
     ]);
     useProjectStore.getState().recentProjectsLoaded(recent);

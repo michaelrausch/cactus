@@ -3,6 +3,9 @@ info:
   name: Login
   type: http
   seq: 1
+  # Marks it as a login request: listed first when building flows.
+  tags:
+    - auth
 http:
   method: POST
   url: "{{baseUrl}}/post"

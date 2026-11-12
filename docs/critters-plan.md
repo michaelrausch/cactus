@@ -1,7 +1,8 @@
 # Critters: personas, flows and scheduled checks
 
-Status: phases 1–9 built (sprites reviewable with `npm run dev`, then
-`/#sprites`). Phases 10–12 not started.
+Status: built. Phases 1–10 and 12 are done; phase 11 (the matrix UI) was
+dropped at the user's request. The core `run_matrix` and its command and event
+remain, unused by the UI.
 
 ### Where the build differs from this plan
 
@@ -64,6 +65,36 @@ Found while re-validating against the code (commit `1c32f12`):
   and `IconButton` a `disabled` state. Ctrl+S and Ctrl+Enter act on the flow
   while focus is inside the flow editor (`data-flow-editor`). The last-run dot
   in the flow list shows scheduled runs only until phase 10's run log view.
+- **Critters live in the sidebar, flows in the main pane** (§7, changed at
+  the user's request, replacing the earlier Critters window): a "Critters"
+  section under the requests lists each critter with its flows nested
+  (`CritterTree`; the search filters them too). Clicking a critter shows
+  `CritterPage` (Context, Settings) in the main pane; clicking a flow shows
+  `FlowEditor` there (`uiStore.view` is `editor`, `critter` or `flow`). There
+  is no flow list or Flows tab, and no Scheduled list: flows show a clock when
+  they have a trigger and a dot for their last scheduled run. ▶ on a flow, the
+  footer picker and the switcher open the flow and run it there rather than in
+  a toast. Ctrl+B goes to the last critter shown and back; Ctrl+S / Ctrl+Enter
+  act on the flow while one is showing.
+- **Live runs**: the flow editor's right pane has Step and Run tabs. A run
+  switches to Run, which lists each step's method, URL (env applied, sent
+  before the step finishes via the `FlowStepStarted` event), status and time,
+  follows the step being sent until the user picks one, and shows the picked
+  step's response (body, headers, checks, captured) or error.
+  `FlowStepResult` carries `method` and `url` too, so a step that failed
+  before sending still says where it was going.
+- **`triggers` replaces `trigger`**: a list of `{type: schedule, every, env}`,
+  internally tagged so other kinds can be added; serde_yaml_ng reads
+  externally tagged enums only from `!tags`. A file with the old `trigger:`
+  key loads without a schedule. `TriggerBar` replaces the schedule row: one
+  control per trigger plus "+ Trigger", and alert settings once there is one.
+- **Phase 10**: the schedule control is a row under the flow header, not in
+  it. Its trigger and alert edits are visual edits (saved with the flow); the
+  "On this machine" switch appears once a trigger is saved, since the
+  scheduler reads the saved file. Alert handling lives in `actions/alerts.ts`
+  (in `monitors.ts` it would make an import cycle with `critters.ts`).
+  Failing alerts toast as `warning`, as nothing calls `toast.error` directly.
+  Labels are terse, per the user's preference.
 
 A **critter** is a persona in a project: a name, a pixel-art species and its
 own variables. Sending as a critter layers its variables over the environment
@@ -143,7 +174,7 @@ If an assumption no longer holds:
 - Custom avatars.
 - Running steps or flows in parallel.
 - Schedules while the app is closed, cron expressions, webhook/Slack alerts.
-  The file format leaves room for `trigger.cron` and `alert.webhook` later.
+  The file format leaves room for other `triggers` kinds and `alert.webhook` later.
 
 ## 2. On disk
 
@@ -177,9 +208,10 @@ variables:                   # same shape as an environment's variables
 
 ```yaml
 name: Staging health
-trigger:                     # optional
-  every: 5m                  # s | m | h, minimum 30s
-  env: staging               # optional; default is the active env at run time
+triggers:                    # optional; what runs it besides running it by hand
+  - type: schedule           # the only kind so far; the scheduler follows the first
+    every: 5m                # s | m | h, minimum 30s
+    env: staging             # optional; default is the active env at run time
 alert:                       # optional; default on: [failure]
   on: [failure, change]
 steps:

@@ -33,20 +33,20 @@ interface StepCardProps {
 
 function Outcome({
   phase,
-  result,
+  verdict,
   critter,
 }: {
   phase: StepPhase;
-  result: FlowStepResult | null;
+  verdict: FlowStepResult | null;
   critter: CritterSummary;
 }) {
   if (phase === "queued") return <CircleDashed className="size-4 text-muted-foreground" aria-label="Queued" />;
   if (phase === "running") {
     return <CritterSprite species={critter.species} size={16} state="work" label={`${critter.name} is sending`} />;
   }
-  if (!result) return null;
-  if (result.skipped) return <Minus className="size-4 text-muted-foreground" aria-label="Skipped" />;
-  return result.ok ? (
+  if (!verdict) return null;
+  if (verdict.skipped) return <Minus className="size-4 text-muted-foreground" aria-label="Skipped" />;
+  return verdict.ok ? (
     <Check className="size-4 text-success" aria-label="Passed" />
   ) : (
     <X className="size-4 text-danger" aria-label="Failed" />
@@ -105,7 +105,9 @@ export function StepCard({
 }: StepCardProps) {
   const [expanded, setExpanded] = useState(false);
   const title = scenario?.info.name || step.request || "No request";
-  const failed = phase === "done" && result !== null && !result.ok && !result.skipped;
+  const verdict = result;
+  const failed = phase === "done" && verdict !== null && !verdict.ok && !verdict.skipped;
+  const failure = result ? stepFailure(result) : "";
   /** critters.css pulses a running card and shakes a failed one. */
   let outcome: "running" | "fail" | undefined;
   if (phase === "running") outcome = "running";
@@ -118,7 +120,8 @@ export function StepCard({
   return (
     <div
       ref={cardRef}
-      role="listitem"
+      role="group"
+      aria-roledescription="step"
       tabIndex={0}
       draggable
       onDragStart={onDragStart}
@@ -149,8 +152,8 @@ export function StepCard({
         {step.expect !== undefined && (
           <span className="shrink-0 rounded bg-muted px-1 text-2xs text-muted-foreground">expect {step.expect}</span>
         )}
-        <Outcome phase={phase} result={result} critter={critter} />
-        {result && phase === "done" && (
+        <Outcome phase={phase} verdict={verdict} critter={critter} />
+        {verdict && phase === "done" && (
           <button
             type="button"
             aria-expanded={expanded}
@@ -165,9 +168,9 @@ export function StepCard({
           </button>
         )}
       </div>
-      {failed && !expanded && result && (
-        <p className="truncate pl-7 text-xs text-danger" title={stepFailure(result)}>
-          {stepFailure(result)}
+      {failed && !expanded && (
+        <p className="truncate pl-7 text-xs text-danger" title={failure}>
+          {failure}
         </p>
       )}
       {expanded && result && <ResultDetails result={result} />}

@@ -71,7 +71,7 @@ export function ScenarioList({ filter }: { filter: string }) {
   const changes = useMemo(() => changesByPath(gitStatus), [gitStatus]);
 
   return (
-    <div key={project} className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
+    <div>
       {groups.map((group) => (
         <FolderSection key={group.dir} group={group} changes={changes} />
       ))}

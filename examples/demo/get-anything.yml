@@ -29,10 +29,10 @@ runtime:
     - expression: res.body.args.q
       operator: eq
       value: hello
-    # httpbin echoes the headers it received.
+    # httpbin echoes the headers it received: a token was sent, whoever's it is.
     - expression: res.body.headers.Authorization
-      operator: eq
-      value: Bearer demo
+      operator: matches
+      value: /^Bearer [\w-]+$/
     - expression: res.body.headers.X-Client
       operator: eq
       value: cactus-demo

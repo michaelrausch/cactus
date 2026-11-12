@@ -5,10 +5,13 @@ import type { ProjectPath } from "@/api/client";
 import { reloadFromDisk, saveScenario } from "@/actions/saving";
 import { Button } from "@/components/ui/button";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
-import { CrittersView } from "@/features/critters/CrittersView";
+import { CritterPage } from "@/features/critters/CritterPage";
+import { FlowEditor } from "@/features/critters/flows/FlowEditor";
 import { RequestEditor } from "@/features/editor/RequestEditor";
 import { ResponsePanel } from "@/features/response/ResponsePanel";
+import { selectSelectedCritter, useCritterStore } from "@/stores/critterStore";
 import { useEditorStore, type Conflict } from "@/stores/editorStore";
+import { useFlowStore } from "@/stores/flowStore";
 import { cn } from "@/lib/utils";
 import { useUiStore } from "@/stores/uiStore";
 import { Header } from "./Header";
@@ -163,10 +166,31 @@ function EditorLayout({ path }: { path: ProjectPath }) {
 function EditorArea() {
   const path = useEditorStore((s) => s.path);
   const hasScenario = useEditorStore((s) => s.scenario !== null);
-  const view = useUiStore((s) => s.view);
-  if (view === "critters") return <CrittersView />;
   if (!path || !hasScenario) return <WelcomeScreen />;
   return <EditorLayout path={path} />;
+}
+
+/** The request editor, the selected critter, or the open flow; the editor when either is gone. */
+function MainArea() {
+  const view = useUiStore((s) => s.view);
+  const critter = useCritterStore(selectSelectedCritter);
+  const flowCritterId = useFlowStore((s) => s.open?.critter);
+  const flowCritter = useCritterStore((s) => s.critters.find((c) => c.id === flowCritterId) ?? null);
+  if (view === "flow" && flowCritter) {
+    return (
+      <div className="h-full border-t">
+        <FlowEditor critter={flowCritter} />
+      </div>
+    );
+  }
+  if (view === "critter" && critter) {
+    return (
+      <div className="h-full border-t">
+        <CritterPage key={critter.id} critter={critter} />
+      </div>
+    );
+  }
+  return <EditorArea />;
 }
 
 /**
@@ -194,7 +218,7 @@ export function Workspace() {
       />
       <Header />
       <div className="relative min-h-0 flex-1">
-        <EditorArea />
+        <MainArea />
       </div>
     </main>
   );

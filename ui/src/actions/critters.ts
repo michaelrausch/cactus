@@ -8,6 +8,7 @@ import { useCritterStore } from "@/stores/critterStore";
 import { useProjectStore } from "@/stores/projectStore";
 import { useUiStore } from "@/stores/uiStore";
 import { refreshSchedules } from "./monitors";
+import { ensureUnlocked } from "./secrets";
 import { refreshVariableNames } from "./variables";
 
 const currentProject = (): string | null => useProjectStore.getState().project;
@@ -72,7 +73,7 @@ export async function updateCritter(id: string, change: (critter: Critter) => Cr
 /** Fill in missing secrets, keeping the critter's other secrets. */
 export async function saveCritterSecrets(id: string, values: Env): Promise<boolean> {
   const project = currentProject();
-  if (!project) return false;
+  if (!project || !(await ensureUnlocked({ force: true }))) return false;
   const file = { kind: "critterSecrets", name: id } as const;
   const saved = await reportErrors(async () => {
     const existing = await backend.loadEnv(project, file);
@@ -190,17 +191,26 @@ export async function actAs(id: string | null): Promise<void> {
   });
 }
 
-/** Switch between the request editor and the Critters view (Ctrl+B). */
+/**
+ * Ctrl+B: from the request editor to the critter last shown (or the
+ * active, or the first), and back again.
+ */
 export function toggleCrittersView(): void {
   if (!currentProject()) return;
   const { view, setView } = useUiStore.getState();
-  setView(view === "critters" ? "editor" : "critters");
+  if (view !== "editor") {
+    setView("editor");
+    return;
+  }
+  const { selectedId, activeId, critters } = useCritterStore.getState();
+  const id = selectedId ?? activeId ?? critters[0]?.id;
+  if (id) showCritter(id);
 }
 
-/** Open the Critters view on `id`. */
+/** Show the critter `id` in the main pane. */
 export function showCritter(id: string): void {
   useCritterStore.getState().select(id);
-  useUiStore.getState().setView("critters");
+  useUiStore.getState().setView("critter");
 }
 
 export function openNewCritter(): void {
@@ -250,7 +260,7 @@ export async function createCritter(name: string, species: Species, start: Critt
 /** Run one of a critter's flows from a menu, reporting the outcome in a toast. */
 export async function runFlowNow(critter: string, flow: string): Promise<void> {
   const project = currentProject();
-  if (!project) return;
+  if (!project || !(await ensureUnlocked())) return;
   const run = await reportErrors(() => backend.runFlow(project, critter, flow, null), `Couldn't run ${flow}`);
   // `null` when cancelled by another send.
   if (!run) return;

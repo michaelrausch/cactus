@@ -78,12 +78,20 @@ impl<'de> Deserialize<'de> for Species {
 pub struct Flow {
     #[serde(default)]
     pub name: LenientString,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub trigger: Option<Trigger>,
+    /// What runs the flow on its own, besides running it by hand.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub triggers: Vec<Trigger>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub alert: Option<AlertRule>,
     #[serde(default)]
     pub steps: Vec<FlowStep>,
+}
+
+impl Flow {
+    /// The schedule the scheduler follows: the first one, if any.
+    pub fn schedule(&self) -> Option<&Schedule> {
+        self.triggers.iter().map(|Trigger::Schedule(schedule)| schedule).next()
+    }
 }
 
 /// One request of a flow and what the flow adds to it.
@@ -111,10 +119,19 @@ pub struct FlowStep {
     pub watch: Vec<LenientString>,
 }
 
-/// When a flow runs on its own.
+/// Something that runs a flow on its own, named by `type` so other kinds
+/// can join `schedule` later: `- {type: schedule, every: 5m}`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "lowercase")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub enum Trigger {
+    Schedule(Schedule),
+}
+
+/// Run every so often while cactus is open, on machines it's turned on for.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
-pub struct Trigger {
+pub struct Schedule {
     pub every: Interval,
     /// The env to run in; the active one when not set.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -251,18 +268,19 @@ mod tests {
         for bad in ["29s", "0m", "", "m", "5d", "-5m", "99999999999h"] {
             assert!(matches!(Interval::parse(bad), Err(Error::InvalidInterval(_))), "{bad}");
         }
-        let trigger: Trigger = serde_yaml_ng::from_str("every: 60").unwrap();
-        assert_eq!(trigger.every.seconds(), 60);
-        assert!(serde_yaml_ng::from_str::<Trigger>("every: 10s").is_err());
+        let schedule: Schedule = serde_yaml_ng::from_str("every: 60").unwrap();
+        assert_eq!(schedule.every.seconds(), 60);
+        assert!(serde_yaml_ng::from_str::<Schedule>("every: 10s").is_err());
     }
 
     #[test]
     fn reads_the_documented_flow() {
         let yaml = r"
 name: Staging health
-trigger:
-  every: 5m
-  env: staging
+triggers:
+  - type: schedule
+    every: 5m
+    env: staging
 alert:
   on: [failure, change]
 steps:
@@ -283,7 +301,9 @@ steps:
       - res.body.version
 ";
         let flow: Flow = serde_yaml_ng::from_str(yaml).unwrap();
-        assert_eq!(flow.trigger.unwrap().env.as_deref(), Some("staging"));
+        assert_eq!(flow.schedule().unwrap().env.as_deref(), Some("staging"));
+        let written = serde_yaml_ng::to_string(&flow.triggers).unwrap();
+        assert_eq!(written, "- type: schedule\n  every: 5m\n  env: staging\n");
         assert_eq!(flow.alert.unwrap().on, [AlertOn::Failure, AlertOn::Change]);
         assert_eq!(flow.steps[0].with["count"], "5");
         assert_eq!(flow.steps[1].expect, Some(403));

@@ -26,12 +26,12 @@ pub const REQUEST_EXTENSION: &str = ".yml";
 pub const WORKSPACE_DIR: &str = ".cactus";
 const WORKSPACE_GITIGNORE: &str = "*\n";
 
-const SECRETS_FILE: &str = "secrets.json";
+// Secrets files (`secrets.json` here and in each critter's folder) and
+// `vault.json` are only read and written by `crate::secrets`.
 const CAPTURED_FILE: &str = "captured.json";
 const STATE_FILE: &str = "state.json";
 const HISTORY_DIR: &str = "history";
 const HISTORY_EXTENSION: &str = ".json";
-const CRITTER_SECRETS_FILE: &str = "secrets.json";
 const CRITTER_CONTEXT_FILE: &str = "context.json";
 const RUNS_DIR: &str = "runs";
 const RUN_LOG_EXTENSION: &str = ".json";
@@ -103,10 +103,6 @@ pub fn critter_workspace_dir(project: &Path, id: &str) -> PathBuf {
     workspace_dir(project).join(CRITTERS_DIR).join(id)
 }
 
-pub fn critter_secrets_file(project: &Path, id: &str) -> PathBuf {
-    critter_workspace_dir(project, id).join(CRITTER_SECRETS_FILE)
-}
-
 pub fn critter_context_file(project: &Path, id: &str) -> PathBuf {
     critter_workspace_dir(project, id).join(CRITTER_CONTEXT_FILE)
 }
@@ -152,10 +148,6 @@ pub fn ensure_workspace(project: &Path) -> Result<PathBuf> {
 
 pub fn state_file(project: &Path) -> PathBuf {
     workspace_dir(project).join(STATE_FILE)
-}
-
-pub fn secrets_file(project: &Path) -> PathBuf {
-    workspace_dir(project).join(SECRETS_FILE)
 }
 
 pub fn captured_file(project: &Path) -> PathBuf {

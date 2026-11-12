@@ -2,9 +2,10 @@
 
 use tauri_specta::{Builder, collect_commands, collect_events};
 
-use crate::commands::{critter, env, flow, git, import, project, request, scenario, schedule};
+use crate::commands::{critter, env, flow, git, import, project, request, scenario, schedule, secrets};
 use crate::events::{
-    ContextChanged, FlowProgress, FsChanged, MatrixProgress, MonitorAlert, RunProgress, ScheduledRunFinished,
+    ContextChanged, FlowProgress, FlowStepStarted, FsChanged, MatrixProgress, MonitorAlert, RunProgress,
+    ScheduledRunFinished, SecretsStatusChanged,
 };
 
 #[cfg(debug_assertions)]
@@ -57,7 +58,6 @@ pub fn builder() -> Builder<tauri::Wry> {
             flow::flow_variable_sources,
             flow::run_flow,
             flow::run_matrix,
-            schedule::set_schedule_enabled,
             schedule::set_schedules_paused,
             schedule::schedule_states,
             schedule::load_run_log,
@@ -81,13 +81,24 @@ pub fn builder() -> Builder<tauri::Wry> {
             request::send_request,
             request::run_folder,
             request::cancel_request,
+            secrets::secrets_status,
+            secrets::enable_secrets_encryption,
+            secrets::disable_secrets_encryption,
+            secrets::change_secrets_password,
+            secrets::unlock_secrets,
+            secrets::lock_secrets,
+            secrets::reset_secrets,
+            secrets::set_auto_lock,
+            secrets::secret_names,
         ])
         .events(collect_events![
             FsChanged,
             RunProgress,
+            FlowStepStarted,
             FlowProgress,
             MatrixProgress,
             ScheduledRunFinished,
+            SecretsStatusChanged,
             MonitorAlert,
             ContextChanged
         ])

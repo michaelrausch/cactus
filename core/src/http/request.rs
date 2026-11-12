@@ -6,7 +6,7 @@ use std::path::Path;
 use std::time::Duration;
 
 use reqwest::header::{CONTENT_TYPE, HeaderMap, HeaderName, HeaderValue};
-use reqwest::{Method, RequestBuilder, multipart};
+use reqwest::{Method, RequestBuilder, Url, multipart};
 
 use crate::collection::model::selected_or_first;
 use crate::collection::{ApiKeyPlacement, Auth, AuthMode, Header, RequestDefaults};
@@ -44,10 +44,11 @@ pub fn build_request(
     let mut warnings = Vec::new();
     let http = &scenario.http;
     let url = fill_path_params(&vars.apply(http.url.trim()), scenario, &mut vars);
+    let url = parse_url(&url, vars.unresolved())?;
     let method = parse_method(&http.method)?;
     let auth = effective_auth(http.auth.as_ref(), inherited);
     let mut headers = HeaderMap::new();
-    let mut builder = client.request(method, &url);
+    let mut builder = client.request(method, url);
     if let Some(Auth::Mode(AuthMode::ApiKey { key, value, placement })) = auth {
         let (key, value) = (vars.apply(key.trim()), vars.apply(value));
         match placement {
@@ -68,6 +69,29 @@ pub fn build_request(
     }
     let request = builder.headers(headers).build()?;
     Ok(PreparedRequest { request, unresolved: vars.into_unresolved(), warnings })
+}
+
+/// The URL `scenario` will be sent to with `env`, without building the
+/// request: for showing where a step is going before it gets there.
+pub fn preview_url(scenario: &Scenario, env: &Env) -> String {
+    let mut vars = Substituter::new(env);
+    fill_path_params(&vars.apply(scenario.http.url.trim()), scenario, &mut vars)
+}
+
+/// Checked here so a blank or malformed URL reads as such rather than as
+/// reqwest's bare "builder error". `unresolved` names the placeholders that
+/// are likely why it does not parse.
+fn parse_url(url: &str, unresolved: &[String]) -> Result<Url> {
+    if url.is_empty() {
+        return Err(Error::MissingUrl);
+    }
+    Url::parse(url).map_err(|e| {
+        let reason = match unresolved {
+            [] => e.to_string(),
+            names => format!("{{{{{}}}}} not set", names.join("}}, {{")),
+        };
+        Error::InvalidUrl { url: url.to_string(), reason }
+    })
 }
 
 fn parse_method(method: &str) -> Result<Method> {
@@ -439,5 +463,14 @@ mod tests {
         let mut s = request("GET", "http://h/");
         s.http.headers.push(Header::new("bad name", "x"));
         assert!(matches!(build(Path::new("."), &s, &[], &env), Err(Error::InvalidHeaderName(_))));
+    }
+
+    #[test]
+    fn rejects_missing_and_invalid_urls() {
+        let env = Env::new();
+        let err = |url: &str| build(Path::new("."), &request("GET", url), &[], &env).err().unwrap().to_string();
+        assert_eq!(err("  "), "the request has no URL");
+        assert_eq!(err("{{base}}/x"), r#"invalid URL "{{base}}/x": {{base}} not set"#);
+        assert!(err("localhost/x").starts_with(r#"invalid URL "localhost/x": "#));
     }
 }

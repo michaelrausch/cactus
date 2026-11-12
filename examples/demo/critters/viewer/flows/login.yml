@@ -1,0 +1,3 @@
+name: Login
+steps:
+  - request: auth/login.yml

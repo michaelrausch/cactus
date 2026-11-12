@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { ChevronRight, Copy, LogIn, X } from "lucide-react";
 import { clearContext, logInAgain } from "@/actions/critters";
@@ -8,21 +8,12 @@ import { TimeAgo } from "@/components/TimeAgo";
 import { IconButton } from "@/components/IconButton";
 import { Button } from "@/components/ui/button";
 import { decodeJwt, expiryText, isExpired, type DecodedJwt } from "@/domain/jwt";
+import { useNow } from "@/hooks/useNow";
 import { cn } from "@/lib/utils";
 import { useCritterStore } from "@/stores/critterStore";
 
 /** How often expiry text ("expires in 4m") updates. */
 const TICK_MS = 30_000;
-
-/** The current time, refreshed every 30s: one ticker for the whole list. */
-function useNow(): number {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), TICK_MS);
-    return () => clearInterval(timer);
-  }, []);
-  return now;
-}
 
 /** What an entry hand-edited in the layer editor says it came from. */
 const EDITED = "edited";
@@ -118,7 +109,7 @@ function CapturedRow({ critter, name, entry, now }: RowProps) {
 /** What the critter's requests captured, kept apart from every other critter's. */
 export function CapturedList({ critter }: { critter: CritterSummary }) {
   const context = useCritterStore((s) => s.contexts[critter.id]);
-  const now = useNow();
+  const now = useNow(TICK_MS);
   const names = Object.keys(context ?? {}).toSorted();
   return (
     <section className="flex flex-col gap-2">

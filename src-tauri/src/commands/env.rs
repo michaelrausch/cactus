@@ -3,6 +3,9 @@ use std::path::PathBuf;
 
 use cactus_core::env::{self, Env, EnvFile, Scope, VarSource};
 use cactus_core::{ProjectPath, Result};
+use tauri::State;
+
+use crate::state::AppState;
 
 #[tauri::command(async)]
 #[specta::specta]
@@ -24,7 +27,10 @@ pub fn set_active_env(project: PathBuf, name: Option<String>) -> Result<()> {
 
 #[tauri::command(async)]
 #[specta::specta]
-pub fn load_env(project: PathBuf, file: EnvFile) -> Result<Env> {
+pub fn load_env(state: State<'_, AppState>, project: PathBuf, file: EnvFile) -> Result<Env> {
+    if matches!(file, EnvFile::Secrets | EnvFile::CritterSecrets(_)) {
+        state.touch_secrets();
+    }
     env::load(&project, &file)
 }
 

@@ -25,6 +25,8 @@ const step = (index: number, patch: Partial<FlowStepResult>): FlowStepResult => 
   index,
   request: `step${index}.yml`,
   title: `Step ${index}`,
+  method: "GET",
+  url: "",
   ok: true,
   skipped: false,
   response: response(200),

@@ -1,10 +1,19 @@
 //! Events the backend pushes to the UI.
 
 use cactus_core::monitor::{AlertEvent, RunRecord};
-use cactus_core::runner::{FlowStepResult, MatrixCell, RunResult};
+use cactus_core::runner::{FlowStepResult, FlowStepStart, MatrixCell, RunResult};
+use cactus_core::secrets::SecretsStatus;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use tauri_specta::Event;
+
+/// One step of an interactive flow run is sending.
+#[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
+pub struct FlowStepStarted {
+    pub critter: String,
+    pub flow: String,
+    pub start: FlowStepStart,
+}
 
 /// One step of an interactive flow run finished.
 #[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
@@ -42,6 +51,13 @@ pub struct MonitorAlert {
 #[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
 pub struct ContextChanged {
     pub critter: String,
+}
+
+/// Secrets were unlocked, locked (by hand or after idling), or encryption
+/// was turned on or off.
+#[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
+pub struct SecretsStatusChanged {
+    pub status: SecretsStatus,
 }
 
 /// Project-relative paths of files that changed on disk.

@@ -10,7 +10,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use cactus_core::critter::{self, Interval};
 use cactus_core::monitor::{self, RunRecord};
 use cactus_core::reqwest;
-use cactus_core::runner::{self, FlowStepResult, SendOptions};
+use cactus_core::runner::{self, SendOptions};
 use tauri::async_runtime::JoinHandle;
 use tauri::{AppHandle, Manager};
 use tauri_specta::Event;
@@ -106,7 +106,7 @@ impl Scheduler {
             loop {
                 tick.tick().await;
                 next.store(now_millis() + millis(period), Ordering::SeqCst);
-                if paused.load(Ordering::SeqCst) {
+                if paused.load(Ordering::SeqCst) || waiting_for_secrets(&project, &critter) {
                     continue;
                 }
                 // Awaited, so a flow can't overlap itself.
@@ -125,18 +125,9 @@ pub async fn run_once(app: &AppHandle, project: &Path, critter: &str, flow: &str
     let client: reqwest::Client = app.state::<AppState>().client.clone();
     let definition = critter::load_flow(project, critter, flow);
     let rule = definition.as_ref().ok().and_then(|f| f.alert.clone()).unwrap_or_default();
-    let env = definition.as_ref().ok().and_then(|f| f.trigger.as_ref()?.env.clone());
+    let env = definition.as_ref().ok().and_then(|f| f.schedule()?.env.clone());
     let started_at = now_millis();
-    let run = runner::run_flow(
-        &client,
-        project,
-        critter,
-        flow,
-        env.clone(),
-        SendOptions::BACKGROUND,
-        |_: &FlowStepResult| {},
-    )
-    .await;
+    let run = runner::run_flow(&client, project, critter, flow, env.clone(), SendOptions::BACKGROUND, |_| {}).await;
     let record = match run {
         Ok(run) => monitor::record(&run),
         Err(error) => RunRecord::errored(started_at, env, error.to_string()),
@@ -155,15 +146,23 @@ pub async fn run_once(app: &AppHandle, project: &Path, critter: &str, flow: &str
     record
 }
 
-/// The tasks the project's state asks for: each enabled flow with a
-/// trigger. A flow that can't be read keeps the task it had, so it goes on
-/// running and reports itself as failing.
+/// Whether the flow's secrets are locked. Such a tick runs nothing, logs
+/// nothing and alerts nothing: a locked vault isn't the API failing, and
+/// recording it as a failure would page you for walking away. Tasks pick
+/// up at their next tick once unlocked, with no catch-up runs.
+pub fn waiting_for_secrets(project: &Path, critter: &str) -> bool {
+    runner::ensure_unlocked_for(project, Some(critter)).is_err()
+}
+
+/// The tasks the project asks for: each flow with a schedule. A flow that
+/// can't be read keeps the task it had, so it goes on running and reports
+/// itself as failing.
 fn wanted(project: &Path, current: &HashMap<String, TaskSpec>) -> BTreeMap<String, TaskSpec> {
     let mut wanted = BTreeMap::new();
-    for key in critter::enabled_schedules(project) {
+    for key in critter::flow_keys(project) {
         let Some((critter, flow)) = split_key(&key) else { continue };
         let spec = match critter::load_flow(project, critter, flow) {
-            Ok(flow) => flow.trigger.map(|trigger| TaskSpec { every: trigger.every, env: trigger.env }),
+            Ok(flow) => flow.schedule().map(|schedule| TaskSpec { every: schedule.every, env: schedule.env.clone() }),
             Err(_) if critter::exists(project, critter) => current.get(&key).cloned(),
             Err(_) => None,
         };
@@ -228,7 +227,7 @@ fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
 mod tests {
     use std::fs;
 
-    use cactus_core::critter::{Critter, Flow, Trigger};
+    use cactus_core::critter::{Critter, Flow, Schedule, Trigger};
 
     use super::*;
 
@@ -257,27 +256,23 @@ mod tests {
     }
 
     #[test]
-    fn wanted_reads_enabled_flows_with_triggers() {
+    fn wanted_reads_flows_with_schedules() {
         let dir = tempfile::tempdir().unwrap();
         let p = dir.path();
         critter::create(p, "bob", &Critter::default()).unwrap();
-        let triggered =
-            Flow { trigger: Some(Trigger { every: Interval::parse("5m").unwrap(), env: None }), ..Flow::default() };
+        let schedule = Schedule { every: Interval::parse("5m").unwrap(), env: None };
+        let triggered = Flow { triggers: vec![Trigger::Schedule(schedule)], ..Flow::default() };
         critter::create_flow(p, "bob", "health", &triggered).unwrap();
+        assert_eq!(critter::load_flow(p, "bob", "health").unwrap(), triggered);
         critter::create_flow(p, "bob", "manual", &Flow::default()).unwrap();
-        critter::create_flow(p, "bob", "off", &triggered).unwrap();
         critter::create_flow(p, "bob", "broken", &triggered).unwrap();
+        critter::create_flow(p, "bob", "gone", &triggered).unwrap();
         fs::write(p.join("critters/bob/flows/broken.yml"), "steps: [").unwrap();
-        // Hand-edited or stale entries on disk are tolerated.
-        fs::create_dir_all(p.join(".cactus")).unwrap();
-        fs::write(
-            p.join(".cactus/state.json"),
-            r#"{"schedules": ["bob/health", "bob/manual", "bob/broken", "bob/missing", "nobody/x", "junk"]}"#,
-        )
-        .unwrap();
+        fs::write(p.join("critters/bob/flows/gone.yml"), "steps: [").unwrap();
 
         let current = HashMap::from([("bob/broken".to_string(), spec("1m", None))]);
         let wanted = wanted(p, &current);
+        // `gone` can't be read and had no task, so there's nothing to keep.
         assert_eq!(wanted.keys().collect::<Vec<_>>(), ["bob/broken", "bob/health"]);
         assert_eq!(wanted["bob/broken"], spec("1m", None), "an unreadable flow keeps its task");
         assert_eq!(wanted["bob/health"], spec("5m", None));

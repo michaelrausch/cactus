@@ -11,7 +11,7 @@ interface CritterState {
   loaded: boolean;
   /** The critter requests are sent as, or null for none. */
   activeId: string | null;
-  /** The critter shown in the Critters view. */
+  /** The critter last shown in the main pane, or whose flow is. */
   selectedId: string | null;
   /** Each critter's captured values, once loaded. */
   contexts: Record<string, CritterContext>;
@@ -52,6 +52,6 @@ export const useCritterStore = create<CritterState>()((set) => ({
 export const selectActiveCritter = (state: CritterState): CritterSummary | null =>
   state.critters.find((critter) => critter.id === state.activeId) ?? null;
 
-/** The summary of the critter shown in the Critters view. */
+/** The summary of the critter last shown in the main pane. */
 export const selectSelectedCritter = (state: CritterState): CritterSummary | null =>
   state.critters.find((critter) => critter.id === state.selectedId) ?? null;

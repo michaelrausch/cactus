@@ -3,13 +3,13 @@ use std::path::PathBuf;
 
 use cactus_core::critter::{self, Flow, FlowParse, FlowSummary};
 use cactus_core::env::{self, Scope, VarSource};
-use cactus_core::runner::{self, FlowRun, FlowStepResult, MatrixCell, SendOptions};
+use cactus_core::runner::{self, FlowEvent, FlowRun, MatrixCell, SendOptions};
 use cactus_core::scenario::Scenario;
 use cactus_core::{ProjectPath, Result};
 use tauri::{AppHandle, State};
 use tauri_specta::Event;
 
-use crate::events::{ContextChanged, FlowProgress, MatrixProgress};
+use crate::events::{ContextChanged, FlowProgress, FlowStepStarted, MatrixProgress};
 use crate::state::AppState;
 
 #[tauri::command(async)]
@@ -129,8 +129,9 @@ pub fn flow_variable_sources(project: PathBuf, critter: String) -> Result<BTreeM
     env::sources_for_request(&project, &scope, "", &[])
 }
 
-/// Run a flow, emitting [`FlowProgress`] per step. `env` overrides the
-/// active one. Resolves to `None` when cancelled.
+/// Run a flow, emitting [`FlowStepStarted`] as each step sends and
+/// [`FlowProgress`] as it finishes. `env` overrides the active one.
+/// Resolves to `None` when cancelled.
 #[tauri::command]
 #[specta::specta]
 pub async fn run_flow(
@@ -141,8 +142,13 @@ pub async fn run_flow(
     flow: String,
     env: Option<String>,
 ) -> Result<Option<FlowRun>> {
-    let report = |step: &FlowStepResult| {
-        let _ = FlowProgress { critter: critter.clone(), flow: flow.clone(), step: step.clone() }.emit(&app);
+    state.touch_secrets();
+    let report = |event: FlowEvent<'_>| {
+        let (critter, flow) = (critter.clone(), flow.clone());
+        let _ = match event {
+            FlowEvent::Started(start) => FlowStepStarted { critter, flow, start: start.clone() }.emit(&app),
+            FlowEvent::Finished(step) => FlowProgress { critter, flow, step: step.clone() }.emit(&app),
+        };
     };
     let run = runner::run_flow(&state.client, &project, &critter, &flow, env, SendOptions::INTERACTIVE, report);
     let result = state.run_cancellable(run).await.transpose();
@@ -161,6 +167,7 @@ pub async fn run_matrix(
     path: ProjectPath,
     scenario: Scenario,
 ) -> Result<Option<Vec<MatrixCell>>> {
+    state.touch_secrets();
     let mut sent_as = BTreeSet::new();
     let report = |cell: &MatrixCell| {
         if let (Some(critter), Some(_)) = (&cell.critter, &cell.response) {

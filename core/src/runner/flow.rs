@@ -11,7 +11,7 @@ use super::{SendOptions, send_and_record, send_as};
 use crate::clock::now_unix_millis;
 use crate::critter::{self, FlowStep};
 use crate::env::{self, Scope};
-use crate::http::{Response, is_status_expression, scenario_passed, select_values};
+use crate::http::{Response, is_status_expression, preview_url, scenario_passed, select_values};
 use crate::scenario::{self, Action, Assertion, Scenario, SetVariable};
 use crate::{Error, ProjectPath, Result, layout};
 
@@ -25,6 +25,10 @@ pub struct FlowStepResult {
     /// The step's `request`, as written.
     pub request: String,
     pub title: String,
+    /// The method and URL it was sent to, env applied; empty when the
+    /// request couldn't be read.
+    pub method: String,
+    pub url: String,
     pub ok: bool,
     /// Not run because an earlier step failed.
     pub skipped: bool,
@@ -46,6 +50,26 @@ pub struct FlowRun {
     pub ok: bool,
     pub elapsed_ms: u32,
     pub steps: Vec<FlowStepResult>,
+}
+
+/// A step about to send: where it's going.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct FlowStepStart {
+    pub index: u32,
+    pub request: String,
+    pub title: String,
+    pub method: String,
+    pub url: String,
+}
+
+/// What a run reports as it goes. A step that is skipped, or whose request
+/// can't be read, finishes without starting.
+#[derive(Debug, Clone, Copy)]
+pub enum FlowEvent<'a> {
+    Started(&'a FlowStepStart),
+    Finished(&'a FlowStepResult),
 }
 
 impl FlowRun {
@@ -76,6 +100,8 @@ impl FlowStepResult {
             index: u32::try_from(index).unwrap_or(u32::MAX),
             title: request.clone(),
             request,
+            method: String::new(),
+            url: String::new(),
             ok: false,
             skipped: false,
             response: None,
@@ -165,8 +191,8 @@ impl StepSender for Relogin {
 }
 
 /// Run `critter`'s flow `flow` in env `env` (the active one when `None`),
-/// calling `on_step` as each step finishes. A failed step stops the flow;
-/// the steps after it are reported as skipped.
+/// calling `on_event` as each step starts and finishes. A failed step stops
+/// the flow; the steps after it are reported as skipped.
 pub async fn run_flow(
     client: &reqwest::Client,
     project: &Path,
@@ -174,10 +200,11 @@ pub async fn run_flow(
     flow: &str,
     env: Option<String>,
     options: SendOptions,
-    on_step: impl FnMut(&FlowStepResult) + Send,
+    on_event: impl FnMut(FlowEvent<'_>) + Send,
 ) -> Result<FlowRun> {
+    super::ensure_unlocked_for(project, Some(critter))?;
     let scope = Scope { env: env.or_else(|| env::active(project)), critter: Some(critter.into()), ..Scope::default() };
-    run_steps(&Relogin, client, project, critter, flow, &scope, options, on_step).await
+    run_steps(&Relogin, client, project, critter, flow, &scope, options, on_event).await
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -189,7 +216,7 @@ pub(super) async fn run_steps(
     flow: &str,
     scope: &Scope,
     options: SendOptions,
-    mut on_step: impl FnMut(&FlowStepResult) + Send,
+    mut on_event: impl FnMut(FlowEvent<'_>) + Send,
 ) -> Result<FlowRun> {
     if !critter::exists(project, critter) {
         critter::validate_critter_id(critter)?;
@@ -203,16 +230,17 @@ pub(super) async fn run_steps(
         let result = if failed {
             FlowStepResult::skipped(index, step)
         } else {
-            run_step(sender, client, project, index, step, scope, options).await
+            run_step(sender, client, project, index, step, scope, options, &mut on_event).await
         };
         failed = !result.ok;
-        on_step(&result);
+        on_event(FlowEvent::Finished(&result));
         steps.push(result);
     }
     let elapsed_ms = u32::try_from(started.elapsed().as_millis()).unwrap_or(u32::MAX);
     Ok(FlowRun { at, env: scope.env.clone(), ok: !failed, elapsed_ms, steps })
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn run_step(
     sender: &impl StepSender,
     client: &reqwest::Client,
@@ -221,6 +249,7 @@ async fn run_step(
     step: &FlowStep,
     scope: &Scope,
     options: SendOptions,
+    on_event: &mut (impl FnMut(FlowEvent<'_>) + Send),
 ) -> FlowStepResult {
     let loaded = ProjectPath::parse(step.request.trim()).and_then(|path| {
         if !layout::is_request_file(path.as_str()) {
@@ -238,10 +267,43 @@ async fn run_step(
         result.title = scenario.info.name.trim().to_string();
     }
     let scenario = apply_step(scenario, step);
-    let overrides = step.with.iter().map(|(name, value)| (name.clone(), value.0.clone())).collect();
+    // `with` values are filled in from what the step sees without them, so
+    // `COURSE: '{{code}}'` passes on the value an earlier step captured.
+    // Substitution is single pass, so left raw they'd be sent as `{{code}}`.
+    let base = env::resolve_for_request(project, scope, path.dir(), &scenario.runtime.variables).ok();
+    let overrides: env::Env = step
+        .with
+        .iter()
+        .map(|(name, value)| {
+            let value = match &base {
+                Some(base) => env::Substituter::new(&base.vars).apply(value),
+                None => value.0.clone(),
+            };
+            (name.clone(), value)
+        })
+        .collect();
+    result.method = scenario.http.method.trim().to_uppercase();
+    result.url = match base {
+        Some(base) => {
+            let mut vars = base.vars;
+            vars.extend(overrides.clone());
+            preview_url(&scenario, &vars)
+        }
+        None => scenario.http.url.trim().to_string(),
+    };
     let scope = Scope { overrides, ..scope.clone() };
+    let start = FlowStepStart {
+        index: result.index,
+        request: result.request.clone(),
+        title: result.title.clone(),
+        method: result.method.clone(),
+        url: result.url.clone(),
+    };
+    on_event(FlowEvent::Started(&start));
     match sender.send(client, project, &path, &scenario, &scope, options).await {
         Ok(response) => {
+            // What was actually sent, e.g. with an API key added to the query.
+            result.url.clone_from(&response.url);
             let watch: Vec<String> = step.watch.iter().map(|w| w.trim().to_string()).collect();
             result.ok = scenario_passed(&scenario, &response);
             result.watched = select_values(&response, &watch);
