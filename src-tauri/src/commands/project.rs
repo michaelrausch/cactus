@@ -1,3 +1,5 @@
+//! Opening a project and listing its requests.
+
 use std::path::{Path, PathBuf};
 
 use cactus_core::scenario::{self, ScenarioEntry};

@@ -89,14 +89,15 @@ fn slug_for(title: &str) -> String {
 /// `slug.yml`, else `slug-2.yml`, `slug-3.yml`, … whichever is free first.
 fn next_free_path(project: &Path, dir: &str, slug: &str) -> Result<ProjectPath> {
     let extension = layout::REQUEST_EXTENSION;
-    for n in 1.. {
-        let file_name = if n == 1 { format!("{slug}{extension}") } else { format!("{slug}-{n}{extension}") };
+    let candidates =
+        std::iter::once(format!("{slug}{extension}")).chain((2..).map(|n| format!("{slug}-{n}{extension}")));
+    for file_name in candidates {
         let candidate = ProjectPath::in_dir(dir, &file_name)?;
         if !is_taken(project, &candidate) {
             return Ok(candidate);
         }
     }
-    unreachable!("an unbounded range always yields a free name")
+    Err(Error::AlreadyExists(format!("{slug}{extension}")))
 }
 
 /// Names that would be read as collection, folder or environment files are

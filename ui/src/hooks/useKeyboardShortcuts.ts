@@ -64,6 +64,7 @@ function worksInDialog(shortcut: ShortcutId): boolean {
   return shortcut === "switcher" && useUiStore.getState().switcherOpen;
 }
 
+/** App-wide shortcuts. Keys live in `app/shortcuts.ts`; what they do is in `onKeyDown`. */
 export function useKeyboardShortcuts(): void {
   useEffect(() => {
     // Capture phase, so a focused field or dialog can't swallow a shortcut first.

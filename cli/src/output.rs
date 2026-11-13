@@ -44,6 +44,7 @@ fn format_outcome(ok: bool, location: &str, response: Option<&Response>, error: 
         lines.extend(warning_lines(response));
         return lines.join("\n");
     }
+    // No response: dashes hold the status and time columns.
     format!("{mark}   -        -  {location}\n{DETAIL_INDENT}{}", paint(RED, error.unwrap_or_default()))
 }
 

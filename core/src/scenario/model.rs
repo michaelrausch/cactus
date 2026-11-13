@@ -250,6 +250,8 @@ pub struct Assertion {
     pub disabled: bool,
 }
 
+/// The one action type cactus runs. An enum, not a string, so that any
+/// other type fails to match and lands in [`Action::Other`].
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub enum SetVariableType {
@@ -266,6 +268,8 @@ pub enum ActionPhase {
     AfterResponse,
 }
 
+/// What a set-variable action reads. `method` is kept for Bruno; cactus
+/// ignores it and evaluates every `expression` as a `res.…` path.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct Selector {
@@ -319,6 +323,7 @@ impl SetVariable {
     }
 }
 
+/// Actions cactus doesn't run are kept as written, so saving won't drop them.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(untagged)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]

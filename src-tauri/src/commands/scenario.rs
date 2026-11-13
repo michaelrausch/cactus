@@ -1,3 +1,5 @@
+//! Request files and their history.
+
 use std::path::PathBuf;
 
 use cactus_core::history::{self, HistoryEntry};

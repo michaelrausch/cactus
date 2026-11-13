@@ -13,8 +13,9 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
-pub use self::flow::{FlowEvent, FlowRun, FlowStepResult, FlowStepStart, apply_step, run_flow};
+pub use self::flow::{FlowEvent, FlowRun, FlowStepResult, FlowStepStart, apply_step, run_flow, run_flow_definition};
 pub use self::matrix::{MatrixCell, run_matrix};
+use crate::best_effort;
 use crate::clock::now_unix_millis;
 use crate::env::Scope;
 use crate::history::{self, HistoryEntry};
@@ -89,8 +90,12 @@ pub async fn send_as(
     };
     let login = login.trim();
     let base = Scope { overrides: env::Env::new(), ..scope.clone() };
-    let failure = match flow::run_steps(&flow::Plain, client, project, id, login, &base, options, |_| {}).await {
-        Ok(run) => run.failure(),
+    let context = flow::StepContext { client, project, scope: &base, options, relogin: false };
+    let failure = match critter::load_flow(project, id, login) {
+        Ok(definition) => match flow::run_steps(&context, &definition, |_| {}).await {
+            Ok(run) => run.failure(),
+            Err(error) => Some(error.to_string()),
+        },
         Err(error) => Some(error.to_string()),
     };
     if let Some(reason) = failure {
@@ -118,7 +123,7 @@ pub fn ensure_unlocked_for(project: &Path, critter: Option<&str>) -> Result<()> 
 /// History is a convenience; failing to write it shouldn't fail the request.
 fn record_history(project: &Path, path: &ProjectPath, response: &Response) {
     let entry = HistoryEntry { at: now_unix_millis(), response: response.clone() };
-    let _ = history::push(project, path, entry);
+    best_effort::log("record history", history::push(project, path, entry));
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

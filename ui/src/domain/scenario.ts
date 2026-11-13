@@ -54,6 +54,7 @@ export function bodyText(scenario: Scenario): string {
   return isTypedBody(body) && typeof body.data === "string" ? body.data : "";
 }
 
+/** Replace the body; `undefined` removes the key. */
 export function withBody(scenario: Scenario, body: TypedBody | undefined): Scenario {
   const { body: _previous, ...http } = scenario.http;
   return { ...scenario, http: body ? { ...http, body } : http };
@@ -106,6 +107,7 @@ export function jsonProblem(text: string): string | null {
 const isAuthMode = (auth: Auth): auth is AuthMode =>
   typeof auth === "object" && auth !== null && !Array.isArray(auth) && typeof auth.type === "string";
 
+/** Which auth tab to show. `"other"` is a mode cactus keeps but can't send. */
 export function authKind(scenario: Scenario): AuthKind | "other" {
   const { auth } = scenario.http;
   if (auth === undefined || auth === null) return "none";
@@ -121,6 +123,7 @@ export function otherAuthType(scenario: Scenario): string {
   return typeof type === "string" ? type : "custom";
 }
 
+/** Replace the auth; `undefined` removes the key. */
 export function withAuth(scenario: Scenario, auth: Auth | undefined): Scenario {
   const { auth: _previous, ...http } = scenario.http;
   return { ...scenario, http: auth === undefined ? http : { ...http, auth } };

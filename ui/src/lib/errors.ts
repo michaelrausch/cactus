@@ -17,6 +17,18 @@ export async function reportErrors<T>(work: () => Promise<T>, context?: string):
 }
 
 /**
+ * Run `work`, toasting a failure like {@link reportErrors}, and resolve to
+ * whether it finished: for steps whose result is only "it worked".
+ */
+export async function succeeded(work: () => Promise<unknown>, context: string): Promise<boolean> {
+  const done = await reportErrors(async () => {
+    await work();
+    return true;
+  }, context);
+  return done === true;
+}
+
+/**
  * Run background `work` whose failure only costs a hint (highlighting, a diff
  * preview): log it instead of interrupting the user. Resolves to `undefined`
  * on failure. User-initiated work goes through {@link reportErrors} instead.

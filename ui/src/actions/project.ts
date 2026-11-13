@@ -85,6 +85,7 @@ export async function refreshEnvs(): Promise<void> {
   useProjectStore.getState().envsLoaded(envs, activeEnv);
 }
 
+/** Make `name` the active env; `null` for none. */
 export async function selectEnv(name: string | null): Promise<void> {
   const project = currentProject();
   if (!project) return;
@@ -94,6 +95,7 @@ export async function selectEnv(name: string | null): Promise<void> {
   });
 }
 
+/** Pick a Postman or OpenAPI file and import it into the open project. */
 export async function importCollection(): Promise<void> {
   const project = currentProject();
   if (!project) return;

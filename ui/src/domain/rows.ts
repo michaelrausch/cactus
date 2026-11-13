@@ -23,6 +23,7 @@ export interface NamedValue {
   disabled?: boolean;
 }
 
+// Row ids are React keys only: unique for the session, never saved.
 let lastRowId = 0;
 
 export const makeRow = (key = "", value = "", enabled = true): Row => ({ id: ++lastRowId, key, value, enabled });

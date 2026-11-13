@@ -43,6 +43,7 @@ export function envLayerInfo(file: EnvFile): EnvLayerInfo {
   return hasName(file) ? NAMED_LAYERS[file.kind](file.name) : FIXED_LAYERS[file.kind];
 }
 
+/** A string id for an env file, for React keys and lookups. */
 export const envFileKey = (file: EnvFile): string => (hasName(file) ? `${file.kind}:${file.name}` : file.kind);
 
 /** Every layer, lowest precedence first, as the backend merges them. */

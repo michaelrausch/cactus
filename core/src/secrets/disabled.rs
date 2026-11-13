@@ -1,4 +1,6 @@
 //! A build without the `encryption` feature: the same API, always off.
+//! Keep the signatures in step with the encryption build, or one feature
+//! combination stops compiling.
 
 use std::path::Path;
 

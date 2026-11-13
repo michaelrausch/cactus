@@ -48,17 +48,8 @@ pub fn build_request(
     let method = parse_method(&http.method)?;
     let auth = effective_auth(http.auth.as_ref(), inherited);
     let mut headers = HeaderMap::new();
-    let mut builder = client.request(method, url);
-    if let Some(Auth::Mode(AuthMode::ApiKey { key, value, placement })) = auth {
-        let (key, value) = (vars.apply(key.trim()), vars.apply(value));
-        match placement {
-            // `query` encodes the pair and keeps any `#fragment` last.
-            Some(ApiKeyPlacement::Query) => builder = builder.query(&[(key, value)]),
-            _ => set_header(&mut headers, &key, &value)?,
-        }
-    }
     // Auth goes first so an explicit Authorization header overrides it.
-    let builder = apply_auth(builder, auth, &mut vars, &mut warnings);
+    let builder = apply_auth(client.request(method, url), &mut headers, auth, &mut vars, &mut warnings)?;
     add_headers(&mut headers, inherited, &http.headers, &mut vars)?;
     let mut builder = attach_body(builder, &mut headers, project, http.body.as_ref(), &mut vars, &mut warnings)?;
     if let Some(Timeout::Millis(ms)) = scenario.settings.timeout {
@@ -109,24 +100,37 @@ fn effective_auth<'a>(own: Option<&'a Auth>, inherited: &'a [RequestDefaults]) -
     }
 }
 
+/// Add the request's credentials: to the query for an API key placed there,
+/// otherwise to the headers (an API key's header, or `Authorization`).
 fn apply_auth(
     builder: RequestBuilder,
+    headers: &mut HeaderMap,
     auth: Option<&Auth>,
     vars: &mut Substituter,
     warnings: &mut Vec<String>,
-) -> RequestBuilder {
-    match auth {
+) -> Result<RequestBuilder> {
+    Ok(match auth {
         Some(Auth::Mode(AuthMode::Bearer { token })) => builder.bearer_auth(vars.apply(token)),
         Some(Auth::Mode(AuthMode::Basic { username, password })) => {
             builder.basic_auth(vars.apply(username), Some(vars.apply(password)))
+        }
+        Some(Auth::Mode(AuthMode::ApiKey { key, value, placement })) => {
+            let (key, value) = (vars.apply(key.trim()), vars.apply(value));
+            if matches!(placement, Some(ApiKeyPlacement::Query)) {
+                // `query` encodes the pair and keeps any `#fragment` last.
+                builder.query(&[(key, value)])
+            } else {
+                set_header(headers, &key, &value)?;
+                builder
+            }
         }
         Some(Auth::Other(other)) => {
             let kind = other.get("type").and_then(|t| t.as_str()).unwrap_or("this");
             warnings.push(format!("{kind} auth isn't supported by cactus; sent without auth"));
             builder
         }
-        Some(Auth::Mode(AuthMode::ApiKey { .. }) | Auth::Inherit(_)) | None => builder,
-    }
+        Some(Auth::Inherit(_)) | None => builder,
+    })
 }
 
 /// Inherited headers, then the request's own. A folder's header replaces the
@@ -154,7 +158,12 @@ fn add_headers(
 }
 
 fn enabled(headers: &[Header]) -> impl Iterator<Item = &Header> {
-    headers.iter().filter(|h| !h.disabled && !h.name.trim().is_empty())
+    headers.iter().filter(|h| is_sent(h.disabled, &h.name))
+}
+
+/// Whether a header, form field or part is sent: switched on and named.
+fn is_sent(disabled: bool, name: &str) -> bool {
+    !disabled && !name.trim().is_empty()
 }
 
 fn set_header(headers: &mut HeaderMap, name: &str, value: &str) -> Result<()> {
@@ -207,38 +216,39 @@ fn attach_body(
         warnings.push("this body shape isn't supported by cactus; sent without a body".into());
         return Ok(builder);
     };
-    let mut default_type = |content_type: &'static str| {
-        headers.entry(CONTENT_TYPE).or_insert(HeaderValue::from_static(content_type));
-    };
     Ok(match &effective {
-        TypedBody::Json { data } | TypedBody::Text { data } | TypedBody::Xml { data } | TypedBody::Sparql { data }
-            if data.trim().is_empty() =>
-        {
-            builder
-        }
-        TypedBody::Json { data } => {
-            default_type(JSON_CONTENT_TYPE);
-            builder.body(vars.apply(data))
-        }
-        TypedBody::Xml { data } => {
-            default_type(XML_CONTENT_TYPE);
-            builder.body(vars.apply(data))
-        }
-        TypedBody::Sparql { data } => {
-            default_type(SPARQL_CONTENT_TYPE);
-            builder.body(vars.apply(data))
-        }
-        TypedBody::Text { data } => builder.body(vars.apply(data)),
+        TypedBody::Json { data } => text_body(builder, headers, data, Some(JSON_CONTENT_TYPE), vars),
+        TypedBody::Xml { data } => text_body(builder, headers, data, Some(XML_CONTENT_TYPE), vars),
+        TypedBody::Sparql { data } => text_body(builder, headers, data, Some(SPARQL_CONTENT_TYPE), vars),
+        TypedBody::Text { data } => text_body(builder, headers, data, None, vars),
         TypedBody::FormUrlencoded { data } => form_body(builder, data, vars),
         TypedBody::MultipartForm { data } => multipart_body(builder, project, data, vars)?,
         TypedBody::File { data } => file_body(builder, headers, project, data)?,
     })
 }
 
+/// A body of text. An empty one is no body. `content_type` is sent unless
+/// the request sets its own; plain text has none.
+fn text_body(
+    builder: RequestBuilder,
+    headers: &mut HeaderMap,
+    data: &str,
+    content_type: Option<&'static str>,
+    vars: &mut Substituter,
+) -> RequestBuilder {
+    if data.trim().is_empty() {
+        return builder;
+    }
+    if let Some(content_type) = content_type {
+        headers.entry(CONTENT_TYPE).or_insert(HeaderValue::from_static(content_type));
+    }
+    builder.body(vars.apply(data))
+}
+
 fn form_body(builder: RequestBuilder, fields: &[FormField], vars: &mut Substituter) -> RequestBuilder {
     let pairs: Vec<(String, String)> = fields
         .iter()
-        .filter(|f| !f.disabled && !f.name.trim().is_empty())
+        .filter(|f| is_sent(f.disabled, &f.name))
         .map(|f| (vars.apply(f.name.trim()), vars.apply(&f.value)))
         .collect();
     builder.form(&pairs)
@@ -251,7 +261,7 @@ fn multipart_body(
     vars: &mut Substituter,
 ) -> Result<RequestBuilder> {
     let mut form = multipart::Form::new();
-    for field in fields.iter().filter(|f| !f.disabled && !f.name.trim().is_empty()) {
+    for field in fields.iter().filter(|f| is_sent(f.disabled, &f.name)) {
         let name = vars.apply(field.name.trim());
         let values = match &field.value {
             PartValue::One(value) => std::slice::from_ref(value),
@@ -295,8 +305,15 @@ fn read_attachment(project: &Path, file: &str) -> Result<multipart::Part> {
 /// from anyone (a cloned repository, an import), so an absolute or `../` path
 /// would let it upload any file on the machine when it is sent.
 fn read_file_in_project(project: &Path, file: &str) -> Result<Vec<u8>> {
-    let relative = ProjectPath::parse(file).map_err(|_| Error::AttachmentOutsideProject(file.to_string()))?;
+    let outside = || Error::AttachmentOutsideProject(file.to_string());
+    let relative = ProjectPath::parse(file).map_err(|_| outside())?;
     let path = relative.resolve(project);
+    // A symlink inside the project can still point out of it.
+    if let (Ok(real), Ok(root)) = (path.canonicalize(), project.canonicalize())
+        && !real.starts_with(&root)
+    {
+        return Err(outside());
+    }
     fs::read(&path).map_err(Error::file(&path))
 }
 
@@ -453,6 +470,21 @@ mod tests {
         let req = build(dir.path(), &s, &[], &env).unwrap().request;
         assert_eq!(body_of(&req), "FILEDATA");
         assert_eq!(req.headers()["content-type"], "text/plain");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn an_attachment_symlinked_out_of_the_project_is_refused() {
+        let outer = tempfile::tempdir().unwrap();
+        let project = outer.path().join("project");
+        fs::create_dir(&project).unwrap();
+        fs::write(outer.path().join("secret.txt"), "SECRET").unwrap();
+        std::os::unix::fs::symlink(outer.path().join("secret.txt"), project.join("link.txt")).unwrap();
+        let mut s = request("POST", "http://h/");
+        s.http.body = Some(Body::Typed(TypedBody::File {
+            data: vec![FileVariant { file_path: "link.txt".into(), content_type: String::new(), selected: true }],
+        }));
+        assert!(matches!(build(&project, &s, &[], &Env::new()), Err(Error::AttachmentOutsideProject(_))));
     }
 
     #[test]

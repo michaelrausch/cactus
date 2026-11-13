@@ -1,11 +1,20 @@
 //! Events the backend pushes to the UI.
 
+use cactus_core::best_effort;
 use cactus_core::monitor::{AlertEvent, RunRecord};
 use cactus_core::runner::{FlowStepResult, FlowStepStart, MatrixCell, RunResult};
 use cactus_core::secrets::SecretsStatus;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use tauri_specta::Event;
+
+/// Push `event` to the UI. Work goes on if that fails, but the failure is logged.
+pub fn notify<E: Event + Serialize + Clone, R: tauri::Runtime, H: tauri::Emitter<R> + tauri::Manager<R>>(
+    event: &E,
+    app: &H,
+) {
+    best_effort::log("notify the UI", event.emit(app));
+}
 
 /// One step of an interactive flow run is sending.
 #[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]

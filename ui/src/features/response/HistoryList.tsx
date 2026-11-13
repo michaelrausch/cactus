@@ -28,6 +28,7 @@ function Sender({ id }: { id: string | null }) {
   return <CritterSprite species={critter.species} size={16} label={`as ${critter.name}`} seed={critter.id} />;
 }
 
+/** The open request's recent responses, filterable by who sent them. */
 export function HistoryList() {
   const history = useResponseStore((s) => s.history);
   const historyAt = useResponseStore((s) => s.historyAt);

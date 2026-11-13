@@ -55,7 +55,7 @@ pub fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
     let tmp = Path::new(&tmp);
     let written = fs::write(tmp, bytes).and_then(|()| rename_with_retry(tmp, path));
     if written.is_err() {
-        let _ = fs::remove_file(tmp);
+        crate::best_effort::log("remove the temp file", fs::remove_file(tmp));
     }
     written.map_err(Error::file(path))
 }

@@ -10,6 +10,7 @@ import { filledRows, recordFromRows, rowsFromRecord, type Row } from "./rows";
 
 const clamp = (index: number, length: number) => Math.max(0, Math.min(index, length));
 
+/** For dirty checks. Plain JSON, so key order counts (unlike the editor store's `stableStringify`). */
 export const flowFingerprint = (flow: Flow): string => JSON.stringify(flow);
 
 export function insertStep(flow: Flow, index: number, request: string): Flow {

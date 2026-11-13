@@ -40,7 +40,7 @@ pub async fn run_matrix(
         return Err(Error::SecretsLocked);
     }
     let base = Scope::env(project, None);
-    let critters = critter::list(project)?;
+    let critters = critter::list(project);
     let mut rows = vec![(None, None)];
     rows.extend(critters.into_iter().map(|summary| {
         let skipped = match (&summary.error, summary.missing_secrets.as_slice()) {

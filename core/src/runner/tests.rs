@@ -1,3 +1,6 @@
+//! Runner tests against a real local HTTP server (`test_server`), covering
+//! captures, flows and logging in again on a 401.
+
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;

@@ -1,3 +1,5 @@
+//! Interactive sends: one request, or a folder. Starting one cancels the last.
+
 use std::path::PathBuf;
 
 use cactus_core::env::Scope;
@@ -6,9 +8,8 @@ use cactus_core::runner::{self, RunResult, SendOptions};
 use cactus_core::scenario::Scenario;
 use cactus_core::{ProjectPath, Result};
 use tauri::{AppHandle, State};
-use tauri_specta::Event;
 
-use crate::events::{ContextChanged, RunProgress};
+use crate::events::{ContextChanged, RunProgress, notify};
 use crate::state::AppState;
 
 /// Send the scenario as edited (it may not be saved yet), as the active
@@ -41,7 +42,7 @@ pub async fn run_folder(
     dir: String,
 ) -> Result<Option<Vec<RunResult>>> {
     let report = |result: &RunResult| {
-        let _ = RunProgress(result.clone()).emit(&app);
+        notify(&RunProgress(result.clone()), &app);
     };
     state.touch_secrets();
     let scope = Scope::active(&project);
@@ -54,7 +55,7 @@ pub async fn run_folder(
 /// Sends as a critter may capture into its context, or log it in again.
 fn context_may_have_changed(app: &AppHandle, scope: &Scope) {
     if let Some(critter) = &scope.critter {
-        let _ = ContextChanged { critter: critter.clone() }.emit(app);
+        notify(&ContextChanged { critter: critter.clone() }, app);
     }
 }
 

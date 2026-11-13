@@ -1,3 +1,5 @@
+//! `cactus-cli import`: a Postman collection or OpenAPI spec into the project.
+
 use std::path::Path;
 
 use cactus_core::import;

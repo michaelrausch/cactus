@@ -1,3 +1,5 @@
+//! Which of a critter's secret variables still need a value.
+
 use std::collections::BTreeSet;
 use std::path::Path;
 

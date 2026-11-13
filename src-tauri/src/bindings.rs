@@ -50,6 +50,7 @@ pub fn builder() -> Builder<tauri::Wry> {
             flow::save_flow,
             flow::create_flow,
             flow::rename_flow,
+            flow::duplicate_flow,
             flow::delete_flow,
             flow::load_flow_text,
             flow::save_flow_text,

@@ -66,6 +66,8 @@ async function attempt(work: (project: string) => Promise<unknown>): Promise<str
   }
 }
 
+// The dialog actions below resolve to an error to show, or null; see `attempt`.
+
 export async function unlockSecrets(password: string): Promise<string | null> {
   return attempt((project) => backend.unlockSecrets(project, password));
 }

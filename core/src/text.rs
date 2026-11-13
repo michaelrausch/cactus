@@ -1,3 +1,5 @@
+//! Small string helpers used across core.
+
 use serde_json::Value;
 
 /// Cut `text` to at most `max_bytes` without splitting a character.

@@ -1,3 +1,6 @@
+//! Core's single error type. Messages are user-facing: the app and the CLI
+//! show them as-is, so word new variants accordingly.
+
 use std::io;
 use std::path::{Path, PathBuf};
 

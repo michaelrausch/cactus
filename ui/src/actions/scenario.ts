@@ -15,6 +15,7 @@ export function editScenario(scenario: Scenario): void {
   useEditorStore.getState().edited(scenario);
 }
 
+/** Open a request in the editor. One with unsaved edits shows its buffer, not the file. */
 export async function selectScenario(path: ProjectPath): Promise<void> {
   const project = currentProject();
   if (!project) return;

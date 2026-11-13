@@ -87,6 +87,7 @@ fn render_scalar(value: &Value, content_indent: usize) -> Result<String, serde_y
     for line in lines {
         text.push('\n');
         if !line.is_empty() {
+            // serde indents block lines by two from column 0; re-base them.
             pad(&mut text, content_indent);
             text.push_str(line.strip_prefix("  ").unwrap_or(line));
         }

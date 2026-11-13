@@ -63,6 +63,7 @@ function FolderSection({ group, changes }: { group: FolderGroup; changes: Record
   );
 }
 
+/** Requests grouped by folder, each marked with its git change and last status. */
 export function ScenarioList({ filter }: { filter: string }) {
   const project = useProjectStore((s) => s.project);
   const entries = useProjectStore((s) => s.entries);

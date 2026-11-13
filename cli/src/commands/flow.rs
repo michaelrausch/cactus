@@ -1,3 +1,5 @@
+//! `cactus-cli flow`: one flow, or all of them, with an optional `JUnit` report.
+
 use std::fs;
 use std::path::Path;
 
@@ -32,7 +34,7 @@ pub async fn flow(
     junit_file: Option<&Path>,
 ) -> cactus_core::Result<Outcome> {
     let mut runs = Vec::new();
-    for (critter, flow) in selected(project, selection)? {
+    for (critter, flow) in selected(project, selection) {
         if format == Format::Report {
             println!("{}", format_flow_heading(&critter, &flow));
         }
@@ -59,12 +61,12 @@ pub async fn flow(
     Ok(Outcome::from_passed(runs.iter().all(|(_, _, run): &(String, String, FlowRun)| run.ok)))
 }
 
-fn selected(project: &Path, selection: &Selection) -> cactus_core::Result<Vec<(String, String)>> {
-    Ok(match selection {
+fn selected(project: &Path, selection: &Selection) -> Vec<(String, String)> {
+    match selection {
         Selection::One { critter, flow } => vec![(critter.clone(), flow.clone())],
-        Selection::All => critter::list(project)?
+        Selection::All => critter::list(project)
             .into_iter()
             .flat_map(|summary| summary.flows.into_iter().map(move |flow| (summary.id.clone(), flow.id)))
             .collect(),
-    })
+    }
 }

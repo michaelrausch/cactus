@@ -1,3 +1,5 @@
+//! [`Response`]: one send's outcome as the UI, history and run logs see it.
+
 use std::collections::BTreeMap;
 use std::time::Duration;
 

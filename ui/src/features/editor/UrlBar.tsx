@@ -60,6 +60,7 @@ function SendButton() {
   );
 }
 
+/** Method, URL and Send. Editing the URL keeps the Params tab in step (`withUrl`). */
 export function UrlBar({ scenario, onChange }: ScenarioTabProps) {
   return (
     <div className="flex items-center gap-1 rounded-xl border bg-card p-1 shadow-sm shadow-shadow/20 transition-colors focus-within:border-brand-2/40">

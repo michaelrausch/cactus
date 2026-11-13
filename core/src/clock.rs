@@ -1,3 +1,6 @@
+//! Wall-clock timestamps, as Unix millis: the format history, run logs and
+//! the UI all use.
+
 use std::time::{SystemTime, UNIX_EPOCH};
 
 pub fn now_unix_millis() -> u64 {

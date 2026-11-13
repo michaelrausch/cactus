@@ -8,9 +8,8 @@ use cactus_core::scenario;
 use notify_debouncer_mini::notify::{RecommendedWatcher, RecursiveMode, Watcher};
 use notify_debouncer_mini::{DebounceEventResult, Debouncer, new_debouncer};
 use tauri::{AppHandle, Manager};
-use tauri_specta::Event;
 
-use crate::events::FsChanged;
+use crate::events::{FsChanged, notify};
 use crate::state::AppState;
 
 const WATCH_DEBOUNCE: Duration = Duration::from_millis(150);
@@ -33,7 +32,7 @@ impl ProjectWatcher {
                 app.state::<AppState>().scheduler.reload(&app, &root);
             }
             if !changed.is_empty() {
-                let _ = FsChanged(changed).emit(&app);
+                notify(&FsChanged(changed), &app);
             }
         })
         .ok()?;

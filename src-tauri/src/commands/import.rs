@@ -1,3 +1,5 @@
+//! Importing Postman collections and OpenAPI specs.
+
 use std::path::PathBuf;
 
 use cactus_core::Result;

@@ -1,3 +1,5 @@
+//! The schedules panel: what's scheduled, when it runs next, its run logs.
+
 use std::path::PathBuf;
 
 use cactus_core::Result;
@@ -8,7 +10,7 @@ use serde::Serialize;
 use specta::Type;
 use tauri::{AppHandle, State};
 
-use crate::scheduler::{self, split_key};
+use crate::scheduler;
 use crate::state::AppState;
 
 /// Every scheduled flow and how it's doing.
@@ -55,24 +57,24 @@ pub fn set_schedules_paused(state: State<'_, AppState>, paused: bool) {
 #[specta::specta]
 pub fn schedule_states(state: State<'_, AppState>, project: PathBuf) -> ScheduleStates {
     let schedules = critter::flow_keys(&project)
-        .iter()
+        .into_iter()
         .filter_map(|key| {
-            let (critter, flow) = split_key(key)?;
-            let definition = critter::load_flow(&project, critter, flow).ok();
+            let definition = critter::load_flow(&project, &key.critter, &key.flow).ok();
             let schedule = definition.as_ref().and_then(|f| f.schedule());
             // A flow that can't be read is listed while its task still runs.
-            let next_at = state.scheduler.next_at(key);
+            let next_at = state.scheduler.next_at(&key);
             if schedule.is_none() && next_at.is_none() {
                 return None;
             }
             Some(ScheduleState {
-                critter: critter.to_string(),
-                flow: flow.to_string(),
                 every: schedule.map(|s| s.every),
                 env: schedule.and_then(|s| s.env.clone()),
                 next_at,
-                last: monitor::load_log(&project, critter, flow).pop(),
-                waiting: scheduler::waiting_for_secrets(&project, critter).then_some(ScheduleWaiting::SecretsLocked),
+                last: monitor::load_log(&project, &key.critter, &key.flow).pop(),
+                waiting: scheduler::waiting_for_secrets(&project, &key.critter)
+                    .then_some(ScheduleWaiting::SecretsLocked),
+                critter: key.critter,
+                flow: key.flow,
             })
         })
         .collect();

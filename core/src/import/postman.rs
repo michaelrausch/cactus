@@ -130,6 +130,7 @@ fn parse_auth(auth: &Value) -> Option<Auth> {
             placement: Some(if setting("in") == "query" { ApiKeyPlacement::Query } else { ApiKeyPlacement::Header }),
         },
         "noauth" => return None,
+        // oauth2, digest and the like: nothing cactus can send, so inherit.
         _ => return Some(Auth::INHERIT),
     };
     Some(Auth::Mode(mode))

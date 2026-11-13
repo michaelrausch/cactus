@@ -1,3 +1,5 @@
+//! Command-line arguments. Doc comments here are the `--help` text.
+
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};

@@ -1,3 +1,5 @@
+//! `cactus-cli secrets`: manage encryption without the app.
+
 use std::path::Path;
 
 use cactus_core::secrets::{self, DEFAULT_AUTO_LOCK_MINUTES, SecretsStatus};

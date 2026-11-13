@@ -5,9 +5,11 @@ import { saveScenario } from "@/actions/saving";
 import { withShortcut } from "@/app/shortcuts";
 import { IconButton } from "@/components/IconButton";
 import { MethodBadge } from "@/components/MethodBadge";
+import { WindowControls } from "@/components/WindowControls";
 import { baseName, dirOf } from "@/domain/paths";
 import { stagedFiles, unstagedFiles } from "@/domain/git";
 import { displayTitle } from "@/domain/scenario";
+import { isMac } from "@/lib/platform";
 import { cn } from "@/lib/utils";
 import { isDirty, useEditorStore } from "@/stores/editorStore";
 import { useGitStore } from "@/stores/gitStore";
@@ -116,6 +118,7 @@ function ScenarioActions() {
   );
 }
 
+/** The window's top bar, and its drag handle. */
 export function Header() {
   const project = useProjectStore((s) => s.project);
   const responseVisible = useUiStore((s) => s.responseVisible);
@@ -123,7 +126,7 @@ export function Header() {
   // A critter or flow has its own header below.
   const editing = useUiStore((s) => s.view === "editor");
   return (
-    <header className="relative flex h-12 shrink-0 items-center gap-2 px-4">
+    <header data-tauri-drag-region className="relative flex h-12 shrink-0 items-center gap-2 px-4">
       {project && (
         <>
           {editing ? (
@@ -146,6 +149,7 @@ export function Header() {
           </div>
         </>
       )}
+      {!isMac && <WindowControls />}
     </header>
   );
 }
