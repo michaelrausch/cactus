@@ -24,6 +24,8 @@ const response = (status: number, checks: HttpResponse["checks"] = []): HttpResp
 const step = (index: number, patch: Partial<FlowStepResult>): FlowStepResult => ({
   index,
   request: `step${index}.yml`,
+  tool: null,
+  output: null,
   title: `Step ${index}`,
   method: "GET",
   url: "",
@@ -59,6 +61,18 @@ describe("flow run summaries", () => {
       ]),
     );
     expect(summary).toBe("Failed at step 2 (step1.yml): res.status: expected eq 403, got 200");
+  });
+
+  it("names a failed tool step by its title", () => {
+    const prompt = step(0, {
+      request: "",
+      tool: "prompt",
+      title: "Prompt",
+      ok: false,
+      response: null,
+      error: "Stopped",
+    });
+    expect(flowRunSummary(run([prompt]))).toBe("Failed at step 1 (Prompt): Stopped");
   });
 
   it("explains a failed step by error, check or status", () => {

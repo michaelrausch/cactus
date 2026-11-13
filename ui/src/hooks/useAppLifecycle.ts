@@ -2,9 +2,9 @@ import { useEffect } from "react";
 import { backendEvents } from "@/api/client";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { handleFilesChanged } from "@/actions/fsSync";
-import { scheduledRunFinished, showAlert } from "@/actions/alerts";
+import { scheduledRunFinished, showAlert, showFlowNotification } from "@/actions/alerts";
 import { refreshContext } from "@/actions/critters";
-import { flowStepFinished, flowStepStarted } from "@/actions/flows";
+import { flowAskClosed, flowAsked, flowDisplayed, flowStepFinished, flowStepStarted } from "@/actions/flows";
 import { refreshGitStatus } from "@/actions/git";
 import { refreshSchedules } from "@/actions/monitors";
 import { restoreLastProject } from "@/actions/project";
@@ -94,6 +94,11 @@ export function useAppLifecycle(): void {
         flowStepStarted(payload.critter, payload.flow, payload.start),
       ),
       backendEvents.flowProgress.listen(({ payload }) => flowStepFinished(payload.critter, payload.flow, payload.step)),
+      // Tool steps: a question for the person running the flow, and notifications.
+      backendEvents.flowAsked.listen(({ payload }) => flowAsked(payload)),
+      backendEvents.flowAskClosed.listen(({ payload }) => flowAskClosed(payload.id)),
+      backendEvents.flowDisplayed.listen(({ payload }) => flowDisplayed(payload)),
+      backendEvents.flowNotified.listen(({ payload }) => void showFlowNotification(payload.title, payload.body)),
       // Unlocked, locked (also after idling) or turned on or off. Schedules
       // wait while locked, so their states change too.
       backendEvents.secretsStatusChanged.listen(() => {

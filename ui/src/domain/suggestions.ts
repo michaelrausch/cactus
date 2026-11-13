@@ -36,6 +36,17 @@ function rankByQuery(names: readonly string[], query: string): string[] {
   return [...starts, ...contains];
 }
 
+/** Completes the whole field from `words`, best matches first; nothing once it's one of them. */
+export const wordSuggester =
+  (words: readonly string[]): Suggester =>
+  (text, cursor) => {
+    const typed = text.slice(0, cursor).trim();
+    if (words.includes(text.trim())) return [];
+    return rankByQuery(words, typed)
+      .slice(0, MAX_SUGGESTIONS)
+      .map((word) => ({ label: word, from: 0, to: text.length, insert: word }));
+  };
+
 /** Completes the variable name inside an open `{{`. */
 export const placeholderSuggester =
   (names: readonly string[], details: Readonly<Record<string, string>> = {}): Suggester =>

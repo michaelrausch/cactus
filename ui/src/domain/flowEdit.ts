@@ -1,4 +1,4 @@
-import type { Flow, FlowStep } from "@/api/client";
+import type { Flow, FlowStep, Step, ToolStep } from "@/api/client";
 import { assertionsFromRows, rowsFromAssertions } from "./assertions";
 import { filledRows, recordFromRows, rowsFromRecord, type Row } from "./rows";
 
@@ -13,11 +13,20 @@ const clamp = (index: number, length: number) => Math.max(0, Math.min(index, len
 /** For dirty checks. Plain JSON, so key order counts (unlike the editor store's `stableStringify`). */
 export const flowFingerprint = (flow: Flow): string => JSON.stringify(flow);
 
-export function insertStep(flow: Flow, index: number, request: string): Flow {
+export const isToolStep = (step: Step): step is ToolStep => "tool" in step;
+
+/** The request a step sends, trimmed; empty for a tool. */
+export const stepRequest = (step: Step): string => (isToolStep(step) ? "" : step.request.trim());
+
+function insertAt(flow: Flow, index: number, step: Step): Flow {
   const steps = [...flow.steps];
-  steps.splice(clamp(index, steps.length), 0, { request });
+  steps.splice(clamp(index, steps.length), 0, step);
   return { ...flow, steps };
 }
+
+export const insertStep = (flow: Flow, index: number, request: string): Flow => insertAt(flow, index, { request });
+
+export const insertTool = (flow: Flow, index: number, tool: ToolStep): Flow => insertAt(flow, index, tool);
 
 /** Move the step at `from` so it ends up at index `to`. */
 export function moveStep(flow: Flow, from: number, to: number): Flow {
@@ -32,8 +41,36 @@ export function removeStep(flow: Flow, index: number): Flow {
   return { ...flow, steps: flow.steps.filter((_, i) => i !== index) };
 }
 
+/** Change the request step at `index`; a tool there is left alone. */
 export function updateStep(flow: Flow, index: number, change: (step: FlowStep) => FlowStep): Flow {
-  return { ...flow, steps: flow.steps.map((step, i) => (i === index ? change(step) : step)) };
+  return { ...flow, steps: flow.steps.map((step, i) => (i === index && !isToolStep(step) ? change(step) : step)) };
+}
+
+/** Change the tool step at `index`; a request there is left alone. */
+export function updateTool<T extends ToolStep>(flow: Flow, index: number, change: (tool: T) => T): Flow {
+  // The caller knows which tool it edits; `tool` stays as it was.
+  return { ...flow, steps: flow.steps.map((step, i) => (i === index && isToolStep(step) ? change(step as T) : step)) };
+}
+
+/** Empty as the backend sees it, which leaves the field out when writing. */
+const isEmpty = (value: unknown): boolean =>
+  value === undefined ||
+  value === null ||
+  value === "" ||
+  value === false ||
+  value === 0 ||
+  (Array.isArray(value) ? value.length === 0 : typeof value === "object" && Object.keys(value).length === 0);
+
+/**
+ * `item` with `key` set to `value`, or left out when that's empty, as every
+ * tool field is written. A field already there keeps its place, so the
+ * flow's fingerprint doesn't change on a round trip.
+ */
+export function setField<T extends object, K extends keyof T>(item: T, key: K, value: T[K] | undefined): T {
+  if (!isEmpty(value)) return { ...item, [key]: value };
+  const { [key]: _previous, ...rest } = item;
+  // TypeScript can't see that dropping an optional key leaves a T.
+  return rest as T;
 }
 
 type StepMap = "with" | "capture";

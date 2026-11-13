@@ -39,7 +39,7 @@ pub fn report(runs: &[(String, String, FlowRun)]) -> String {
 }
 
 fn write_case(xml: &mut String, critter: &str, flow: &str, step: &FlowStepResult) {
-    let name = format!("{flow} › {}. {}", step.index + 1, step.request);
+    let name = format!("{flow} › {}. {}", step.index + 1, step.label());
     let seconds = step.response.as_ref().map_or(0.0, |r| seconds(r.time_ms));
     let _ =
         write!(xml, "    <testcase name=\"{}\" classname=\"{}\" time=\"{seconds:.3}\"", escape(&name), escape(critter));
@@ -113,6 +113,8 @@ mod tests {
         FlowStepResult {
             index,
             request: request.into(),
+            tool: None,
+            output: None,
             title: request.into(),
             method: "GET".into(),
             url: "http://h/".into(),

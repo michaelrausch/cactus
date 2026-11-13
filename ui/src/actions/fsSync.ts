@@ -8,23 +8,23 @@ import { refreshGitStatus } from "./git";
 import { refreshSchedules } from "./monitors";
 import { refreshEntries, refreshEnvs } from "./project";
 import { refreshVariableNames } from "./variables";
-import { isOwnRecentWrite, isSaving, reloadIfChangedOnDisk } from "./saving";
+import { isOwnRecentWrite, reloadIfChangedOnDisk } from "./saving";
 
 /**
  * React to files changing on disk, whoever changed them. Git status is
  * refreshed for every change, saves included.
  *
- * Open buffers always follow the disk: that compares the file with what was
- * last saved, so our own save's echo changes nothing, while an outside edit
- * made right after a save is still caught. Only a save still being read back
- * is skipped, as its buffer hasn't taken in the save yet. Re-listing the
- * project re-parses every file, so it is skipped for changes that are most
- * likely our own saves.
+ * Open requests and the open flow always follow the disk: that compares the
+ * file with what was last saved, so our own save's echo changes nothing
+ * however late it arrives, while an outside edit made right after a save is
+ * still caught. Re-listing the project re-parses every file, so it is skipped
+ * for changes that are most likely our own saves.
  */
 export async function handleFilesChanged(changed: string[]): Promise<void> {
   if (!useProjectStore.getState().project) return;
   void refreshGitStatus();
-  await reloadIfChangedOnDisk(changed.filter((path) => !isSaving(path)));
+  void reportErrors(() => flowFilesChanged(changed));
+  await reloadIfChangedOnDisk(changed);
   const external = changed.filter((path) => !isOwnRecentWrite(path));
   if (external.length === 0) return;
   void reportErrors(refreshEntries);
@@ -33,7 +33,6 @@ export async function handleFilesChanged(changed: string[]): Promise<void> {
     void reportErrors(refreshCritters);
     void refreshSchedules();
   }
-  void reportErrors(() => flowFilesChanged(external));
   // Folder and collection files carry variables too, so any change may matter.
   void refreshVariableNames();
 }

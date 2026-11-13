@@ -1,38 +1,81 @@
-import { useState, type DragEvent } from "react";
+import { useState, type DragEvent, type ReactNode } from "react";
 import { KeyRound, Plus, Search } from "lucide-react";
 import { editFlow } from "@/actions/flows";
-import type { ScenarioEntry } from "@/api/client";
+import type { Flow, ScenarioEntry } from "@/api/client";
 import { MethodBadge } from "@/components/MethodBadge";
-import { insertStep, removeStep } from "@/domain/flowEdit";
+import { insertStep, insertTool, removeStep } from "@/domain/flowEdit";
 import { isAuthRequest } from "@/domain/scenario";
 import { cn } from "@/lib/utils";
 import { useFlowStore } from "@/stores/flowStore";
 import { useProjectStore } from "@/stores/projectStore";
-import { REQUEST_MIME, STEP_MIME } from "./dragTypes";
+import { REQUEST_MIME, STEP_MIME, TOOL_MIME } from "./dragTypes";
+import { TOOL_IDS, TOOLS } from "./tools";
 
-const matches = (entry: ScenarioEntry, query: string): boolean => {
+const matches = (query: string, ...texts: string[]): boolean => {
   const q = query.trim().toLowerCase();
-  return !q || [entry.title, entry.relPath, entry.method].some((text) => text.toLowerCase().includes(q));
+  return !q || texts.some((text) => text.toLowerCase().includes(q));
 };
 
 /** Login requests first, otherwise in tree order. */
 const authFirst = (entries: ScenarioEntry[]): ScenarioEntry[] =>
   entries.toSorted((a, b) => Number(isAuthRequest(b.tags)) - Number(isAuthRequest(a.tags)));
 
-/** Add a request after the selected step, or at the end. */
-function addStep(path: string) {
+/** Add a step after the selected one, or at the end. */
+function addStep(insert: (flow: Flow, at: number) => Flow) {
   const { selected, model } = useFlowStore.getState();
   const at = selected === null ? (model?.steps.length ?? 0) : selected + 1;
-  editFlow((flow) => insertStep(flow, at, path));
+  editFlow((flow) => insert(flow, at));
   useFlowStore.getState().select(at);
 }
 
-/** The project's requests, to drag into the flow (or add with +). Dropping a step here removes it. */
+/** One draggable entry, with + to add it after the selected step. */
+function PaletteRow({
+  mime,
+  data,
+  title,
+  name,
+  onAdd,
+  children,
+}: {
+  mime: string;
+  data: string;
+  title: string;
+  name: string;
+  onAdd: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <li
+      draggable
+      onDragStart={(event) => {
+        // WebKit only starts a drag that carries data.
+        event.dataTransfer.setData(mime, data);
+        event.dataTransfer.setData("text/plain", data);
+        event.dataTransfer.effectAllowed = "copy";
+      }}
+      title={title}
+      className="group flex h-8 cursor-grab items-center gap-2 rounded-md px-1.5 text-sm hover:bg-accent/50 active:cursor-grabbing"
+    >
+      {children}
+      <button
+        type="button"
+        aria-label={`Add ${name} as a step`}
+        onClick={onAdd}
+        className="grid size-6 shrink-0 place-items-center rounded-md text-muted-foreground opacity-0 focus-ring group-hover:opacity-100 hover:bg-accent hover:text-foreground focus-visible:opacity-100"
+      >
+        <Plus className="size-3.5" />
+      </button>
+    </li>
+  );
+}
+
+/** The project's requests, then the tools, to drag into the flow (or add with +). Dropping a step here removes it. */
 export function RequestPalette() {
   const entries = useProjectStore((s) => s.entries);
   const [query, setQuery] = useState("");
   const [removing, setRemoving] = useState(false);
-  const shown = authFirst(entries.filter((entry) => matches(entry, query)));
+  const requests = authFirst(entries.filter((entry) => matches(query, entry.title, entry.relPath, entry.method)));
+  const tools = TOOL_IDS.filter((id) => matches(query, TOOLS[id].label, id));
 
   const onDragOver = (event: DragEvent) => {
     if (!event.dataTransfer.types.includes(STEP_MIME)) return;
@@ -60,42 +103,59 @@ export function RequestPalette() {
         <input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Requests"
-          aria-label="Search requests"
+          placeholder="Search"
+          aria-label="Search requests and tools"
           className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
         />
       </div>
       {removing && <p className="px-3 py-2 text-xs text-danger">Drop to remove the step</p>}
-      <ul aria-label="Requests" className="min-h-0 flex-1 overflow-y-auto p-1">
-        {shown.map((entry) => (
-          <li
-            key={entry.relPath}
-            draggable
-            onDragStart={(event) => {
-              // WebKit only starts a drag that carries data.
-              event.dataTransfer.setData(REQUEST_MIME, entry.relPath);
-              event.dataTransfer.setData("text/plain", entry.relPath);
-              event.dataTransfer.effectAllowed = "copy";
-            }}
-            title={entry.relPath}
-            className="group flex h-8 cursor-grab items-center gap-2 rounded-md px-1.5 text-sm hover:bg-accent/50 active:cursor-grabbing"
-          >
-            <MethodBadge method={entry.method} className="w-10 shrink-0 text-2xs" />
-            <span className="min-w-0 flex-1 truncate">{entry.title}</span>
-            {isAuthRequest(entry.tags) && (
-              <KeyRound className="size-3 shrink-0 text-muted-foreground" aria-label="Logs in" />
-            )}
-            <button
-              type="button"
-              aria-label={`Add ${entry.title} as a step`}
-              onClick={() => addStep(entry.relPath)}
-              className="grid size-6 shrink-0 place-items-center rounded-md text-muted-foreground opacity-0 focus-ring group-hover:opacity-100 hover:bg-accent hover:text-foreground focus-visible:opacity-100"
+      <div className="min-h-0 flex-1 overflow-y-auto p-1">
+        <ul aria-label="Requests">
+          {requests.map((entry) => (
+            <PaletteRow
+              key={entry.relPath}
+              mime={REQUEST_MIME}
+              data={entry.relPath}
+              title={entry.relPath}
+              name={entry.title}
+              onAdd={() => addStep((flow, at) => insertStep(flow, at, entry.relPath))}
             >
-              <Plus className="size-3.5" />
-            </button>
-          </li>
-        ))}
-      </ul>
+              <MethodBadge method={entry.method} className="w-10 shrink-0 text-2xs" />
+              <span className="min-w-0 flex-1 truncate">{entry.title}</span>
+              {isAuthRequest(entry.tags) && (
+                <KeyRound className="size-3 shrink-0 text-muted-foreground" aria-label="Logs in" />
+              )}
+            </PaletteRow>
+          ))}
+        </ul>
+        {tools.length > 0 && (
+          <>
+            <h4 className="px-1.5 pt-3 pb-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+              Tools
+            </h4>
+            <ul aria-label="Tools">
+              {tools.map((id) => {
+                const { label, icon: Icon, create } = TOOLS[id];
+                return (
+                  <PaletteRow
+                    key={id}
+                    mime={TOOL_MIME}
+                    data={id}
+                    title={label}
+                    name={label}
+                    onAdd={() => addStep((flow, at) => insertTool(flow, at, create()))}
+                  >
+                    <span className="grid w-10 shrink-0 place-items-center text-muted-foreground">
+                      <Icon className="size-3.5" />
+                    </span>
+                    <span className="min-w-0 flex-1 truncate">{label}</span>
+                  </PaletteRow>
+                );
+              })}
+            </ul>
+          </>
+        )}
+      </div>
     </div>
   );
 }

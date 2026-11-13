@@ -4,6 +4,7 @@ use cactus_core::best_effort;
 use cactus_core::monitor::{AlertEvent, RunRecord};
 use cactus_core::runner::{FlowStepResult, FlowStepStart, MatrixCell, RunResult};
 use cactus_core::secrets::SecretsStatus;
+use cactus_core::tools::Ask;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use tauri_specta::Event;
@@ -30,6 +31,40 @@ pub struct FlowProgress {
     pub critter: String,
     pub flow: String,
     pub step: FlowStepResult,
+}
+
+/// A flow's tool step asks the person running it something; answer with
+/// `answer_flow_ask(id, …)`.
+#[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
+pub struct FlowAsked {
+    pub id: u32,
+    pub critter: String,
+    pub flow: String,
+    pub ask: Ask,
+}
+
+/// The question `id` no longer needs an answer: its run was cancelled.
+#[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
+pub struct FlowAskClosed {
+    pub id: u32,
+}
+
+/// A flow's `display` step shows a message, without waiting for it.
+#[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
+pub struct FlowDisplayed {
+    pub critter: String,
+    pub flow: String,
+    pub title: String,
+    pub text: String,
+}
+
+/// A flow's `notify` step ran.
+#[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
+pub struct FlowNotified {
+    pub critter: String,
+    pub flow: String,
+    pub title: String,
+    pub body: String,
 }
 
 /// One row of a matrix run finished.

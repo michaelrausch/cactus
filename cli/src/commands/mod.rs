@@ -13,6 +13,7 @@ use cactus_core::http::build_client;
 
 use crate::args::Command;
 use crate::outcome::Outcome;
+use crate::tool_host::CliHost;
 
 /// Without encryption a sealed secret fails at resolve, before anything is sent.
 #[cfg(not(feature = "encryption"))]
@@ -38,13 +39,15 @@ pub async fn execute(command: Command) -> cactus_core::Result<Outcome> {
             let scope = Scope::env(&project, env.as_deref()).with_critter(critter);
             send::send(&client, &project, &scenario, &scope).await
         }
-        Command::Flow { project, critter, flow, all, env, json, junit, password_stdin } => {
+        Command::Flow { project, critter, flow, all, env, json, junit, vars, password_stdin } => {
             password::unlock_if_needed(&project, password_stdin)?;
             let selection = match (critter, flow) {
                 (Some(critter), Some(flow)) if !all => flow::Selection::One { critter, flow },
                 _ => flow::Selection::All,
             };
-            flow::flow(&client, &project, &selection, env, Format::from_json_flag(json), junit.as_deref()).await
+            let host = CliHost::new(vars.into_iter().collect());
+            let format = Format::from_json_flag(json);
+            flow::flow(&client, &project, &selection, env, format, junit.as_deref(), &host).await
         }
         Command::Import { project, file } => import::import(&project, &file),
         #[cfg(feature = "encryption")]

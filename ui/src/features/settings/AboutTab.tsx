@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { getTauriVersion } from "@tauri-apps/api/app";
 import { isTauri } from "@tauri-apps/api/core";
-import { Copy } from "lucide-react";
+import { Copy, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
+import { showOnboarding } from "@/actions/project";
 import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
 
@@ -53,9 +54,14 @@ export function AboutTab() {
           </div>
         ))}
       </dl>
-      <Button variant="ghost" size="sm" onClick={copy}>
-        <Copy /> Copy build info
-      </Button>
+      <div className="flex gap-1">
+        <Button variant="ghost" size="sm" onClick={copy}>
+          <Copy /> Copy build info
+        </Button>
+        <Button variant="ghost" size="sm" onClick={showOnboarding}>
+          <RotateCcw /> Show onboarding
+        </Button>
+      </div>
       <p className="text-xs text-muted-foreground">© Michael Rausch {currentYear}</p>
     </div>
   );

@@ -17,10 +17,15 @@ export const commands = {
 	recentProjects: (options?: InvokeOptions) => __TAURI_INVOKE<string[]>("recent_projects", undefined, options),
 	loadScenario: (project: string, path: ProjectPath, options?: InvokeOptions) => __TAURI_INVOKE<Scenario_Serialize>("load_scenario", { project, path }, options),
 	saveScenario: (project: string, path: ProjectPath, scenario: Scenario_Deserialize, options?: InvokeOptions) => __TAURI_INVOKE<null>("save_scenario", { project, path, scenario }, options),
-	createScenario: (project: string, dir: string, title: string, options?: InvokeOptions) => __TAURI_INVOKE<ProjectPath>("create_scenario", { project, dir, title }, options),
+	createScenario: (project: string, dir: string, title: string, method: string, url: string, options?: InvokeOptions) => __TAURI_INVOKE<ProjectPath>("create_scenario", { project, dir, title, method, url }, options),
 	duplicateScenario: (project: string, path: ProjectPath, options?: InvokeOptions) => __TAURI_INVOKE<ProjectPath>("duplicate_scenario", { project, path }, options),
 	deleteScenario: (project: string, path: ProjectPath, options?: InvokeOptions) => __TAURI_INVOKE<null>("delete_scenario", { project, path }, options),
 	renameScenario: (project: string, from: ProjectPath, to: ProjectPath, options?: InvokeOptions) => __TAURI_INVOKE<null>("rename_scenario", { project, from, to }, options),
+	/**  Set a request's title, and name its file after it. Returns where it ends up. */
+	retitleScenario: (project: string, path: ProjectPath, title: string, options?: InvokeOptions) => __TAURI_INVOKE<ProjectPath>("retitle_scenario", { project, path, title }, options),
+	createFolder: (project: string, dir: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("create_folder", { project, dir }, options),
+	/**  Request folders, empty ones included. */
+	listFolders: (project: string, options?: InvokeOptions) => __TAURI_INVOKE<string[]>("list_folders", { project }, options),
 	loadHistory: (project: string, path: ProjectPath, options?: InvokeOptions) => __TAURI_INVOKE<HistoryEntry_Serialize[]>("load_history", { project, path }, options),
 	listEnvs: (project: string, options?: InvokeOptions) => __TAURI_INVOKE<string[]>("list_envs", { project }, options),
 	activeEnv: (project: string, options?: InvokeOptions) => __TAURI_INVOKE<string | null>("active_env", { project }, options),
@@ -87,6 +92,11 @@ export const commands = {
 	 *  Resolves to `None` when cancelled.
 	 */
 	runFlow: (project: string, critter: string, flow: string, env: string | null, options?: InvokeOptions) => __TAURI_INVOKE<FlowRun_Serialize | null>("run_flow", { project, critter, flow, env }, options),
+	/**
+	 *  Answer a running flow's question ([`FlowAsked`](crate::events::FlowAsked)):
+	 *  the values, or `None` to stop the run.
+	 */
+	answerFlowAsk: (id: number, values: { [key in string]: string } | null, options?: InvokeOptions) => __TAURI_INVOKE<void>("answer_flow_ask", { id, values }, options),
 	/**
 	 *  Send the request as edited as no critter and as each critter,
 	 *  emitting [`MatrixProgress`] per row. Resolves to `None` when cancelled.
@@ -155,8 +165,12 @@ export const commands = {
 /** Events */
 export const events = {
 	contextChanged: makeEvent<ContextChanged, ContextChanged>("context-changed"),
+	flowAskClosed: makeEvent<FlowAskClosed, FlowAskClosed>("flow-ask-closed"),
+	flowAsked: makeEvent<FlowAsked_Serialize, FlowAsked_Deserialize>("flow-asked"),
+	flowDisplayed: makeEvent<FlowDisplayed, FlowDisplayed>("flow-displayed"),
+	flowNotified: makeEvent<FlowNotified, FlowNotified>("flow-notified"),
 	flowProgress: makeEvent<FlowProgress_Serialize, FlowProgress_Deserialize>("flow-progress"),
-	flowStepStarted: makeEvent<FlowStepStarted, FlowStepStarted>("flow-step-started"),
+	flowStepStarted: makeEvent<FlowStepStarted_Serialize, FlowStepStarted_Deserialize>("flow-step-started"),
 	fsChanged: makeEvent<FsChanged, FsChanged>("fs-changed"),
 	matrixProgress: makeEvent<MatrixProgress_Serialize, MatrixProgress_Deserialize>("matrix-progress"),
 	monitorAlert: makeEvent<MonitorAlert_Serialize, MonitorAlert_Deserialize>("monitor-alert"),
@@ -223,6 +237,66 @@ export type AlertRule_Serialize = {
 };
 
 export type ApiKeyPlacement = "header" | "query";
+
+/**  A question for whoever runs the flow. */
+export type Ask = Ask_Serialize | Ask_Deserialize;
+
+/**  A question for whoever runs the flow. */
+export type Ask_Deserialize = 
+/**  Fill in these values. With none, it's a Continue/Stop question. */
+{ kind: "fields"; title: string; fields: PromptVar_Deserialize[] } | 
+/**  Read this, then carry on. */
+{ kind: "continue"; title: string; text: string } | 
+/**  Pick one of these; the answer is `{choice: "<index>"}`. */
+{ kind: "choose"; title: string; choices: Choice[] };
+
+/**  A question for whoever runs the flow. */
+export type Ask_Serialize = 
+/**  Fill in these values. With none, it's a Continue/Stop question. */
+{ kind: "fields"; title: string; fields: PromptVar_Serialize[] } | 
+/**  Read this, then carry on. */
+{ kind: "continue"; title: string; text: string } | 
+/**  Pick one of these; the answer is `{choice: "<index>"}`. */
+{ kind: "choose"; title: string; choices: Choice[] };
+
+export type Assert = Assert_Serialize | Assert_Deserialize;
+
+/**  Checks every item of a list must pass. */
+export type AssertEach = AssertEach_Serialize | AssertEach_Deserialize;
+
+/**  Checks every item of a list must pass. */
+export type AssertEach_Deserialize = {
+	/**  The list, as a check's `expression`: `{{items}}`, `{{data}}.items`. */
+	list?: LenientString,
+	/**  `expression` is a path in the item (`id`, `tags.length`); empty is the item. */
+	checks?: Assertion_Deserialize[],
+};
+
+/**  Checks every item of a list must pass. */
+export type AssertEach_Serialize = {
+	/**  The list, as a check's `expression`: `{{items}}`, `{{data}}.items`. */
+	list?: LenientString,
+	/**  `expression` is a path in the item (`id`, `tags.length`); empty is the item. */
+	checks?: Assertion_Serialize[],
+};
+
+export type Assert_Deserialize = {
+	/**
+	 *  `expression` is a value: `{{name}}`, optionally with a path into
+	 *  it (`{{items}}.length`, `{{user}}.email`), or any text with `{{names}}`.
+	 */
+	checks?: Assertion_Deserialize[],
+	each?: AssertEach_Deserialize,
+};
+
+export type Assert_Serialize = {
+	/**
+	 *  `expression` is a value: `{{name}}`, optionally with a path into
+	 *  it (`{{items}}.length`, `{{user}}.email`), or any text with `{{names}}`.
+	 */
+	checks?: Assertion_Serialize[],
+	each?: AssertEach_Serialize,
+};
 
 /**  A test run against each response, e.g. `res.status eq 200`. */
 export type Assertion = Assertion_Serialize | Assertion_Deserialize;
@@ -315,6 +389,15 @@ export type Check = {
 	name: string,
 	ok: boolean,
 	detail: string,
+};
+
+/**
+ *  One option of [`Ask::Choose`]: what it shows, and the variables
+ *  choosing it sets.
+ */
+export type Choice = {
+	label: string,
+	values: { [key in string]: string },
 };
 
 export type CommitSummary = {
@@ -443,6 +526,20 @@ export type DiffSide =
 /**  Index → work tree: what isn't staged yet. */
 "unstaged";
 
+export type Display = Display_Serialize | Display_Deserialize;
+
+export type Display_Deserialize = {
+	title?: LenientString,
+	text?: LenientString,
+	pause?: boolean,
+};
+
+export type Display_Serialize = {
+	title?: LenientString,
+	text?: LenientString,
+	pause?: boolean,
+};
+
 /**  One env layer. Later layers override earlier ones; see [`resolve_for_request`]. */
 export type EnvFile = 
 /**  The collection's variables in `opencollection.yml`, shared and committed. */
@@ -519,6 +616,55 @@ export type FileVariant_Serialize = {
 /**  `critters/<id>/flows/<flow>.yml`: requests run in order as the critter. */
 export type Flow = Flow_Serialize | Flow_Deserialize;
 
+/**  The question `id` no longer needs an answer: its run was cancelled. */
+export type FlowAskClosed = {
+	id: number,
+};
+
+/**
+ *  A flow's tool step asks the person running it something; answer with
+ *  `answer_flow_ask(id, …)`.
+ */
+export type FlowAsked = FlowAsked_Serialize | FlowAsked_Deserialize;
+
+/**
+ *  A flow's tool step asks the person running it something; answer with
+ *  `answer_flow_ask(id, …)`.
+ */
+export type FlowAsked_Deserialize = {
+	id: number,
+	critter: string,
+	flow: string,
+	ask: Ask_Deserialize,
+};
+
+/**
+ *  A flow's tool step asks the person running it something; answer with
+ *  `answer_flow_ask(id, …)`.
+ */
+export type FlowAsked_Serialize = {
+	id: number,
+	critter: string,
+	flow: string,
+	ask: Ask_Serialize,
+};
+
+/**  A flow's `display` step shows a message, without waiting for it. */
+export type FlowDisplayed = {
+	critter: string,
+	flow: string,
+	title: string,
+	text: string,
+};
+
+/**  A flow's `notify` step ran. */
+export type FlowNotified = {
+	critter: string,
+	flow: string,
+	title: string,
+	body: string,
+};
+
 /**
  *  The outcome of parsing flow text as it is typed. Invalid YAML while
  *  typing is normal, so it is a value, not an error.
@@ -589,8 +735,12 @@ export type FlowStepResult = FlowStepResult_Serialize | FlowStepResult_Deseriali
  */
 export type FlowStepResult_Deserialize = {
 	index: number,
-	/**  The step's `request`, as written. */
+	/**  The step's `request`, as written; empty for a tool. */
 	request: string,
+	/**  The tool's id, for a tool step. */
+	tool?: string | null,
+	/**  What a tool step did. */
+	output?: ToolOutput_Deserialize | null,
 	title: string,
 	/**
 	 *  The method and URL it was sent to, env applied; empty when the
@@ -613,8 +763,12 @@ export type FlowStepResult_Deserialize = {
  */
 export type FlowStepResult_Serialize = {
 	index: number,
-	/**  The step's `request`, as written. */
+	/**  The step's `request`, as written; empty for a tool. */
 	request: string,
+	/**  The tool's id, for a tool step. */
+	tool: string | null,
+	/**  What a tool step did. */
+	output: ToolOutput_Serialize | null,
 	title: string,
 	/**
 	 *  The method and URL it was sent to, env applied; empty when the
@@ -632,19 +786,43 @@ export type FlowStepResult_Serialize = {
 };
 
 /**  A step about to send: where it's going. */
-export type FlowStepStart = {
+export type FlowStepStart = FlowStepStart_Serialize | FlowStepStart_Deserialize;
+
+/**  A step about to send: where it's going. */
+export type FlowStepStart_Deserialize = {
 	index: number,
 	request: string,
+	tool?: string | null,
+	title: string,
+	method: string,
+	url: string,
+};
+
+/**  A step about to send: where it's going. */
+export type FlowStepStart_Serialize = {
+	index: number,
+	request: string,
+	tool: string | null,
 	title: string,
 	method: string,
 	url: string,
 };
 
 /**  One step of an interactive flow run is sending. */
-export type FlowStepStarted = {
+export type FlowStepStarted = FlowStepStarted_Serialize | FlowStepStarted_Deserialize;
+
+/**  One step of an interactive flow run is sending. */
+export type FlowStepStarted_Deserialize = {
 	critter: string,
 	flow: string,
-	start: FlowStepStart,
+	start: FlowStepStart_Deserialize,
+};
+
+/**  One step of an interactive flow run is sending. */
+export type FlowStepStarted_Serialize = {
+	critter: string,
+	flow: string,
+	start: FlowStepStart_Serialize,
 };
 
 /**  One request of a flow and what the flow adds to it. */
@@ -711,7 +889,7 @@ export type Flow_Deserialize = {
 	/**  What runs the flow on its own, besides running it by hand. */
 	triggers?: Trigger_Deserialize[],
 	alert?: AlertRule_Deserialize | null,
-	steps?: FlowStep_Deserialize[],
+	steps?: Step_Deserialize[],
 };
 
 /**  `critters/<id>/flows/<flow>.yml`: requests run in order as the critter. */
@@ -720,7 +898,7 @@ export type Flow_Serialize = {
 	/**  What runs the flow on its own, besides running it by hand. */
 	triggers?: Trigger_Serialize[],
 	alert?: AlertRule_Serialize,
-	steps: FlowStep_Serialize[],
+	steps: Step_Serialize[],
 };
 
 /**  `name=value` of a form body. */
@@ -928,6 +1106,28 @@ export type MultipartField_Serialize = {
 	disabled?: boolean,
 };
 
+export type Notify = Notify_Serialize | Notify_Deserialize;
+
+export type Notify_Deserialize = {
+	title?: LenientString,
+	body?: LenientString,
+};
+
+export type Notify_Serialize = {
+	title?: LenientString,
+	body?: LenientString,
+};
+
+export type Open = Open_Serialize | Open_Deserialize;
+
+export type Open_Deserialize = {
+	url?: LenientString,
+};
+
+export type Open_Serialize = {
+	url?: LenientString,
+};
+
 export type Param = Param_Serialize | Param_Deserialize;
 
 export type ParamKind = "query" | "path";
@@ -951,12 +1151,111 @@ export type PartKind = "text" | "file";
 /**  A file part's value is a path relative to the project, or several. */
 export type PartValue = string | string[];
 
+export type Pick = Pick_Serialize | Pick_Deserialize;
+
+export type Pick_Deserialize = {
+	title?: LenientString,
+	/**  The items: a JSON array, e.g. `{{items}}`, or lines or commas of text. */
+	list?: LenientString,
+	/**  Where in each item its label is, e.g. `name`; the item itself when not set. */
+	label?: string,
+	/**
+	 *  The variables to set from the chosen item, each to the value at a
+	 *  path in it (`code`, `user.email`, `tags[0]`); an empty path is the
+	 *  whole item.
+	 */
+	set?: { [key in string]: string },
+	/**  Older form of `set` with one entry: `name` set to the value at `value`. */
+	value?: string,
+	name?: string,
+};
+
+export type Pick_Serialize = {
+	title?: LenientString,
+	/**  The items: a JSON array, e.g. `{{items}}`, or lines or commas of text. */
+	list?: LenientString,
+	/**  Where in each item its label is, e.g. `name`; the item itself when not set. */
+	label?: string,
+	/**
+	 *  The variables to set from the chosen item, each to the value at a
+	 *  path in it (`code`, `user.email`, `tags[0]`); an empty path is the
+	 *  whole item.
+	 */
+	set?: { [key in string]: string },
+	/**  Older form of `set` with one entry: `name` set to the value at `value`. */
+	value?: string,
+	name?: string,
+};
+
+export type Poll = Poll_Serialize | Poll_Deserialize;
+
+export type Poll_Deserialize = {
+	request?: LenientString,
+	/**  Variables for this request only, as a request step's `with`. */
+	with?: { [key in string]: LenientString },
+	/**  What "done" is: checks on the response, as a request step's `assert`. */
+	until?: Assertion_Deserialize[],
+	capture?: { [key in string]: LenientString },
+	/**  Seconds between tries; 2 when not set. */
+	every?: number,
+	/**  Seconds to keep trying; 60 when not set. */
+	timeout?: number,
+};
+
+export type Poll_Serialize = {
+	request?: LenientString,
+	/**  Variables for this request only, as a request step's `with`. */
+	with?: { [key in string]: LenientString },
+	/**  What "done" is: checks on the response, as a request step's `assert`. */
+	until?: Assertion_Serialize[],
+	capture?: { [key in string]: LenientString },
+	/**  Seconds between tries; 2 when not set. */
+	every?: number,
+	/**  Seconds to keep trying; 60 when not set. */
+	timeout?: number,
+};
+
 /**
  *  A file's location relative to the project root, using `/` separators: a
  *  request, an attachment or any other file in the project (git lists them all).
  *  It can never point outside the project, so it is safe to join onto it.
  */
 export type ProjectPath = string;
+
+export type Prompt = Prompt_Serialize | Prompt_Deserialize;
+
+/**  One value to ask for. */
+export type PromptVar = PromptVar_Serialize | PromptVar_Deserialize;
+
+/**  One value to ask for. */
+export type PromptVar_Deserialize = {
+	name?: string,
+	label?: LenientString,
+	/**  Filled in, and used when no one is there to answer. */
+	default?: LenientString | null,
+	/**  Typed hidden and shown masked in results. */
+	secret?: boolean,
+};
+
+/**  One value to ask for. */
+export type PromptVar_Serialize = {
+	name?: string,
+	label?: LenientString,
+	/**  Filled in, and used when no one is there to answer. */
+	default?: LenientString,
+	/**  Typed hidden and shown masked in results. */
+	secret?: boolean,
+};
+
+export type Prompt_Deserialize = {
+	title?: LenientString,
+	vars?: PromptVar_Deserialize[],
+};
+
+export type Prompt_Serialize = {
+	title?: LenientString,
+	vars?: PromptVar_Serialize[],
+};
 
 export type RequestInfo = RequestInfo_Serialize | RequestInfo_Deserialize;
 
@@ -1030,6 +1329,8 @@ export type Response_Serialize = {
 	relogged: boolean,
 };
 
+export type Run = Run_Serialize | Run_Deserialize;
+
 /**  One scenario of a folder run finished. */
 export type RunProgress = RunProgress_Serialize | RunProgress_Deserialize;
 
@@ -1082,6 +1383,20 @@ export type RunResult_Serialize = {
 	ok: boolean,
 	response: Response_Serialize | null,
 	error: string | null,
+};
+
+export type Run_Deserialize = {
+	/**  The flow's id, its file name without `.yml`. */
+	flow?: LenientString,
+	/**  Whose flow, run as them; this flow's critter when not set. */
+	critter?: LenientString,
+};
+
+export type Run_Serialize = {
+	/**  The flow's id, its file name without `.yml`. */
+	flow?: LenientString,
+	/**  Whose flow, run as them; this flow's critter when not set. */
+	critter?: LenientString,
 };
 
 export type Runtime = Runtime_Serialize | Runtime_Deserialize;
@@ -1292,6 +1607,8 @@ export type Selector_Serialize = {
 	method: string,
 };
 
+export type Set = Set_Serialize | Set_Deserialize;
+
 /**  Save a value from the response as a variable for later requests. */
 export type SetVariable = SetVariable_Serialize | SetVariable_Deserialize;
 
@@ -1319,6 +1636,14 @@ export type SetVariable_Serialize = {
 	disabled?: boolean,
 };
 
+export type Set_Deserialize = {
+	values?: { [key in string]: LenientString },
+};
+
+export type Set_Serialize = {
+	values?: { [key in string]: LenientString },
+};
+
 export type Settings = Settings_Serialize | Settings_Deserialize;
 
 export type Settings_Deserialize = {
@@ -1329,8 +1654,25 @@ export type Settings_Serialize = {
 	timeout?: Timeout,
 };
 
+export type Slack = Slack_Serialize | Slack_Deserialize;
+
+export type Slack_Deserialize = {
+	/**  The incoming webhook URL; best kept in a secret, `{{SLACK_WEBHOOK}}`. */
+	webhook?: LenientString,
+	text?: LenientString,
+};
+
+export type Slack_Serialize = {
+	/**  The incoming webhook URL; best kept in a secret, `{{SLACK_WEBHOOK}}`. */
+	webhook?: LenientString,
+	text?: LenientString,
+};
+
 /**  What the critter looks like. An unknown species reads as the default. */
 export type Species = "roadrunner" | "tortoise" | "gecko" | "elf-owl" | "armadillo" | "scorpion" | "jackalope" | "tumbleweed";
+
+/**  One step of a flow: a request, or a tool (`- tool: prompt`). */
+export type Step = Step_Serialize | Step_Deserialize;
 
 export type StepRecord = StepRecord_Serialize | StepRecord_Deserialize;
 
@@ -1354,7 +1696,91 @@ export type StepRecord_Serialize = {
 	watched: { [key in string]: string | null },
 };
 
+/**  One step of a flow: a request, or a tool (`- tool: prompt`). */
+export type Step_Deserialize = ToolStep_Deserialize | FlowStep_Deserialize;
+
+/**  One step of a flow: a request, or a tool (`- tool: prompt`). */
+export type Step_Serialize = ToolStep_Serialize | FlowStep_Serialize;
+
 export type Timeout = number | Inherit;
+
+/**  What a tool step did, for the step card, the run panel and the CLI. */
+export type ToolOutput = ToolOutput_Serialize | ToolOutput_Deserialize;
+
+/**  What a tool step did, for the step card, the run panel and the CLI. */
+export type ToolOutput_Deserialize = {
+	text?: string | null,
+	/**  An HTTP status, for tools that send something. */
+	status?: number | null,
+	/**  The variables it set for later steps; secret ones as `••••`. */
+	values?: { [key in string]: string },
+};
+
+/**  What a tool step did, for the step card, the run panel and the CLI. */
+export type ToolOutput_Serialize = {
+	text?: string,
+	/**  An HTTP status, for tools that send something. */
+	status?: number,
+	/**  The variables it set for later steps; secret ones as `••••`. */
+	values?: { [key in string]: string },
+};
+
+/**  A tool step as written in the flow file, tagged by `tool`. */
+export type ToolStep = ToolStep_Serialize | ToolStep_Deserialize;
+
+/**  A tool step as written in the flow file, tagged by `tool`. */
+export type ToolStep_Deserialize = {
+	tool: "prompt",
+} & Prompt_Deserialize | {
+	tool: "display",
+} & Display_Deserialize | {
+	tool: "webhook",
+} & Webhook_Deserialize | {
+	tool: "slack",
+} & Slack_Deserialize | {
+	tool: "wait",
+} & Wait_Deserialize | {
+	tool: "open",
+} & Open_Deserialize | {
+	tool: "set",
+} & Set_Deserialize | {
+	tool: "notify",
+} & Notify_Deserialize | {
+	tool: "assert",
+} & Assert_Deserialize | {
+	tool: "poll",
+} & Poll_Deserialize | {
+	tool: "run",
+} & Run_Deserialize | {
+	tool: "pick",
+} & Pick_Deserialize;
+
+/**  A tool step as written in the flow file, tagged by `tool`. */
+export type ToolStep_Serialize = {
+	tool: "prompt",
+} & Prompt_Serialize | {
+	tool: "display",
+} & Display_Serialize | {
+	tool: "webhook",
+} & Webhook_Serialize | {
+	tool: "slack",
+} & Slack_Serialize | {
+	tool: "wait",
+} & Wait_Serialize | {
+	tool: "open",
+} & Open_Serialize | {
+	tool: "set",
+} & Set_Serialize | {
+	tool: "notify",
+} & Notify_Serialize | {
+	tool: "assert",
+} & Assert_Serialize | {
+	tool: "poll",
+} & Poll_Serialize | {
+	tool: "run",
+} & Run_Serialize | {
+	tool: "pick",
+} & Pick_Serialize;
 
 /**
  *  Something that runs a flow on its own, named by `type` so other kinds
@@ -1434,6 +1860,34 @@ export type Variable_Serialize = {
 	value?: VariableValue_Serialize,
 	secret?: boolean,
 	disabled?: boolean,
+};
+
+export type Wait = Wait_Serialize | Wait_Deserialize;
+
+export type Wait_Deserialize = {
+	seconds?: number,
+};
+
+export type Wait_Serialize = {
+	seconds?: number,
+};
+
+export type Webhook = Webhook_Serialize | Webhook_Deserialize;
+
+export type Webhook_Deserialize = {
+	url?: LenientString,
+	/**  `POST` when not set. */
+	method?: LenientString,
+	headers?: { [key in string]: LenientString },
+	body?: LenientString,
+};
+
+export type Webhook_Serialize = {
+	url?: LenientString,
+	/**  `POST` when not set. */
+	method?: LenientString,
+	headers?: { [key in string]: LenientString },
+	body?: LenientString,
 };
 
 /* Tauri Specta runtime */

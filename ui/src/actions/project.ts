@@ -9,6 +9,7 @@ import { useMonitorStore } from "@/stores/monitorStore";
 import { useProjectStore } from "@/stores/projectStore";
 import { useResponseStore } from "@/stores/responseStore";
 import { useSecretsStore } from "@/stores/secretsStore";
+import { useSettingsStore } from "@/stores/settingsStore";
 import { useUiStore } from "@/stores/uiStore";
 import { refreshCritters } from "./critters";
 import { refreshSchedules } from "./monitors";
@@ -51,7 +52,8 @@ async function loadProject(folder: string): Promise<void> {
     useFlowStore.getState().closed();
     useSecretsStore.getState().reset();
     useUiStore.getState().setView("editor");
-    const [, , , , recent] = await Promise.all([
+    const [, , , , , recent] = await Promise.all([
+      refreshFolders(),
       refreshEnvs(),
       refreshCritters(),
       refreshSchedules(),
@@ -62,19 +64,50 @@ async function loadProject(folder: string): Promise<void> {
   });
 }
 
-/** Reopen the most recently used project on launch. */
+/**
+ * Reopen the most recently used project on launch, or start the onboarding
+ * on a first launch. Anyone with a recent project has used the app already.
+ */
 export async function restoreLastProject(): Promise<void> {
   const recent = await backend.recentProjects();
   useProjectStore.getState().recentProjectsLoaded(recent);
-  if (recent[0]) await openProject(recent[0]);
+  const settings = useSettingsStore.getState();
+  if (recent[0]) {
+    if (!settings.onboarded) settings.setOnboarded(true);
+    await openProject(recent[0]);
+  } else if (!settings.onboarded) {
+    useUiStore.getState().setOnboardingOpen(true);
+  }
+}
+
+/** Run the onboarding again, from Settings. */
+export function showOnboarding(): void {
+  const ui = useUiStore.getState();
+  ui.setSettingsOpen(false);
+  ui.setOnboardingOpen(true);
+}
+
+/** Close the onboarding for good. */
+export function finishOnboarding(): void {
+  useSettingsStore.getState().setOnboarded(true);
+  useUiStore.getState().setOnboardingOpen(false);
 }
 
 export async function refreshEntries(): Promise<void> {
   const project = currentProject();
   if (!project) return;
-  const entries = await backend.listScenarios(project);
+  const [entries, folders] = await Promise.all([backend.listScenarios(project), backend.listFolders(project)]);
   // The project may have been switched while listing; don't show the old one's scenarios.
-  if (currentProject() === project) useProjectStore.getState().entriesListed(entries);
+  if (currentProject() !== project) return;
+  useProjectStore.getState().entriesListed(entries);
+  useProjectStore.getState().foldersListed(folders);
+}
+
+async function refreshFolders(): Promise<void> {
+  const project = currentProject();
+  if (!project) return;
+  const folders = await backend.listFolders(project);
+  if (currentProject() === project) useProjectStore.getState().foldersListed(folders);
 }
 
 export async function refreshEnvs(): Promise<void> {

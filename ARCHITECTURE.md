@@ -20,7 +20,7 @@ ui/         React front end for the desktop app.
 | `environments/<name>.yml`                | A named environment                                                           | yes       |
 | `<folder>/folder.yml`                    | A folder's name, `seq` and defaults                                           | yes       |
 | `critters/<id>/critter.yml`              | A critter (persona): name, species, notes, login flow, variables              | yes       |
-| `critters/<id>/flows/<flow>.yml`         | A critter's flow: steps, and optionally `triggers` (a schedule) and `alert`   | yes       |
+| `critters/<id>/flows/<flow>.yml`         | A critter's flow: steps (requests, tools), optionally `triggers` and `alert`  | yes       |
 | `**/*.yml`                               | Requests (every other `.yml`)                                                 | yes       |
 | `.cactus/secrets.json`                   | Local secrets, the values of `secret: true` variables; sealed when encrypted  | no        |
 | `.cactus/captured.json`                  | Values written by set-variable actions with no critter active                 | no        |
@@ -41,7 +41,8 @@ and run in tree order: at each level, folders and requests sorted together by
 environment → folder variables (outermost first) → request `runtime.variables`
 → secrets → captured. With a critter active, the global captured values are
 left out and its own layers come last instead: critter variables → critter
-secrets → critter context, then a flow step's `with`. One function
+secrets → critter context, then what earlier tool steps of the flow run set,
+then a flow step's `with`. One function
 (`env::layers`) builds the ordered layers; `resolve_for_request` merges them
 and `sources_for_request` says where each value came from, so the two can't
 disagree. `{{name}}` substitution is a single pass. Headers and auth are
@@ -56,6 +57,19 @@ set-variable actions); the request files are never touched, and a failed step
 skips the rest. On a 401, a critter with a `login` flow runs it and sends the
 request once more (`runner::send_as`). Steps of the login flow itself never do
 this, so it can't loop.
+
+**Flow tools** are steps that aren't requests (`- tool: prompt`): prompt,
+pick, display, set, assert, poll, wait, run, open, webhook, slack, notify
+(`core/src/tools/`). Tools that send requests or run flows (poll, run) do so
+through `ToolCx::runner`, as the run itself would; `run` nests at most 8
+deep, so flows that run each other fail rather than loop. A step
+is a request unless it has a `tool` key, so older flows read unchanged. Each
+tool's templated fields are filled in before it runs; the values it sets
+(`ToolCx::set`) last for the rest of the run and are never written to disk.
+Tools reach the person through a `ToolHost` the caller passes to `run_flow`:
+the desktop asks via the `FlowAsked` event and `answer_flow_ask`, the CLI asks
+on the terminal (or takes `--var name=value`), and scheduled runs and
+re-logins are `Headless`, so a prompt falls back to its defaults.
 
 **Encrypted secrets** are built only with the `encryption` Cargo feature
 (core, CLI and desktop) and the `CACTUS_ENCRYPTION=1` UI build flag; both
@@ -101,6 +115,7 @@ says so in the response's `warnings`.
 | `runner`                                          | Send + persist captures + record history, re-login (`send_as`); folder runs; `flow` (step overlay, flow runs); `matrix`                            |
 | `secrets`                                         | Secret encryption: `cipher`, `keyring`, `store` (the only reader/writer of secrets files), `lifecycle` (enable, disable, unlock, password, reset)   |
 | `monitor`                                         | Scheduled runs: compact `RunRecord`s, alerts on changes of state (`compare`), the run log                                                          |
+| `tools`                                           | Flow tool steps: the `Tool` trait, the `tools!` registry (`ToolStep`), `ToolHost` (asking, notifying, opening URLs), one file per tool             |
 | `history`, `recent`, `state`, `storage`, `layout` | Persistence                                                                                                                                        |
 
 Errors are typed (`core/src/error.rs`) and reach the UI as their message. An
@@ -179,7 +194,9 @@ lists critters, their context and flows. A flow being edited lives in
 `flowStore`: the model, its YAML text, undo/redo and the last run's results.
 Visual edits are pure functions (`domain/flowEdit.ts`); `domain/flowDataflow.ts`
 works out what each step uses and captures, which drives the chips between
-steps and the problems list. Writes to `.cactus/` aren't watched, so the
+steps and the problems list. Tool steps are described by the registry in
+`features/critters/flows/tools/` (palette entry, card summary, dataflow and
+editor), and `FlowAskDialog` answers a running flow's prompts. Writes to `.cactus/` aren't watched, so the
 backend reports them as events (`ContextChanged`, `FlowProgress`,
 `ScheduledRunFinished`, `MonitorAlert`); `actions/alerts.ts` turns alerts into
 a toast when the window has focus, or an OS notification and an "N alerts"
@@ -193,6 +210,16 @@ page `/#sprites` shows them all.
 `src-tauri/src/commands/`, then register it in `bindings.rs`. Run
 `cargo test -p cactus` to regenerate the bindings, then call it via
 `backend.yourCommand(...)` from an action.
+
+**Add a flow tool.** Write `core/src/tools/<id>.rs`: a struct with its fields
+(`#[serde(default)]`, empty fields left out) and `impl Tool` (`title`,
+`templates`, `run`), then add `<id>::<Struct>` to `tools!` in
+`core/src/tools/mod.rs`. Run `cargo test -p cactus` to regenerate the
+bindings, then write `ui/src/features/critters/flows/tools/<id>.tsx` with
+`defineTool` (label, icon, `create`, `dataflow`, `Editor` built from
+`fields.tsx`) and add it to `TOOLS` in `tools/index.ts`, which won't
+typecheck until every tool has one. `slack.rs` and `slack.tsx` are the
+smallest example.
 
 **Edit another OpenCollection field.** Add it to `core/src/scenario/model.rs`
 (or `collection/model.rs`) under its spec name, with

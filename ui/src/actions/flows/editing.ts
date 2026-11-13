@@ -1,5 +1,5 @@
 import { backend, type Flow, type Scenario } from "@/api/client";
-import { flowFingerprint } from "@/domain/flowEdit";
+import { flowFingerprint, stepRequest } from "@/domain/flowEdit";
 import { reportErrors, warnQuietly } from "@/lib/errors";
 import type { FlowMode } from "@/stores/flowStore";
 import { currentProject, fixFirst, flowStore } from "./shared";
@@ -16,9 +16,7 @@ export async function loadStepRequests(model: Flow, reload = false): Promise<voi
   const project = currentProject();
   if (!project) return;
   const known = flowStore().requests;
-  const paths = [...new Set(model.steps.map((step) => step.request.trim()).filter(Boolean))].filter(
-    (path) => reload || !(path in known),
-  );
+  const paths = [...new Set(model.steps.map(stepRequest).filter(Boolean))].filter((path) => reload || !(path in known));
   if (paths.length === 0) return;
   const loaded = await Promise.all(
     paths.map(async (path): Promise<[string, Scenario | null]> => [

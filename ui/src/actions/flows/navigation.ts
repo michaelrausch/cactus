@@ -4,6 +4,7 @@ import { reportErrors } from "@/lib/errors";
 import { useCritterStore } from "@/stores/critterStore";
 import { selectFlowDirty } from "@/stores/flowStore";
 import { useUiStore } from "@/stores/uiStore";
+import { isSaving, saveGeneration } from "../saving";
 import { loadStepRequests } from "./editing";
 import { saveOpenFlow } from "./persist";
 import { currentProject, flowStore, isOpen } from "./shared";
@@ -77,17 +78,37 @@ export function switchToFlow(critter: string, flow: string): Promise<boolean> {
 }
 
 /** Files changed on disk: reload the open flow (or flag a conflict) and any step request that changed. */
-export async function flowFilesChanged(external: string[]): Promise<void> {
+export async function flowFilesChanged(changed: string[]): Promise<void> {
+  const project = currentProject();
   const state = flowStore();
-  if (!state.open || !state.model) return;
-  const ownFile = flowFilePath(state.open.critter, state.open.flow);
-  if (external.includes(ownFile)) {
-    if (selectFlowDirty(state)) flowStore().conflicted();
-    else await openFlow(state.open.critter, state.open.flow);
-    return;
+  if (!project || !state.open || !state.model) return;
+  const { critter, flow } = state.open;
+  if (changed.includes(flowFilePath(critter, flow)) && (await followFlowFile(project, critter, flow))) return;
+  const now = flowStore();
+  if (!isOpen(critter, flow) || !now.model) return;
+  if (changed.some((path) => path in now.requests)) await loadStepRequests(now.model, true);
+}
+
+/**
+ * The open flow's file changed. Compared with what was last loaded or saved,
+ * so our own save's echo changes nothing however late it arrives. Resolves to
+ * whether the flow was reloaded.
+ */
+async function followFlowFile(project: string, critter: string, flow: string): Promise<boolean> {
+  const path = flowFilePath(critter, flow);
+  // A save's own read-back settles the baseline, and is newer than anything read here.
+  if (isSaving(path)) return false;
+  const generation = saveGeneration(path);
+  const onDisk = await backend.loadFlowText(project, critter, flow).catch(() => null);
+  if (!isOpen(critter, flow) || isSaving(path) || saveGeneration(path) !== generation) return false;
+  const state = flowStore();
+  if (onDisk === state.savedText) return false;
+  if (selectFlowDirty(state)) {
+    state.conflicted();
+    return false;
   }
-  const changedRequests = external.filter((path) => path in state.requests);
-  if (changedRequests.length > 0) await loadStepRequests(state.model, true);
+  await openFlow(critter, flow);
+  return true;
 }
 
 /** Keep the unsaved edits and overwrite the file that changed on disk. */

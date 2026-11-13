@@ -104,10 +104,11 @@ pub fn record(run: &FlowRun) -> RunRecord {
 fn step_record(step: &FlowStepResult) -> StepRecord {
     let response = step.response.as_ref();
     StepRecord {
-        request: step.request.clone(),
+        // A tool step is logged by its title, e.g. `POST https://…`.
+        request: step.label().to_string(),
         ok: step.ok,
         skipped: step.skipped,
-        status: response.map(|r| r.status),
+        status: response.map(|r| r.status).or_else(|| step.output.as_ref()?.status),
         failed_checks: response.map_or_default(|r| r.checks.iter().filter(|c| !c.ok).cloned().collect()),
         error: step.error.clone(),
         watched: step.watched.clone(),

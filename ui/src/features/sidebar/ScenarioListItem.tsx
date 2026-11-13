@@ -10,6 +10,9 @@ import { isAuthRequest } from "@/domain/scenario";
 import { cn } from "@/lib/utils";
 import { isDirty, useEditorStore } from "@/stores/editorStore";
 
+/** What a dragged request row carries: its path. */
+export const REQUEST_DRAG_TYPE = "application/x-cactus-request";
+
 interface ScenarioListItemProps {
   entry: ScenarioEntry;
   selected: boolean;
@@ -43,6 +46,11 @@ export const ScenarioListItem = memo(function ScenarioListItem({
   const dirty = useEditorStore((s) => isDirty(s.buffers[path]));
   return (
     <div
+      draggable
+      onDragStart={(event) => {
+        event.dataTransfer.setData(REQUEST_DRAG_TYPE, path);
+        event.dataTransfer.effectAllowed = "move";
+      }}
       className={cn(
         "group relative flex h-8 items-center rounded-lg pr-1 transition-colors hover:bg-sidebar-accent/60",
         selected && "bg-sidebar-accent hover:bg-sidebar-accent",

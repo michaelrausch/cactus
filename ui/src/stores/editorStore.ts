@@ -61,6 +61,8 @@ interface EditorState {
   reloaded: (path: ProjectPath, scenario: Scenario) => void;
   conflicted: (path: ProjectPath, conflict: Conflict) => void;
   moved: (from: ProjectPath, to: ProjectPath) => void;
+  /** The file was given a new title on disk; unsaved edits keep everything else. */
+  retitled: (path: ProjectPath, onDisk: Scenario) => void;
   /** Drop the buffer, closing the editor if it was showing. */
   removed: (path: ProjectPath) => void;
   /** Drop everything, e.g. when switching project. */
@@ -139,6 +141,15 @@ export const useEditorStore = create<EditorState>()((set) => ({
         buffers: buffer ? { ...rest, [to]: buffer } : s.buffers,
         ...(s.path === from ? { path: to } : {}),
       };
+    }),
+  retitled: (path, onDisk) =>
+    set((s) => {
+      const buffer = s.buffers[path];
+      if (!buffer) return {};
+      const name = onDisk.info.name;
+      const scenario = isDirty(buffer) ? { ...buffer.scenario, info: { ...buffer.scenario.info, name } } : onDisk;
+      const buffers = { ...s.buffers, [path]: { ...buffer, scenario, baseline: onDisk } };
+      return s.path === path ? { buffers, scenario, editorVersion: s.editorVersion + 1 } : { buffers };
     }),
   removed: (path) =>
     set((s) => {

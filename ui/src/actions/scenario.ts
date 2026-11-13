@@ -1,12 +1,12 @@
 import { backend, type Scenario, type ProjectPath } from "@/api/client";
-import { withRequestExtension } from "@/domain/paths";
+import { dirOf } from "@/domain/paths";
 import { reportErrors } from "@/lib/errors";
 import { isDirty, useEditorStore } from "@/stores/editorStore";
 import { useProjectStore } from "@/stores/projectStore";
 import { useResponseStore } from "@/stores/responseStore";
 import { useUiStore } from "@/stores/uiStore";
 import { refreshEntries } from "./project";
-import { saveScenario } from "./saving";
+import { saveScenario, writingFile } from "./saving";
 
 const currentProject = (): string | null => useProjectStore.getState().project;
 
@@ -37,43 +37,89 @@ export async function selectScenario(path: ProjectPath): Promise<void> {
   }, path);
 }
 
-/** Ask for a title, then create and open a scenario in `dir`. */
+/** Open the New request dialog, creating in `dir` unless another folder is picked. */
 export function createScenarioIn(dir: string): void {
-  const project = currentProject();
-  if (!project) return;
-  useUiStore.getState().askPrompt({
-    title: dir ? `New request in ${dir}/` : "New request",
-    placeholder: "Get user",
-    initial: "",
-    onSubmit: async (title) =>
-      (await reportErrors(async () => {
-        const created = await backend.createScenario(project, dir, title);
-        await refreshEntries();
-        await selectScenario(created);
-        return true;
-      })) ?? false,
-  });
+  if (!currentProject()) return;
+  useUiStore.getState().setNewRequestDir(dir);
 }
 
-/** Ask for a new path; a `/` moves the file into a folder. */
+/** Create a request and open it. Resolves to whether it was created. */
+export async function createRequest(dir: string, title: string, method: string, url: string): Promise<boolean> {
+  const project = currentProject();
+  if (!project) return false;
+  const created = await reportErrors(async () => {
+    const path = await backend.createScenario(project, dir, title, method, url);
+    await refreshEntries();
+    await selectScenario(path);
+    return true;
+  }, "Couldn't create the request");
+  return created ?? false;
+}
+
+const titleOf = (path: ProjectPath): string =>
+  useEditorStore.getState().buffers[path]?.scenario.info.name ||
+  useProjectStore.getState().entries.find((entry) => entry.relPath === path)?.title ||
+  "";
+
+/** Ask for a new title. The file is renamed to match, staying in its folder. */
 export function renameScenario(from: ProjectPath): void {
   const project = currentProject();
   if (!project) return;
+  const current = titleOf(from);
   useUiStore.getState().askPrompt({
     title: "Rename request",
-    description: "Path relative to the project. Use a / to move it into a folder.",
-    initial: from,
-    onSubmit: async (input) => {
-      if (!input) return false;
-      const to = withRequestExtension(input);
-      if (to === from) return true;
-      const renamed = await reportErrors(async () => {
-        await backend.renameScenario(project, from, to);
-        useEditorStore.getState().moved(from, to);
+    initial: current,
+    onSubmit: async (title) => {
+      if (!title) return false;
+      if (title === current) return true;
+      const renamed = await writingFile(from, () =>
+        reportErrors(async () => {
+          const to = await backend.retitleScenario(project, from, title);
+          const editor = useEditorStore.getState();
+          if (editor.buffers[from]) {
+            editor.moved(from, to);
+            editor.retitled(to, await backend.loadScenario(project, to));
+          }
+          await refreshEntries();
+          return true;
+        }, "Rename failed"),
+      );
+      return renamed ?? false;
+    },
+  });
+}
+
+/** Move a request into folder `dir` (`""` for the project root), keeping its file name. */
+export async function moveScenario(from: ProjectPath, dir: string): Promise<void> {
+  const project = currentProject();
+  if (!project || dirOf(from) === dir) return;
+  const name = from.split("/").at(-1) ?? from;
+  const to = (dir ? `${dir}/${name}` : name) as ProjectPath;
+  await writingFile(from, () =>
+    reportErrors(async () => {
+      await backend.renameScenario(project, from, to);
+      useEditorStore.getState().moved(from, to);
+      await refreshEntries();
+    }, "Move failed"),
+  );
+}
+
+/** Ask for a name and make a folder, inside `parent` if given. */
+export function createFolder(parent = ""): void {
+  const project = currentProject();
+  if (!project) return;
+  useUiStore.getState().askPrompt({
+    title: parent ? `New folder in ${parent}/` : "New folder",
+    placeholder: "users",
+    initial: "",
+    onSubmit: async (name) => {
+      if (!name) return false;
+      const created = await reportErrors(async () => {
+        await backend.createFolder(project, parent ? `${parent}/${name}` : name);
         await refreshEntries();
         return true;
-      });
-      return renamed ?? false;
+      }, "Couldn't create the folder");
+      return created ?? false;
     },
   });
 }

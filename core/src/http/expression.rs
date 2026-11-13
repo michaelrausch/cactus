@@ -62,7 +62,7 @@ impl Subject {
             Self::Status => Some(Value::from(response.status)),
             Self::ResponseTime => Some(Value::from(response.time_ms)),
             Self::Header(name) => response.header(name).map(|value| Value::String(value.to_string())),
-            Self::Body(path) => jsonpath::get(body?, path).cloned(),
+            Self::Body(path) => jsonpath::select(body?, path),
         }
     }
 }

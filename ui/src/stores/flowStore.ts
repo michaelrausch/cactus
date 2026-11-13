@@ -1,5 +1,14 @@
 import { create } from "zustand";
-import type { Flow, FlowRun, FlowStepResult, FlowStepStart, Scenario, VarSource } from "@/api/client";
+import type {
+  Flow,
+  FlowAsked,
+  FlowDisplayed,
+  FlowRun,
+  FlowStepResult,
+  FlowStepStart,
+  Scenario,
+  VarSource,
+} from "@/api/client";
 import { flowFingerprint } from "@/domain/flowEdit";
 
 /** Undo history kept per open flow. */
@@ -20,6 +29,9 @@ export interface ParseProblem {
 
 /** The right-hand pane: the selected step's settings, or the run. */
 export type FlowPanel = "step" | "run";
+
+/** For the save button: writing, or just written. */
+export type SaveStatus = "idle" | "saving" | "saved";
 
 export interface FlowRunState {
   running: boolean;
@@ -70,6 +82,14 @@ interface FlowState {
   run: FlowRunState;
   /** The file changed on disk while there were unsaved edits. */
   conflict: boolean;
+  saveStatus: SaveStatus;
+  /**
+   * A running flow's question (a prompt, or a paused display) waiting for an
+   * answer. Kept when another flow opens: the run still waits for it.
+   */
+  ask: FlowAsked | null;
+  /** A running flow's message (a display step without pause), until dismissed. */
+  message: FlowDisplayed | null;
 
   opened: (open: OpenFlow, model: Flow, text: string, scope: Record<string, VarSource>) => void;
   closed: () => void;
@@ -91,6 +111,12 @@ interface FlowState {
   stepFinished: (result: FlowStepResult) => void;
   runFinished: (run: FlowRun | null) => void;
   conflicted: () => void;
+  saveStatusChanged: (status: SaveStatus) => void;
+  asked: (ask: FlowAsked) => void;
+  /** Answered, or no longer waited for. */
+  askClosed: (id: number) => void;
+  /** A newer message replaces one still showing. */
+  displayed: (message: FlowDisplayed | null) => void;
 }
 
 const clampSelection = (selected: number | null, model: Flow): number | null =>
@@ -112,6 +138,9 @@ export const useFlowStore = create<FlowState>()((set) => ({
   scope: {},
   run: NO_RUN,
   conflict: false,
+  saveStatus: "idle",
+  ask: null,
+  message: null,
 
   opened: (open, model, text, scope) =>
     set((state) => ({
@@ -140,6 +169,7 @@ export const useFlowStore = create<FlowState>()((set) => ({
       selected: null,
       run: NO_RUN,
       conflict: false,
+      saveStatus: "idle",
     }),
   edited: (model) =>
     set((state) => ({
@@ -230,6 +260,10 @@ export const useFlowStore = create<FlowState>()((set) => ({
       };
     }),
   conflicted: () => set({ conflict: true }),
+  saveStatusChanged: (saveStatus) => set({ saveStatus }),
+  asked: (ask) => set({ ask }),
+  askClosed: (id) => set((state) => (state.ask?.id === id ? { ask: null } : {})),
+  displayed: (message) => set({ message }),
 }));
 
 /** Whether there are edits that aren't saved, in whichever mode is showing. */

@@ -22,6 +22,7 @@ use crate::history::{self, HistoryEntry};
 use crate::http::{self, Response, scenario_passed};
 use crate::scenario::{self, Scenario, ScenarioEntry};
 use crate::secrets::{self, SecretFile};
+use crate::tools::Headless;
 use crate::{Error, ProjectPath, Result, critter, env};
 
 /// The status that makes a critter log in again.
@@ -90,7 +91,10 @@ pub async fn send_as(
     };
     let login = login.trim();
     let base = Scope { overrides: env::Env::new(), ..scope.clone() };
-    let context = flow::StepContext { client, project, scope: &base, options, relogin: false };
+    // Logging in happens mid-request, with no one to ask: a prompt in the
+    // login flow uses its defaults.
+    let context =
+        flow::StepContext { client, project, scope: &base, options, relogin: false, host: &Headless, depth: 0 };
     let failure = match critter::load_flow(project, id, login) {
         Ok(definition) => match flow::run_steps(&context, &definition, |_| {}).await {
             Ok(run) => run.failure(),

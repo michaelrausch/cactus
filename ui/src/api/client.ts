@@ -17,6 +17,14 @@ export type Flow = Bindings.Flow_Serialize;
 export type FlowParse = Bindings.FlowParse_Serialize;
 export type FlowRun = Bindings.FlowRun_Serialize;
 export type FlowStep = Bindings.FlowStep_Serialize;
+/** A flow step: a request ({@link FlowStep}) or a tool ({@link ToolStep}). */
+export type Step = Bindings.Step_Serialize;
+export type ToolStep = Bindings.ToolStep_Serialize;
+export type ToolOutput = Bindings.ToolOutput_Serialize;
+export type Ask = Bindings.Ask_Serialize;
+export type PromptVar = Bindings.PromptVar_Serialize;
+export type FlowAsked = Bindings.FlowAsked_Serialize;
+export type FlowDisplayed = Bindings.FlowDisplayed;
 export type FlowStepResult = Bindings.FlowStepResult_Serialize;
 export type FlowStepStart = Bindings.FlowStepStart;
 export type FlowSummary = Bindings.FlowSummary_Serialize;

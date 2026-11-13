@@ -1,22 +1,24 @@
 import { useState, type DragEvent, type KeyboardEvent, type Ref } from "react";
 import { Check, ChevronRight, CircleDashed, ExternalLink, Minus, X } from "lucide-react";
 import { showStepResponse } from "@/actions/flows";
-import type { CritterSummary, FlowStep, FlowStepResult, Scenario } from "@/api/client";
+import type { CritterSummary, FlowStepResult, Scenario, Step, ToolOutput } from "@/api/client";
 import { CritterSprite } from "@/components/critters/CritterSprite";
 import { MethodBadge } from "@/components/MethodBadge";
 import { StatusCode } from "@/components/StatusCode";
 import { Button } from "@/components/ui/button";
+import { isToolStep } from "@/domain/flowEdit";
 import { stepFailure } from "@/domain/flowRun";
 import { formatDuration } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { STEP_MIME } from "./dragTypes";
+import { toolOf } from "./tools";
 
 /** Where a step is in a run. */
 export type StepPhase = "idle" | "queued" | "running" | "done";
 
 interface StepCardProps {
   index: number;
-  step: FlowStep;
+  step: Step;
   /** Its request: loaded, null when missing, undefined while loading. */
   scenario: Scenario | null | undefined;
   result: FlowStepResult | null;
@@ -53,10 +55,27 @@ function Outcome({
   );
 }
 
+/** What a tool step did: its status, text and the values it set. */
+export function ToolResult({ output }: { output: ToolOutput }) {
+  const values = Object.entries(output.values ?? {});
+  return (
+    <div className="flex flex-col gap-1.5 text-xs">
+      {output.status !== undefined && <StatusCode status={output.status} className="font-semibold" />}
+      {output.text && <p className="break-words whitespace-pre-wrap">{output.text}</p>}
+      {values.map(([name, value]) => (
+        <p key={name} className="truncate font-mono text-muted-foreground">
+          {name} = {value}
+        </p>
+      ))}
+    </div>
+  );
+}
+
 /** What a finished step did: status, time, captures, failed checks and watched values. */
 function ResultDetails({ result }: { result: FlowStepResult }) {
   const response = result.response;
   if (result.skipped) return <p className="text-xs text-muted-foreground">Skipped: an earlier step failed.</p>;
+  if (result.output) return <ToolResult output={result.output} />;
   if (!response) return <p className="text-xs text-danger">{result.error ?? stepFailure(result)}</p>;
   const captured = Object.entries(response.captured);
   const failed = response.checks.filter((check) => !check.ok);
@@ -104,7 +123,17 @@ export function StepCard({
   onKeyDown,
 }: StepCardProps) {
   const [expanded, setExpanded] = useState(false);
-  const title = scenario?.info.name || step.request || "No request";
+  const tool = isToolStep(step) ? toolOf(step) : null;
+  const summary = isToolStep(step) ? (toolOf(step).summary?.(step).trim() ?? "") : "";
+  let title: string;
+  let hover: string;
+  if (isToolStep(step)) {
+    title = toolOf(step).label;
+    hover = summary || title;
+  } else {
+    title = scenario?.info.name || step.request || "No request";
+    hover = step.request;
+  }
   const verdict = result;
   const failed = phase === "done" && verdict !== null && !verdict.ok && !verdict.skipped;
   const failure = result ? stepFailure(result) : "";
@@ -114,7 +143,7 @@ export function StepCard({
   else if (failed) outcome = "fail";
   const onDragStart = (event: DragEvent) => {
     event.dataTransfer.setData(STEP_MIME, String(index));
-    event.dataTransfer.setData("text/plain", step.request);
+    event.dataTransfer.setData("text/plain", hover);
     event.dataTransfer.effectAllowed = "move";
   };
   return (
@@ -140,16 +169,22 @@ export function StepCard({
     >
       <div className="flex items-center gap-2">
         <span className="w-5 shrink-0 text-xs text-muted-foreground tabular-nums">{index + 1}.</span>
-        {scenario && <MethodBadge method={scenario.http.method} className="w-10 shrink-0 text-2xs" />}
-        <span className="min-w-0 flex-1 truncate text-sm font-medium" title={step.request}>
-          {title}
+        {tool && (
+          <span className="grid w-10 shrink-0 place-items-center text-muted-foreground">
+            <tool.icon className="size-3.5" />
+          </span>
+        )}
+        {scenario && !tool && <MethodBadge method={scenario.http.method} className="w-10 shrink-0 text-2xs" />}
+        <span className="flex min-w-0 flex-1 items-baseline gap-2 truncate" title={hover}>
+          <span className={cn("truncate text-sm font-medium", summary && "shrink-0")}>{title}</span>
+          {summary && <span className="truncate text-xs text-muted-foreground">{summary}</span>}
         </span>
         {problems.length > 0 && (
           <span className="size-2 shrink-0 rounded-full bg-warning" title={problems.join("\n")}>
             <span className="sr-only">{problems.join(", ")}</span>
           </span>
         )}
-        {step.expect !== undefined && (
+        {!isToolStep(step) && step.expect !== undefined && (
           <span className="shrink-0 rounded bg-muted px-1 text-2xs text-muted-foreground">expect {step.expect}</span>
         )}
         <Outcome phase={phase} verdict={verdict} critter={critter} />

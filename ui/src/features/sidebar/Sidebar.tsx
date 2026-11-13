@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { FileDown, Play, Plus, Search } from "lucide-react";
+import { FileDown, FolderPlus, Play, Plus, Search } from "lucide-react";
 import { importCollection } from "@/actions/project";
 import { runFolder } from "@/actions/request";
-import { createScenarioIn } from "@/actions/scenario";
+import { createFolder, createScenarioIn } from "@/actions/scenario";
 import { withShortcut } from "@/app/shortcuts";
 import { IconButton } from "@/components/IconButton";
 import { Logo } from "@/components/Logo";
@@ -31,6 +31,9 @@ function ScenarioToolbar({ filter, onFilterChange }: { filter: string; onFilterC
       </div>
       <IconButton label="Run all" tone="sidebar" onClick={() => void runFolder("")}>
         <Play />
+      </IconButton>
+      <IconButton label="New folder" tone="sidebar" onClick={() => createFolder()}>
+        <FolderPlus />
       </IconButton>
       <IconButton
         label={withShortcut("New request", "newScenario")}

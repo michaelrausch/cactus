@@ -2,7 +2,17 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { THEMES } from "@/theme/themes";
-import { SPECIES, SPECIES_IDS, SPRITE_SIZE, framesOf, paletteOf, pixelRuns, seedOf, spriteFrames } from "./species";
+import {
+  SPECIES,
+  SPECIES_IDS,
+  SPRITE_SIZE,
+  framesOf,
+  paletteOf,
+  pixelRuns,
+  seedOf,
+  spriteFrames,
+  verticalOffset,
+} from "./species";
 
 describe("critters.css", () => {
   // Read from disk: Vitest replaces CSS imports with empty strings.
@@ -75,5 +85,20 @@ describe("species", () => {
     expect(seedOf("bob")).not.toBe(seedOf("alice"));
     expect(seedOf("bob")).toBeGreaterThanOrEqual(0);
     expect(seedOf("bob")).toBeLessThan(1);
+  });
+
+  it("centres each drawing vertically, to within a row", () => {
+    // Rows 8–15 drawn: shift up 4 to leave 4 empty above and below.
+    expect(verticalOffset("tortoise")).toBe(4);
+    for (const species of SPECIES_IDS) {
+      const rows = Object.values(framesOf(SPECIES[species])).flat();
+      const lines = Array.from({ length: SPRITE_SIZE }, (_, y) => y).filter((y) =>
+        rows.some((frame) => /[^.]/.test(frame[y] ?? "")),
+      );
+      const offset = verticalOffset(species);
+      const above = (lines[0] ?? 0) - offset;
+      const below = SPRITE_SIZE - 1 - (lines.at(-1) ?? 0) + offset;
+      expect(Math.abs(above - below), species).toBeLessThanOrEqual(1);
+    }
   });
 });

@@ -298,6 +298,28 @@ export function spriteFrames(species: Species, state: CritterState): SpriteFrame
   return frames;
 }
 
+const offsets = new Map<Species, number>();
+
+/**
+ * How many rows to shift a species' drawing up to centre it vertically, over
+ * every frame so it doesn't jump between states. Drawings stand on the bottom
+ * of the grid, so short ones (tortoise, gecko) otherwise sit low beside text.
+ * Whole rows only, so the pixels stay on the grid.
+ */
+export function verticalOffset(species: Species): number {
+  let offset = offsets.get(species);
+  if (offset === undefined) {
+    const frames = Object.values(framesOf(SPECIES[species])).flat();
+    const drawn = (y: number) => frames.some((frame) => /[^.]/.test(frame[y] ?? ""));
+    const lines = Array.from({ length: SPRITE_SIZE }, (_, y) => y).filter(drawn);
+    const top = lines[0] ?? 0;
+    const bottom = lines.at(-1) ?? SPRITE_SIZE - 1;
+    offset = Math.floor((top - (SPRITE_SIZE - 1 - bottom)) / 2);
+    offsets.set(species, offset);
+  }
+  return offset;
+}
+
 /** A stable fraction in [0, 1) from `text`, so critters don't blink in unison. */
 export function seedOf(text: string): number {
   let hash = 2166136261;

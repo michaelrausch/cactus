@@ -4,8 +4,8 @@ use tauri_specta::{Builder, collect_commands, collect_events};
 
 use crate::commands::{critter, env, flow, git, import, project, request, scenario, schedule, secrets};
 use crate::events::{
-    ContextChanged, FlowProgress, FlowStepStarted, FsChanged, MatrixProgress, MonitorAlert, RunProgress,
-    ScheduledRunFinished, SecretsStatusChanged,
+    ContextChanged, FlowAskClosed, FlowAsked, FlowDisplayed, FlowNotified, FlowProgress, FlowStepStarted, FsChanged,
+    MatrixProgress, MonitorAlert, RunProgress, ScheduledRunFinished, SecretsStatusChanged,
 };
 
 #[cfg(debug_assertions)]
@@ -23,6 +23,9 @@ pub fn builder() -> Builder<tauri::Wry> {
             scenario::duplicate_scenario,
             scenario::delete_scenario,
             scenario::rename_scenario,
+            scenario::retitle_scenario,
+            scenario::create_folder,
+            scenario::list_folders,
             scenario::load_history,
             env::list_envs,
             env::active_env,
@@ -58,6 +61,7 @@ pub fn builder() -> Builder<tauri::Wry> {
             flow::flow_to_yaml,
             flow::flow_variable_sources,
             flow::run_flow,
+            flow::answer_flow_ask,
             flow::run_matrix,
             schedule::set_schedules_paused,
             schedule::schedule_states,
@@ -97,6 +101,10 @@ pub fn builder() -> Builder<tauri::Wry> {
             RunProgress,
             FlowStepStarted,
             FlowProgress,
+            FlowAsked,
+            FlowAskClosed,
+            FlowDisplayed,
+            FlowNotified,
             MatrixProgress,
             ScheduledRunFinished,
             SecretsStatusChanged,

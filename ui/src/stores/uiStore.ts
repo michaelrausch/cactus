@@ -36,17 +36,21 @@ interface UiState {
   view: MainView;
   critterTab: CritterTab;
   newCritterOpen: boolean;
+  /** The folder the New request dialog creates in, while it is open. */
+  newRequestDir: string | null;
   prompt: PromptRequest | null;
   confirm: ConfirmRequest | null;
   envDialogOpen: boolean;
   gitDialogOpen: boolean;
   settingsOpen: boolean;
+  onboardingOpen: boolean;
   switcherOpen: boolean;
   responseVisible: boolean;
 
   setView: (view: MainView) => void;
   setCritterTab: (tab: CritterTab) => void;
   setNewCritterOpen: (open: boolean) => void;
+  setNewRequestDir: (dir: string | null) => void;
   askPrompt: (prompt: PromptRequest) => void;
   askConfirm: (confirm: ConfirmRequest) => void;
   closePrompt: () => void;
@@ -54,6 +58,7 @@ interface UiState {
   setEnvDialogOpen: (open: boolean) => void;
   setGitDialogOpen: (open: boolean) => void;
   setSettingsOpen: (open: boolean) => void;
+  setOnboardingOpen: (open: boolean) => void;
   setSwitcherOpen: (open: boolean) => void;
   toggleSwitcher: () => void;
   toggleResponse: () => void;
@@ -64,17 +69,20 @@ export const useUiStore = create<UiState>()((set) => ({
   view: "editor",
   critterTab: "context",
   newCritterOpen: false,
+  newRequestDir: null,
   prompt: null,
   confirm: null,
   envDialogOpen: false,
   gitDialogOpen: false,
   settingsOpen: false,
+  onboardingOpen: false,
   switcherOpen: false,
   responseVisible: true,
 
   setView: (view) => set({ view }),
   setCritterTab: (critterTab) => set({ critterTab }),
   setNewCritterOpen: (newCritterOpen) => set({ newCritterOpen }),
+  setNewRequestDir: (newRequestDir) => set({ newRequestDir }),
   askPrompt: (prompt) => set({ prompt }),
   askConfirm: (confirm) => set({ confirm }),
   closePrompt: () => set({ prompt: null }),
@@ -82,6 +90,7 @@ export const useUiStore = create<UiState>()((set) => ({
   setEnvDialogOpen: (envDialogOpen) => set({ envDialogOpen }),
   setGitDialogOpen: (gitDialogOpen) => set({ gitDialogOpen }),
   setSettingsOpen: (settingsOpen) => set({ settingsOpen }),
+  setOnboardingOpen: (onboardingOpen) => set({ onboardingOpen }),
   setSwitcherOpen: (switcherOpen) => set({ switcherOpen }),
   toggleSwitcher: () => set((s) => ({ switcherOpen: !s.switcherOpen })),
   toggleResponse: () => set((s) => ({ responseVisible: !s.responseVisible })),

@@ -2,11 +2,16 @@ import { describe, expect, it } from "vitest";
 import type { Flow } from "@/api/client";
 import {
   insertStep,
+  insertTool,
+  isToolStep,
   moveStep,
   removeStep,
+  setField,
   stepAssertRows,
   stepMapRows,
+  stepRequest,
   updateStep,
+  updateTool,
   withCapture,
   withExpect,
   withOverride,
@@ -17,7 +22,29 @@ import {
 import { makeRow } from "./rows";
 
 const flow = (...requests: string[]): Flow => ({ name: "F", steps: requests.map((request) => ({ request })) });
-const requests = (f: Flow) => f.steps.map((s) => s.request);
+const requests = (f: Flow) => f.steps.map((s) => (isToolStep(s) ? `tool:${s.tool}` : s.request));
+
+describe("tool steps", () => {
+  it("are inserted, and only tools are changed by updateTool", () => {
+    const withWait = insertTool(flow("a", "b"), 1, { tool: "wait", seconds: 5 });
+    expect(requests(withWait)).toEqual(["a", "tool:wait", "b"]);
+    expect(withWait.steps.map(stepRequest)).toEqual(["a", "", "b"]);
+    const longer = updateTool<{ tool: "wait"; seconds?: number }>(withWait, 1, (s) => ({ ...s, seconds: 9 }));
+    expect(longer.steps[1]).toEqual({ tool: "wait", seconds: 9 });
+    expect(updateTool(withWait, 0, () => ({ tool: "wait" }))).toEqual(withWait);
+    expect(updateStep(withWait, 1, (s) => withExpect(s, 200))).toEqual(withWait);
+  });
+
+  it("leave empty fields out, and keep a field's place when it changes", () => {
+    const display = { tool: "display" as const, text: "hi", pause: true };
+    expect(setField(display, "text", "")).toEqual({ tool: "display", pause: true });
+    expect(setField(display, "pause", false)).toEqual({ tool: "display", text: "hi" });
+    expect(Object.keys(setField(display, "text", "bye"))).toEqual(["tool", "text", "pause"]);
+    expect(setField({ tool: "wait" as const, seconds: 5 }, "seconds", 0)).toEqual({ tool: "wait" });
+    const set: { tool: "set"; values?: Record<string, string> } = { tool: "set", values: { a: "1" } };
+    expect(setField(set, "values", {})).toEqual({ tool: "set" });
+  });
+});
 
 describe("flow edits", () => {
   it("inserts, moves and removes steps", () => {

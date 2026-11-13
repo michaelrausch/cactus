@@ -10,6 +10,7 @@ use cactus_core::reqwest;
 use tokio::sync::oneshot;
 
 use crate::scheduler::Scheduler;
+use crate::tool_host::PendingAsks;
 use crate::watcher::ProjectWatcher;
 
 /// Process-wide state shared by every command.
@@ -18,6 +19,8 @@ pub struct AppState {
     pub recent_projects_file: PathBuf,
     /// Runs the open project's enabled flows on their timers.
     pub scheduler: Scheduler,
+    /// Flow tool questions waiting for the UI.
+    pub asks: PendingAsks,
     cancel: CancelSlot,
     /// Watches the open project; replaced when another project opens.
     watcher: Mutex<Option<ProjectWatcher>>,
@@ -34,6 +37,7 @@ impl AppState {
             client: build_client(),
             recent_projects_file,
             scheduler: Scheduler::default(),
+            asks: PendingAsks::default(),
             cancel: CancelSlot::default(),
             watcher: Mutex::default(),
             project: Mutex::default(),

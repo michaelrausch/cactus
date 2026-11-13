@@ -6,7 +6,7 @@ import { warnQuietly } from "@/lib/errors";
 import { useCritterStore } from "@/stores/critterStore";
 import { useMonitorStore } from "@/stores/monitorStore";
 import { switchToFlow } from "./flows";
-import { refreshSchedules } from "./monitors";
+import { ensureNotificationPermission, refreshSchedules } from "./monitors";
 
 /** How long an alerted critter's sprite shows `fail`. */
 const FLASH_MS = 1200;
@@ -39,6 +39,21 @@ export function showAlert(alert: MonitorAlert): void {
   useMonitorStore.getState().alertMissed(alert);
   if (useMonitorStore.getState().notifications === "granted") {
     void warnQuietly(async () => sendNotification({ title, body: description }), "Couldn't show a notification");
+  }
+}
+
+/**
+ * A flow's `notify` step ran: a toast if the window has focus, otherwise an
+ * OS notification, asking for permission the first time.
+ */
+export async function showFlowNotification(title: string, body: string): Promise<void> {
+  if (document.hasFocus()) {
+    toast(title, body ? { description: body } : {});
+    return;
+  }
+  await ensureNotificationPermission();
+  if (useMonitorStore.getState().notifications === "granted") {
+    await warnQuietly(async () => sendNotification({ title, body }), "Couldn't show a notification");
   }
 }
 

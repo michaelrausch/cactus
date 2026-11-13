@@ -5,7 +5,7 @@ import { reportErrors, succeeded } from "@/lib/errors";
 import { useCritterStore } from "@/stores/critterStore";
 import { useUiStore } from "@/stores/uiStore";
 import { refreshCritters, updateCritter } from "../critters";
-import { markOwnWrite } from "../saving";
+import { writingFile } from "../saving";
 import { openFlow, switchToFlow } from "./navigation";
 import { currentProject, flowStore, isOpen } from "./shared";
 
@@ -94,10 +94,9 @@ export async function deleteFlow(critter: string, flow: string): Promise<void> {
   if (!project) return;
   const text = await reportErrors(() => backend.loadFlowText(project, critter, flow), "Couldn't delete");
   if (text === undefined) return;
-  const deleted = await succeeded(async () => {
-    markOwnWrite(flowFilePath(critter, flow));
-    await backend.deleteFlow(project, critter, flow);
-  }, "Couldn't delete");
+  const deleted = await writingFile(flowFilePath(critter, flow), () =>
+    succeeded(() => backend.deleteFlow(project, critter, flow), "Couldn't delete"),
+  );
   if (!deleted) return;
   if (isOpen(critter, flow)) {
     flowStore().closed();
