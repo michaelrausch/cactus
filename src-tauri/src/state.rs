@@ -1,9 +1,8 @@
 //! [`AppState`]: what commands share across calls, plus the cancel slot
 //! that lets a new send stop the one before it.
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::{Mutex, MutexGuard, PoisonError};
-use std::time::Instant;
 
 use cactus_core::http::build_client;
 use cactus_core::reqwest;
@@ -24,11 +23,6 @@ pub struct AppState {
     cancel: CancelSlot,
     /// Watches the open project; replaced when another project opens.
     watcher: Mutex<Option<ProjectWatcher>>,
-    /// The open project, which auto-lock watches.
-    project: Mutex<Option<PathBuf>>,
-    /// When secret values were last used interactively. Scheduled runs
-    /// don't count, so a schedule can't keep secrets unlocked forever.
-    secrets_activity: Mutex<Instant>,
 }
 
 impl AppState {
@@ -40,26 +34,7 @@ impl AppState {
             asks: PendingAsks::default(),
             cancel: CancelSlot::default(),
             watcher: Mutex::default(),
-            project: Mutex::default(),
-            secrets_activity: Mutex::new(Instant::now()),
         }
-    }
-
-    pub fn set_project(&self, project: &Path) {
-        *lock(&self.project) = Some(project.to_path_buf());
-    }
-
-    pub fn project(&self) -> Option<PathBuf> {
-        lock(&self.project).clone()
-    }
-
-    /// Secret values were just used by something the user did.
-    pub fn touch_secrets(&self) {
-        *lock(&self.secrets_activity) = Instant::now();
-    }
-
-    pub fn secrets_activity(&self) -> Instant {
-        *lock(&self.secrets_activity)
     }
 
     pub fn replace_watcher(&self, watcher: Option<ProjectWatcher>) {

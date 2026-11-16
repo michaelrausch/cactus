@@ -8,8 +8,7 @@ use crate::Result;
 use crate::secrets::{self, SecretFile};
 
 /// Names of the critter's `secret: true` variables with no value in its own
-/// secrets or the project's. Reads names only, so it works while secrets
-/// are locked: a sealed value counts as present.
+/// secrets or the project's.
 pub fn missing_secrets(project: &Path, id: &str) -> Result<Vec<String>> {
     let critter = load(project, id)?;
     let mut present: BTreeSet<String> =

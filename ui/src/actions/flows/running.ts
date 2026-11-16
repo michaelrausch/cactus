@@ -4,7 +4,6 @@ import { selectFlowDirty } from "@/stores/flowStore";
 import { useResponseStore } from "@/stores/responseStore";
 import { useUiStore } from "@/stores/uiStore";
 import { selectScenario } from "../scenario";
-import { ensureUnlocked } from "../secrets";
 import { switchToFlow } from "./navigation";
 import { saveOpenFlow } from "./persist";
 import { currentProject, flowStore, isOpen } from "./shared";
@@ -23,7 +22,7 @@ export function runOpenFlow(): void {
     return;
   }
   useUiStore.getState().askConfirm({
-    title: "Unsaved changes",
+    title: "Save changes?",
     description: "Flows run from the file on disk.",
     action: "Save and run",
     onConfirm: async () => {
@@ -36,7 +35,7 @@ export function runOpenFlow(): void {
 async function runSavedFlow(): Promise<void> {
   const project = currentProject();
   const { open, model } = flowStore();
-  if (!project || !open || !model || !(await ensureUnlocked())) return;
+  if (!project || !open || !model) return;
   flowStore().runStarted(model.steps.length);
   const run = await reportErrors(() => backend.runFlow(project, open.critter, open.flow, null), "Run failed");
   // `null` when cancelled by another send.

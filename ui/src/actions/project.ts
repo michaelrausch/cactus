@@ -8,13 +8,12 @@ import { useFlowStore } from "@/stores/flowStore";
 import { useMonitorStore } from "@/stores/monitorStore";
 import { useProjectStore } from "@/stores/projectStore";
 import { useResponseStore } from "@/stores/responseStore";
-import { useSecretsStore } from "@/stores/secretsStore";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { useUiStore } from "@/stores/uiStore";
 import { refreshCritters } from "./critters";
 import { refreshSchedules } from "./monitors";
 import { saveAll, hasUnsavedChanges } from "./saving";
-import { refreshSecrets } from "./secrets";
+import { unlockOnOpen } from "./vault";
 
 const IMPORT_FILTERS = [{ name: "Postman / OpenAPI", extensions: ["json", "yaml", "yml"] }];
 
@@ -31,7 +30,7 @@ export async function openProject(path?: string): Promise<void> {
   if (!folder) return;
   if (!hasUnsavedChanges()) return loadProject(folder);
   useUiStore.getState().askConfirm({
-    title: "Unsaved changes",
+    title: "Save changes?",
     description: "Some requests have unsaved edits, which opening another folder would lose.",
     action: "Save all and open",
     onConfirm: async () => {
@@ -50,14 +49,13 @@ async function loadProject(folder: string): Promise<void> {
     useCritterStore.getState().reset();
     useMonitorStore.getState().reset();
     useFlowStore.getState().closed();
-    useSecretsStore.getState().reset();
     useUiStore.getState().setView("editor");
-    const [, , , , , recent] = await Promise.all([
+    await unlockOnOpen(folder);
+    const [, , , , recent] = await Promise.all([
       refreshFolders(),
       refreshEnvs(),
       refreshCritters(),
       refreshSchedules(),
-      refreshSecrets(),
       backend.recentProjects(),
     ]);
     useProjectStore.getState().recentProjectsLoaded(recent);

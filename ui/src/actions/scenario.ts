@@ -138,7 +138,7 @@ export async function duplicateScenario(path: ProjectPath): Promise<void> {
   if (!project) return;
   if (!isDirty(useEditorStore.getState().buffers[path])) return duplicateSaved(project, path);
   useUiStore.getState().askConfirm({
-    title: "Save before duplicating?",
+    title: "Save changes?",
     description: `${path} has unsaved changes, which a copy of the file wouldn't include.`,
     action: "Save and duplicate",
     onConfirm: async () => {
@@ -151,7 +151,7 @@ export function deleteScenario(path: ProjectPath): void {
   const project = currentProject();
   if (!project) return;
   useUiStore.getState().askConfirm({
-    title: "Delete request?",
+    title: `Delete ${titleOf(path)}?`,
     destructive: true,
     description: `${path} will be deleted from disk, along with its history.`,
     action: "Delete",

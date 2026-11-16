@@ -32,6 +32,6 @@ export const run = defineTool<"run">({
   icon: Workflow,
   create: () => ({ tool: "run" }),
   summary: (step) => [step.critter, step.flow].filter(Boolean).join("/"),
-  dataflow: (step) => ({ problems: step.flow?.trim() ? [] : ["No flow chosen"] }),
+  dataflow: (step) => ({ problems: step.flow?.trim() ? [] : ["No flow"] }),
   Editor: RunEditor,
 });

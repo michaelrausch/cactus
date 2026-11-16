@@ -1,13 +1,11 @@
 import type { ReactNode } from "react";
-import { BookOpen, GitBranch, Info, Palette, ShieldCheck } from "lucide-react";
+import { BookOpen, GitBranch, Info, Palette } from "lucide-react";
 import { Tabs } from "radix-ui";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
-import { useProjectStore } from "@/stores/projectStore";
 import { useUiStore } from "@/stores/uiStore";
 import { AboutTab } from "./AboutTab";
 import { GitTab } from "./GitTab";
 import { GuideTab } from "./GuideTab";
-import { SecurityTab } from "./SecurityTab";
 import { ThemeTab } from "./ThemeTab";
 
 /** A row in the settings nav: highlighted when active, no underline or side bar. */
@@ -26,14 +24,13 @@ function NavItem({ value, children }: { value: string; children: ReactNode }) {
 export function SettingsDialog() {
   const open = useUiStore((s) => s.settingsOpen);
   const setOpen = useUiStore((s) => s.setSettingsOpen);
-  const showSecurity = useProjectStore((s) => s.project !== null) && import.meta.env.SECRETS_ENCRYPTION;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="gap-0 p-0 sm:max-w-3xl">
         <DialogTitle className="sr-only">Settings</DialogTitle>
         <DialogDescription className="sr-only">
-          Theme, commit author, secret encryption, a guide and information about this build.
+          Theme, commit author, a guide and information about this build.
         </DialogDescription>
         <Tabs.Root orientation="vertical" defaultValue="theme" className="flex h-[min(520px,calc(100vh-4rem))]">
           <div className="flex w-44 shrink-0 flex-col gap-3 border-r bg-sidebar/60 p-3">
@@ -45,11 +42,6 @@ export function SettingsDialog() {
               <NavItem value="git">
                 <GitBranch /> Git
               </NavItem>
-              {showSecurity && (
-                <NavItem value="security">
-                  <ShieldCheck /> Security
-                </NavItem>
-              )}
               <NavItem value="guide">
                 <BookOpen /> Guide
               </NavItem>
@@ -64,11 +56,6 @@ export function SettingsDialog() {
           <Tabs.Content value="git" className="min-h-0 flex-1 overflow-y-auto p-5 outline-none">
             <GitTab />
           </Tabs.Content>
-          {showSecurity && (
-            <Tabs.Content value="security" className="min-h-0 flex-1 overflow-y-auto p-5 outline-none">
-              <SecurityTab />
-            </Tabs.Content>
-          )}
           <Tabs.Content value="guide" className="min-h-0 flex-1 overflow-y-auto p-5 outline-none">
             <GuideTab />
           </Tabs.Content>

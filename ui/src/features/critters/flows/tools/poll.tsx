@@ -43,7 +43,7 @@ export const poll = defineTool<"poll">({
     templates: [...Object.values(step.with ?? {}), ...(step.until ?? []).map((c) => c.value ?? "")],
     sets: Object.keys(step.capture ?? {}),
     problems: [
-      ...(step.request?.trim() ? [] : ["No request chosen"]),
+      ...(step.request?.trim() ? [] : ["No request"]),
       ...((step.until ?? []).length === 0 ? ["No Until checks"] : []),
       ...((step.timeout ?? 0) > MAX_SECONDS ? [`Poll for at most ${MAX_SECONDS} seconds`] : []),
     ],

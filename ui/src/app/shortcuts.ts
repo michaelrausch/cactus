@@ -29,14 +29,20 @@ export const WELCOME_SHORTCUTS: readonly ShortcutId[] = ["send", "switcher", "va
 
 const displayKey = (key: string): string => (key.length === 1 ? key.toUpperCase() : key);
 
+const MODIFIER = "Ctrl";
+
 /** `["Ctrl", "N"]` */
-export const shortcutKeys = (id: ShortcutId): string[] => ["Ctrl", displayKey(SHORTCUTS[id].key)];
+export const shortcutKeys = (id: ShortcutId): string[] => [MODIFIER, displayKey(SHORTCUTS[id].key)];
 
 /** `"Ctrl+N"`, for tooltips. */
 export const shortcutLabel = (id: ShortcutId): string => shortcutKeys(id).join("+");
 
 /** `"New request (Ctrl+N)"` */
 export const withShortcut = (title: string, id: ShortcutId): string => `${title} (${shortcutLabel(id)})`;
+
+/** `"Redo (Ctrl+Shift+Z)"`, for keys a single view handles itself rather than the table. */
+export const withKeys = (title: string, ...keys: string[]): string =>
+  `${title} (${[MODIFIER, ...keys.map(displayKey)].join("+")})`;
 
 export const shortcutForKey = (key: string): ShortcutId | undefined =>
   SHORTCUT_IDS.find((id) => SHORTCUTS[id].key.toLowerCase() === key.toLowerCase());

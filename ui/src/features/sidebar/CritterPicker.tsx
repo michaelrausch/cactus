@@ -1,8 +1,7 @@
-import { Check, ChevronsUpDown, Lock, Pause, Play, Plus, UserRound } from "lucide-react";
+import { Check, ChevronsUpDown, Pause, Play, Plus, UserRound } from "lucide-react";
 import { actAs, openNewCritter } from "@/actions/critters";
 import { runFlow } from "@/actions/flows";
 import { refreshSchedules, setSchedulesPaused } from "@/actions/monitors";
-import { ensureUnlocked } from "@/actions/secrets";
 import type { CritterSummary } from "@/api/client";
 import { CritterSprite } from "@/components/critters/CritterSprite";
 import { SPECIES } from "@/components/critters/species";
@@ -66,7 +65,6 @@ export function CritterPicker() {
   const failing = useMonitorStore((s) => selectFailingSchedules(s).length);
   const scheduled = useMonitorStore((s) => s.schedules.length);
   const paused = useMonitorStore((s) => s.paused);
-  const waiting = useMonitorStore((s) => s.schedules.filter((x) => x.waiting === "secretsLocked").length);
   const alerted = useMonitorStore((s) => s.flashing !== null && s.flashing === activeId);
 
   const label = active ? `Sending as ${active.name}` : "Sending as no critter";
@@ -111,11 +109,6 @@ export function CritterPicker() {
         ))}
         {active && <FlowItems critter={active} />}
         <DropdownMenuSeparator />
-        {waiting > 0 && !paused && (
-          <DropdownMenuItem onSelect={() => void ensureUnlocked()}>
-            <Lock /> <span className="flex-1">Unlock schedules</span>
-          </DropdownMenuItem>
-        )}
         {scheduled > 0 && (
           <DropdownMenuItem onSelect={() => void setSchedulesPaused(!paused)}>
             {paused ? <Play /> : <Pause />}

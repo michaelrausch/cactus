@@ -3,7 +3,6 @@ import { backend } from "@/api/client";
 import { reportErrors, warnQuietly } from "@/lib/errors";
 import { useMonitorStore } from "@/stores/monitorStore";
 import { useProjectStore } from "@/stores/projectStore";
-import { ensureUnlocked } from "./secrets";
 
 const currentProject = (): string | null => useProjectStore.getState().project;
 
@@ -39,7 +38,7 @@ export async function ensureNotificationPermission(): Promise<void> {
 /** Run a scheduled flow once now, recorded and alerted on like a timed run. */
 export async function runScheduledNow(critter: string, flow: string): Promise<void> {
   const project = currentProject();
-  if (!project || !(await ensureUnlocked())) return;
+  if (!project) return;
   // The record arrives as a `ScheduledRunFinished` event, like a timed run's.
   await reportErrors(() => backend.runScheduledNow(project, critter, flow), "Run failed");
 }

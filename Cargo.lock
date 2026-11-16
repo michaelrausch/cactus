@@ -143,7 +143,6 @@ dependencies = [
  "blake2",
  "cpufeatures 0.3.1",
  "password-hash",
- "zeroize",
 ]
 
 [[package]]
@@ -547,17 +546,20 @@ name = "cactus-core"
 version = "0.1.0"
 dependencies = [
  "argon2",
- "base64 0.23.1",
  "chacha20poly1305",
+ "data-encoding",
  "getrandom 0.3.4",
  "git2",
+ "hmac",
  "jsonschema",
+ "qrcode",
  "regex",
  "reqwest 0.12.28",
  "rowan",
  "serde",
  "serde_json",
  "serde_yaml_ng",
+ "sha1",
  "specta",
  "specta-typescript",
  "tempfile",
@@ -565,7 +567,6 @@ dependencies = [
  "tokio",
  "walkdir",
  "yaml-edit",
- "zeroize",
 ]
 
 [[package]]
@@ -697,7 +698,6 @@ dependencies = [
  "cipher",
  "cpufeatures 0.3.1",
  "rand_core",
- "zeroize",
 ]
 
 [[package]]
@@ -710,7 +710,6 @@ dependencies = [
  "chacha20",
  "cipher",
  "poly1305",
- "zeroize",
 ]
 
 [[package]]
@@ -1923,6 +1922,15 @@ name = "hex"
 version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
+
+[[package]]
+name = "hmac"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6303bc9732ae41b04cb554b844a762b4115a61bfaa81e3e83050991eeb56863f"
+dependencies = [
+ "digest 0.11.3",
+]
 
 [[package]]
 name = "html5ever"
@@ -3652,6 +3660,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "qrcode"
+version = "0.14.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d68782463e408eb1e668cf6152704bd856c78c5b6417adaee3203d8f4c1fc9ec"
+
+[[package]]
 name = "quick-xml"
 version = "0.42.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4389,6 +4403,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b4eceb519ec34d8290aaf6e46f435102f2bfa63f22b05a144fb16ab266d3b198"
 dependencies = [
  "stable_deref_trait",
+]
+
+[[package]]
+name = "sha1"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aacc4cc499359472b4abe1bf11d0b12e688af9a805fa5e3016f9a386dc2d0214"
+dependencies = [
+ "cfg-if",
+ "cpufeatures 0.3.1",
+ "digest 0.11.3",
 ]
 
 [[package]]

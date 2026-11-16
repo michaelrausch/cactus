@@ -109,7 +109,7 @@ impl Scheduler {
             loop {
                 tick.tick().await;
                 next.store(now_unix_millis() + millis(period), Ordering::Relaxed);
-                if paused.load(Ordering::Relaxed) || waiting_for_secrets(&project, &key.critter) {
+                if paused.load(Ordering::Relaxed) {
                     continue;
                 }
                 // Awaited, so a flow can't overlap itself.
@@ -164,14 +164,6 @@ fn announce(app: &AppHandle, critter: &str, flow: &str, record: &RunRecord, even
         notify(&MonitorAlert { critter: critter.clone(), flow: flow.clone(), event, at: record.at }, app);
     }
     notify(&ContextChanged { critter }, app);
-}
-
-/// Whether the flow's secrets are locked. Such a tick runs nothing, logs
-/// nothing and alerts nothing: a locked vault isn't the API failing, and
-/// recording it as a failure would page you for walking away. Tasks pick
-/// up at their next tick once unlocked, with no catch-up runs.
-pub fn waiting_for_secrets(project: &Path, critter: &str) -> bool {
-    runner::ensure_unlocked_for(project, Some(critter)).is_err()
 }
 
 /// The tasks the project asks for: each flow with a schedule. A flow that

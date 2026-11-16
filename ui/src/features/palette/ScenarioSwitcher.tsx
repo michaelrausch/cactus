@@ -30,9 +30,9 @@ const modeOf = (search: string): Mode => {
 };
 
 const EMPTY_TEXT: Record<Mode, string> = {
-  requests: "No match.",
-  critters: "No critter matches.",
-  flows: "No flow matches.",
+  requests: "No match",
+  critters: "No critter matches",
+  flows: "No flow matches",
 };
 
 function RequestItems({ close }: { close: () => void }) {

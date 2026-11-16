@@ -8,7 +8,6 @@ import { useCritterStore } from "@/stores/critterStore";
 import { useProjectStore } from "@/stores/projectStore";
 import { useUiStore } from "@/stores/uiStore";
 import { refreshSchedules } from "./monitors";
-import { ensureUnlocked } from "./secrets";
 import { refreshVariableNames } from "./variables";
 
 const currentProject = (): string | null => useProjectStore.getState().project;
@@ -73,7 +72,7 @@ export async function updateCritter(id: string, change: (critter: Critter) => Cr
 /** Fill in missing secrets, keeping the critter's other secrets. */
 export async function saveCritterSecrets(id: string, values: Env): Promise<boolean> {
   const project = currentProject();
-  if (!project || !(await ensureUnlocked({ force: true }))) return false;
+  if (!project) return false;
   const file = { kind: "critterSecrets", name: id } as const;
   const saved = await reportErrors(async () => {
     const existing = await backend.loadEnv(project, file);
@@ -260,7 +259,7 @@ export async function createCritter(name: string, species: Species, start: Critt
 /** Run one of a critter's flows from a menu, reporting the outcome in a toast. */
 export async function runFlowNow(critter: string, flow: string): Promise<void> {
   const project = currentProject();
-  if (!project || !(await ensureUnlocked())) return;
+  if (!project) return;
   const run = await reportErrors(() => backend.runFlow(project, critter, flow, null), `Couldn't run ${flow}`);
   // `null` when cancelled by another send.
   if (!run) return;

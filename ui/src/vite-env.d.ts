@@ -6,6 +6,4 @@ interface ImportMetaEnv {
   readonly GIT_SHA: string;
   readonly GIT_DIRTY: boolean;
   readonly BUILD_DATE: string;
-  /** Whether the secret encryption UI is built in (`CACTUS_ENCRYPTION=1`). */
-  readonly SECRETS_ENCRYPTION: boolean;
 }

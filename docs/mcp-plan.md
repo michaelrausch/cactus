@@ -13,12 +13,11 @@ It's a thin adapter over `core`, like `src-tauri/src/commands/`. Projects and
 people that don't use it see no change.
 
 > **Re-validate before building.** This plan was written against commit
-> `a43d433` ("Implement UI audit results"), with the critters and
-> secrets-encryption plans unbuilt. The names, signatures and behaviour quoted
-> here are a snapshot, not a contract. Before each phase, check what it relies
-> on (§0) against the current code. Where the code has moved on, follow the
-> code and update this plan. §10 says what changes if critters or encryption
-> have landed.
+> `a43d433` ("Implement UI audit results"), with the critters plan unbuilt.
+> The names, signatures and behaviour quoted here are a snapshot, not a
+> contract. Before each phase, check what it relies on (§0) against the
+> current code. Where the code has moved on, follow the code and update this
+> plan. §10 says what changes now that critters have landed.
 
 ## 0. Assumptions to re-check
 
@@ -100,9 +99,7 @@ So the server guards against:
 **What it doesn't protect against**
 
 - An agent that also has a shell. It can `cat .cactus/secrets.json` directly.
-  This server doesn't make that worse, and encrypted secrets (see
-  [that plan](secrets-encryption-plan.md)) are the fix for it. The README
-  section says so.
+  This server doesn't make that worse. The README section says so.
 - Secrets shorter than the redaction minimum (§4.3), or values transformed
   before being echoed (base64, URL-encoded). Redaction is best effort; the
   host allowlist is the real boundary.
@@ -337,8 +334,7 @@ impl Redactor {
 - Applied to everything that leaves the server: `explain_request`,
   `send_request`, `run_folder`, `history`. It's applied *after* `select`, so
   selecting a secret's location still returns it redacted.
-- History on disk is unchanged. The secrets-encryption plan's §10 already
-  suggests redacting history; when that happens, it can use this.
+- History on disk is unchanged. If history is ever redacted, it can use this.
 
 ### 4.4 Parsing a request from text
 
@@ -448,18 +444,6 @@ cli/src/mcp/
 - Use `sources_for_request` and `select_values` instead of §4.1.
 - The host snapshot builds with each critter too.
 
-**Encrypted secrets.** If encryption has landed:
-
-- The server is a process like the CLI. It gets the password the same way
-  (`CACTUS_SECRETS_PASSWORD`, `--password-stdin`), and never prompts, since
-  stdin is the protocol. Without a password, tools that only need names
-  (`list_*`, `read_request`, `explain_request`'s variable sources) work and
-  sends fail with the CLI's message.
-- `Redactor::for_project` needs values, so it unlocks with the same key. With
-  the vault locked, nothing can be sent, so nothing needs redacting.
-- Update that plan's threat model: "coding agents reading files" is reduced
-  further, because the server is the agent's only route to the values and it
-  doesn't return them.
 
 ## 11. Later
 
@@ -531,5 +515,4 @@ Each phase starts by re-checking its §0 rows and ends green on the checks in
    `--read-only`.
 5. **Wrap-up.** `ARCHITECTURE.md` (a `cli/src/mcp` row, `SendPolicy`,
    redaction), a README section with the `.mcp.json` example and what's
-   redacted and what isn't, and amendments to the critters and encryption
-   plans per §10 for whichever hasn't landed.
+   redacted and what isn't.

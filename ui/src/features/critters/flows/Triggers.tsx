@@ -115,7 +115,6 @@ function ScheduleChip({ critter, flowId, index, schedule, model, editable, defau
 
   let status: string | null = null;
   if (paused) status = "paused";
-  else if (state?.waiting === "secretsLocked") status = "secrets locked";
   else if (state && state.nextAt !== null) status = `next ${countdown(state.nextAt, now)}`;
   const failing = state?.last ? !state.last.ok : false;
 
@@ -185,7 +184,7 @@ function ScheduleChip({ critter, flowId, index, schedule, model, editable, defau
             <BellOff className="size-3.5" /> Notifications are off; alerts show in the app.
           </p>
         )}
-        {!saved && <p className="text-xs text-muted-foreground">Runs once saved.</p>}
+        {!saved && <p className="text-xs text-muted-foreground">Runs once saved</p>}
         <div className="flex items-center justify-between border-t pt-2">
           <Button
             size="sm"

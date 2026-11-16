@@ -114,8 +114,7 @@ export function CapturedList({ critter }: { critter: CritterSummary }) {
   return (
     <section className="flex flex-col gap-2">
       <div className="flex items-center gap-2">
-        <h3 className="text-sm font-semibold">Captured</h3>
-        <span className="font-mono text-xs text-muted-foreground">.cactus/critters/{critter.id}/context.json</span>
+        <h3 className="text-sm font-semibold">Captured</h3>{" "}
         <Button
           variant="ghost"
           size="sm"

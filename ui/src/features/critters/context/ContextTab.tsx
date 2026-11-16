@@ -19,10 +19,6 @@ function MissingSecrets({ critter }: { critter: CritterSummary }) {
       <h3 className="flex items-center gap-2 text-sm font-semibold">
         <KeyRound className="size-4 text-warning" /> Missing secrets
       </h3>
-      <p className="text-xs text-muted-foreground">
-        {critter.name} can't send requests that use these until they have values. They're kept in
-        <span className="font-mono"> .cactus/critters/{critter.id}/secrets.json</span>, never committed.
-      </p>
       <form
         className="flex flex-col gap-2"
         onSubmit={(event) => {

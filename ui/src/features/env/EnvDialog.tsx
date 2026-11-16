@@ -27,10 +27,10 @@ export function EnvDialog() {
       leave();
       return;
     }
-    const { path } = envLayerInfo(selected);
+    const { path, label } = envLayerInfo(selected);
     useUiStore.getState().askConfirm({
       title: "Save changes?",
-      description: `You have unsaved changes to ${path}.`,
+      description: `You have unsaved changes to ${path ?? label}.`,
       action: "Save",
       onConfirm: async () => {
         if (await editor.current?.save()) leave();

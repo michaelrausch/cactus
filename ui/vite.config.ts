@@ -32,7 +32,5 @@ export default defineConfig({
     "import.meta.env.GIT_SHA": JSON.stringify(git("rev-parse --short HEAD", "unknown")),
     "import.meta.env.GIT_DIRTY": JSON.stringify(git("status --porcelain", "") !== ""),
     "import.meta.env.BUILD_DATE": JSON.stringify(new Date().toISOString()),
-    // Secret encryption UI; build the backend with `--features encryption` too.
-    "import.meta.env.SECRETS_ENCRYPTION": JSON.stringify(process.env.CACTUS_ENCRYPTION === "1"),
   },
 });

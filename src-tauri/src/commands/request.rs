@@ -23,7 +23,6 @@ pub async fn send_request(
     path: ProjectPath,
     scenario: Scenario,
 ) -> Result<Option<Response>> {
-    state.touch_secrets();
     let scope = Scope::active(&project);
     let send = runner::send_as(&state.client, &project, &path, &scenario, &scope, SendOptions::INTERACTIVE);
     let result = state.run_cancellable(send).await.transpose();
@@ -44,7 +43,6 @@ pub async fn run_folder(
     let report = |result: &RunResult| {
         notify(&RunProgress(result.clone()), &app);
     };
-    state.touch_secrets();
     let scope = Scope::active(&project);
     let run = runner::run(&state.client, &project, &dir, &scope, report);
     let result = state.run_cancellable(run).await.transpose();

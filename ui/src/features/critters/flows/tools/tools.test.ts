@@ -50,8 +50,8 @@ describe("the tool registry", () => {
       capture: { result: "res.body.url" },
     });
     expect(poll).toEqual({ templates: ["{{job}}", "ready"], sets: ["result"], problems: [] });
-    expect(toolDataflow({ tool: "poll" }).problems).toEqual(["No request chosen", "No Until checks"]);
-    expect(toolDataflow({ tool: "run" }).problems).toEqual(["No flow chosen"]);
+    expect(toolDataflow({ tool: "poll" }).problems).toEqual(["No request", "No Until checks"]);
+    expect(toolDataflow({ tool: "run" }).problems).toEqual(["No flow"]);
     const check = { expression: "{{items}}.length", operator: "gt", value: "{{min}}" };
     const itemCheck = { expression: "id", operator: "isNotEmpty" };
     expect(toolDataflow({ tool: "assert", checks: [check], each: { list: "{{items}}", checks: [itemCheck] } })).toEqual(

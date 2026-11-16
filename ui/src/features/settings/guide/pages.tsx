@@ -81,7 +81,7 @@ export const GUIDE_PAGES: GuidePage[] = [
           <>Headers and Body: what gets sent.</>,
           <>Auth: how the request signs in. Inherit uses the nearest folder's auth, or the project's.</>,
           <>Outputs: values to save from the response. See Variables.</>,
-          <>Assertions: checks on the response. See Responses.</>,
+          <>Checks: tests on the response. See Responses.</>,
           <>Scripts: only shown when a file from Bruno or Postman has them. They're kept but not run.</>,
         ],
       },
@@ -153,19 +153,6 @@ export const GUIDE_PAGES: GuidePage[] = [
           </>,
         ],
       },
-      ...(import.meta.env.SECRETS_ENCRYPTION
-        ? [
-            {
-              heading: "Encryption",
-              body: [
-                <>
-                  Settings › Security can lock secrets behind a password, and lock them again after a while idle.
-                  Nothing that needs a locked secret is sent. A forgotten password can't be recovered.
-                </>,
-              ],
-            },
-          ]
-        : []),
     ],
   },
   {
@@ -185,8 +172,8 @@ export const GUIDE_PAGES: GuidePage[] = [
         heading: "Checks",
         body: [
           <>
-            Add checks in the request's Assertions tab, like <C>res.status eq 200</C>. After sending, the Checks tab
-            shows which passed.
+            Add checks in the request's Checks tab, like <C>res.status eq 200</C>. After sending, the response's Checks
+            tab shows which passed.
           </>,
         ],
       },

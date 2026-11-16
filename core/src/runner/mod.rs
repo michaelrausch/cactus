@@ -21,7 +21,6 @@ use crate::env::Scope;
 use crate::history::{self, HistoryEntry};
 use crate::http::{self, Response, scenario_passed};
 use crate::scenario::{self, Scenario, ScenarioEntry};
-use crate::secrets::{self, SecretFile};
 use crate::tools::Headless;
 use crate::{Error, ProjectPath, Result, critter, env};
 
@@ -112,18 +111,6 @@ pub async fn send_as(
     Ok(again)
 }
 
-/// Fail the whole run with [`Error::SecretsLocked`] before anything is sent
-/// when the secrets `critter` (or no critter) resolves with are locked,
-/// rather than failing each request in turn.
-pub fn ensure_unlocked_for(project: &Path, critter: Option<&str>) -> Result<()> {
-    let mut files = vec![SecretFile::Project];
-    files.extend(critter.map(|id| SecretFile::Critter(id.to_string())));
-    if secrets::locked_for(project, &files) {
-        return Err(Error::SecretsLocked);
-    }
-    Ok(())
-}
-
 /// History is a convenience; failing to write it shouldn't fail the request.
 fn record_history(project: &Path, path: &ProjectPath, response: &Response) {
     let entry = HistoryEntry { at: now_unix_millis(), response: response.clone() };
@@ -162,7 +149,6 @@ pub async fn run(
     scope: &Scope,
     mut on_result: impl FnMut(&RunResult),
 ) -> Result<Vec<RunResult>> {
-    ensure_unlocked_for(project, scope.critter.as_deref())?;
     let entries = scenario::list(project)?.into_iter().filter(|entry| entry.rel_path.is_within(dir));
     let mut results = Vec::new();
     for entry in entries {

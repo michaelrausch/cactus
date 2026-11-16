@@ -14,7 +14,7 @@ use std::sync::{Mutex, MutexGuard, PoisonError};
 use super::layers::Env;
 use crate::clock::now_unix_millis;
 use crate::critter::{ContextEntry, validate_critter_id};
-use crate::storage::{read_json, write_json};
+use crate::secrets::{read_sealed, write_sealed};
 use crate::{Error, ProjectPath, Result, layout};
 
 /// What a context entry edited by hand says it came from.
@@ -23,7 +23,8 @@ pub const EDITED: &str = "edited";
 static CONTEXT_WRITE: Mutex<()> = Mutex::new(());
 
 /// The files stay valid even if a holder panicked, so poisoning is ignored.
-fn write_lock() -> MutexGuard<'static, ()> {
+/// Changing the vault password holds it too.
+pub(crate) fn write_lock() -> MutexGuard<'static, ()> {
     CONTEXT_WRITE.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
@@ -32,7 +33,7 @@ pub type Context = BTreeMap<String, ContextEntry>;
 /// Merge values set by actions into `.cactus/captured.json`.
 pub fn merge_captured(project: &Path, values: &Env) -> Result<()> {
     let _guard = write_lock();
-    let mut captured: Env = read_json(&layout::captured_file(project))?;
+    let mut captured: Env = read_sealed(project, &layout::captured_file(project))?;
     captured.extend(values.iter().map(|(k, v)| (k.clone(), v.clone())));
     write_captured(project, &captured)
 }
@@ -45,13 +46,13 @@ pub(crate) fn replace_captured(project: &Path, values: &Env) -> Result<()> {
 
 fn write_captured(project: &Path, values: &Env) -> Result<()> {
     layout::ensure_workspace(project)?;
-    write_json(&layout::captured_file(project), values)
+    write_sealed(project, &layout::captured_file(project), values)
 }
 
 /// A critter's captured values with where and when each came from.
 pub fn load_context(project: &Path, critter: &str) -> Result<Context> {
     validate_critter_id(critter)?;
-    read_json(&layout::critter_context_file(project, critter))
+    read_sealed(project, &layout::critter_context_file(project, critter))
 }
 
 /// Save values `from` a request captured to the critter's context.
@@ -106,14 +107,14 @@ pub(crate) fn replace_context_values(project: &Path, critter: &str, values: &Env
 fn update_context(project: &Path, critter: &str, change: impl FnOnce(&mut Context)) -> Result<()> {
     let _guard = write_lock();
     let file = layout::critter_context_file(project, critter);
-    let mut context: Context = read_json(&file)?;
+    let mut context: Context = read_sealed(project, &file)?;
     let before = context.clone();
     change(&mut context);
     if context == before {
         return Ok(());
     }
     ensure_critter_workspace(project, critter)?;
-    write_json(&file, &context)
+    write_sealed(project, &file, &context)
 }
 
 /// Create `.cactus/critters/<id>/`.
@@ -172,6 +173,6 @@ mod tests {
             }
         });
         assert_eq!(load_context(p, "bob").unwrap().len(), 16);
-        assert_eq!(read_json::<Env>(&layout::captured_file(p)).unwrap().len(), 16);
+        assert_eq!(read_sealed::<Env>(p, &layout::captured_file(p)).unwrap().len(), 16);
     }
 }

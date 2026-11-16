@@ -27,7 +27,7 @@ pub const WORKSPACE_DIR: &str = ".cactus";
 const WORKSPACE_GITIGNORE: &str = "*\n";
 
 // Secrets files (`secrets.json` here and in each critter's folder) and
-// `vault.json` are only read and written by `crate::secrets`.
+// `vault` belong to `crate::secrets`, which also seals the context files.
 const CAPTURED_FILE: &str = "captured.json";
 const STATE_FILE: &str = "state.json";
 const HISTORY_DIR: &str = "history";

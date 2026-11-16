@@ -103,7 +103,7 @@ const noToolDataflow: ToolDataflowOf = () => ({ templates: [], sets: [], problem
 function requestDataflow(step: FlowStep, index: number, requests: LoadedRequests, problems: FlowProblem[]) {
   const path = step.request.trim();
   const scenario = path ? requests[path] : null;
-  if (!path) problems.push({ step: index, message: "No request chosen" });
+  if (!path) problems.push({ step: index, message: "No request" });
   else if (scenario === null) problems.push({ step: index, message: `${path} doesn't exist or doesn't parse` });
   return {
     scenario,
