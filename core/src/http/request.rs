@@ -5,11 +5,13 @@ use std::fs;
 use std::path::Path;
 use std::time::Duration;
 
-use reqwest::header::{CONTENT_TYPE, HeaderMap, HeaderName, HeaderValue};
+use reqwest::header::{AUTHORIZATION, CONTENT_TYPE, HeaderMap, HeaderName, HeaderValue};
 use reqwest::{Method, RequestBuilder, Url, multipart};
 
 use crate::collection::model::selected_or_first;
-use crate::collection::{ApiKeyPlacement, Auth, AuthMode, Header, RequestDefaults};
+use crate::collection::{
+    ApiKeyPlacement, Auth, AuthMode, Header, OAuth2, OAuth2TokenPlacement, OAuth2TokenSource, RequestDefaults,
+};
 use crate::env::{Env, Substituter};
 use crate::scenario::{
     Body, FileVariant, FormField, MultipartField, ParamKind, PartKind, PartValue, Scenario, Timeout, TypedBody,
@@ -27,18 +29,36 @@ pub struct PreparedRequest {
     pub unresolved: Vec<String>,
     /// Parts of the request cactus could not send as written.
     pub warnings: Vec<String>,
+    /// For digest auth, the credentials to answer the server's challenge
+    /// with; `None` when the request sets its own `Authorization`.
+    pub digest: Option<DigestCredentials>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DigestCredentials {
+    pub username: String,
+    pub password: String,
+}
+
+/// An OAuth2 token got for the request (see [`crate::oauth2`]).
+#[derive(Debug, Clone, Copy)]
+pub struct BearerToken<'a> {
+    pub access_token: &'a str,
+    pub id_token: Option<&'a str>,
 }
 
 /// Build the outgoing request with env vars applied. `inherited` is what the
 /// collection and folders above the request set, outermost first (see
 /// [`crate::collection::defaults_chain`]). `project` anchors relative file
-/// paths.
+/// paths. `token` is what OAuth2 auth sends; without one the request goes
+/// without auth.
 pub fn build_request(
     client: &reqwest::Client,
     project: &Path,
     scenario: &Scenario,
     inherited: &[RequestDefaults],
     env: &Env,
+    token: Option<BearerToken<'_>>,
 ) -> Result<PreparedRequest> {
     let mut vars = Substituter::new(env);
     let mut warnings = Vec::new();
@@ -49,8 +69,12 @@ pub fn build_request(
     let auth = effective_auth(http.auth.as_ref(), inherited);
     let mut headers = HeaderMap::new();
     // Auth goes first so an explicit Authorization header overrides it.
-    let builder = apply_auth(client.request(method, url), &mut headers, auth, &mut vars, &mut warnings)?;
+    let builder = apply_auth(client.request(method, url), &mut headers, auth, token, &mut vars, &mut warnings)?;
+    let mut digest = digest_credentials(auth, &mut vars);
     add_headers(&mut headers, inherited, &http.headers, &mut vars)?;
+    if headers.contains_key(AUTHORIZATION) {
+        digest = None;
+    }
     let mut builder = attach_body(builder, &mut headers, project, http.body.as_ref(), &mut vars, &mut warnings)?;
     if let Some(Timeout::Millis(ms)) = scenario.settings.timeout {
         builder = builder.timeout(Duration::from_millis(ms));
@@ -59,7 +83,7 @@ pub fn build_request(
         warnings.push("scripts are kept in the file but cactus doesn't run them".into());
     }
     let request = builder.headers(headers).build()?;
-    Ok(PreparedRequest { request, unresolved: vars.into_unresolved(), warnings })
+    Ok(PreparedRequest { request, unresolved: vars.into_unresolved(), warnings, digest })
 }
 
 /// The URL `scenario` will be sent to with `env`, without building the
@@ -91,7 +115,7 @@ fn parse_method(method: &str) -> Result<Method> {
 
 /// The request's own auth, or for `inherit` the nearest folder's or the
 /// collection's. No `auth` at all means none.
-fn effective_auth<'a>(own: Option<&'a Auth>, inherited: &'a [RequestDefaults]) -> Option<&'a Auth> {
+pub fn effective_auth<'a>(own: Option<&'a Auth>, inherited: &'a [RequestDefaults]) -> Option<&'a Auth> {
     match own {
         Some(auth) if auth.is_inherit() => {
             inherited.iter().rev().filter_map(|defaults| defaults.auth.as_ref()).find(|auth| !auth.is_inherit())
@@ -100,16 +124,45 @@ fn effective_auth<'a>(own: Option<&'a Auth>, inherited: &'a [RequestDefaults]) -
     }
 }
 
-/// Add the request's credentials: to the query for an API key placed there,
-/// otherwise to the headers (an API key's header, or `Authorization`).
+/// The OAuth2 settings `scenario` sends with, its own or inherited.
+pub fn effective_oauth2<'a>(scenario: &'a Scenario, inherited: &'a [RequestDefaults]) -> Option<&'a OAuth2> {
+    match effective_auth(scenario.http.auth.as_ref(), inherited) {
+        Some(Auth::Mode(AuthMode::OAuth2(oauth2))) => Some(oauth2),
+        _ => None,
+    }
+}
+
+/// Digest auth is answered after the request goes out (see
+/// [`super::send`]), with these.
+fn digest_credentials(auth: Option<&Auth>, vars: &mut Substituter) -> Option<DigestCredentials> {
+    match auth {
+        Some(Auth::Mode(AuthMode::Digest { username, password })) => {
+            Some(DigestCredentials { username: vars.apply(username), password: vars.apply(password) })
+        }
+        _ => None,
+    }
+}
+
+/// Add the request's credentials: to the query for an API key or token
+/// placed there, otherwise to the headers (an API key's header, or
+/// `Authorization`).
 fn apply_auth(
     builder: RequestBuilder,
     headers: &mut HeaderMap,
     auth: Option<&Auth>,
+    token: Option<BearerToken<'_>>,
     vars: &mut Substituter,
     warnings: &mut Vec<String>,
 ) -> Result<RequestBuilder> {
     Ok(match auth {
+        Some(Auth::Mode(AuthMode::OAuth2(oauth2))) => {
+            if let Some(token) = token {
+                apply_token(builder, headers, oauth2, token, vars, warnings)?
+            } else {
+                warnings.push("no OAuth2 token; sent without auth".into());
+                builder
+            }
+        }
         Some(Auth::Mode(AuthMode::Bearer { token })) => builder.bearer_auth(vars.apply(token)),
         Some(Auth::Mode(AuthMode::Basic { username, password })) => {
             builder.basic_auth(vars.apply(username), Some(vars.apply(password)))
@@ -129,7 +182,40 @@ fn apply_auth(
             warnings.push(format!("{kind} auth isn't supported by cactus; sent without auth"));
             builder
         }
-        Some(Auth::Inherit(_)) | None => builder,
+        // Digest is answered once the server has challenged.
+        Some(Auth::Mode(AuthMode::Digest { .. }) | Auth::Inherit(_)) | None => builder,
+    })
+}
+
+/// `Authorization: Bearer <token>`, or as `tokenConfig` places it.
+fn apply_token(
+    builder: RequestBuilder,
+    headers: &mut HeaderMap,
+    oauth2: &OAuth2,
+    token: BearerToken<'_>,
+    vars: &mut Substituter,
+    warnings: &mut Vec<String>,
+) -> Result<RequestBuilder> {
+    let config = oauth2.token_config.as_ref();
+    let value = match config.and_then(|c| c.source) {
+        Some(OAuth2TokenSource::IdToken) => token.id_token.unwrap_or_else(|| {
+            warnings.push("the token response had no id_token; sent the access token".into());
+            token.access_token
+        }),
+        Some(OAuth2TokenSource::AccessToken) | None => token.access_token,
+    };
+    Ok(match config.and_then(|c| c.placement.as_ref()) {
+        Some(OAuth2TokenPlacement::Query { query }) => {
+            let name = vars.apply(query.trim());
+            builder.query(&[(if name.is_empty() { "access_token".into() } else { name }, value)])
+        }
+        Some(OAuth2TokenPlacement::Header { header }) => {
+            let prefix = vars.apply(header.trim());
+            let header = if prefix.is_empty() { value.to_string() } else { format!("{prefix} {value}") };
+            set_header(headers, AUTHORIZATION.as_str(), &header)?;
+            builder
+        }
+        None => builder.bearer_auth(value),
     })
 }
 
@@ -329,7 +415,7 @@ mod tests {
     }
 
     fn build(project: &Path, s: &Scenario, inherited: &[RequestDefaults], env: &Env) -> Result<PreparedRequest> {
-        build_request(&build_client(), project, s, inherited, env)
+        build_request(&build_client(), project, s, inherited, env, None)
     }
 
     fn request(method: &str, url: &str) -> Scenario {

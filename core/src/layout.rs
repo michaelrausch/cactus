@@ -33,6 +33,8 @@ const STATE_FILE: &str = "state.json";
 const HISTORY_DIR: &str = "history";
 const HISTORY_EXTENSION: &str = ".json";
 const CRITTER_CONTEXT_FILE: &str = "context.json";
+const COOKIES_FILE: &str = "cookies.json";
+const TOKENS_FILE: &str = "tokens.json";
 const RUNS_DIR: &str = "runs";
 const RUN_LOG_EXTENSION: &str = ".json";
 /// Appended to a file name while it is being written; the watcher ignores it.
@@ -107,6 +109,16 @@ pub fn critter_context_file(project: &Path, id: &str) -> PathBuf {
     critter_workspace_dir(project, id).join(CRITTER_CONTEXT_FILE)
 }
 
+/// The critter's cookie jar.
+pub fn critter_cookies_file(project: &Path, id: &str) -> PathBuf {
+    critter_workspace_dir(project, id).join(COOKIES_FILE)
+}
+
+/// OAuth2 tokens got while sending as the critter.
+pub fn critter_tokens_file(project: &Path, id: &str) -> PathBuf {
+    critter_workspace_dir(project, id).join(TOKENS_FILE)
+}
+
 /// Run logs live with the critter's other local files, so renaming or
 /// deleting a critter takes them along.
 pub fn runs_dir(project: &Path, id: &str) -> PathBuf {
@@ -152,6 +164,11 @@ pub fn state_file(project: &Path) -> PathBuf {
 
 pub fn captured_file(project: &Path) -> PathBuf {
     workspace_dir(project).join(CAPTURED_FILE)
+}
+
+/// OAuth2 tokens got with no critter active.
+pub fn tokens_file(project: &Path) -> PathBuf {
+    workspace_dir(project).join(TOKENS_FILE)
 }
 
 /// `a/b.yml` → `.cactus/history/a%2Fb.json`. History files are flat, so the

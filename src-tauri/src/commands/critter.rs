@@ -7,6 +7,7 @@
 use std::path::PathBuf;
 
 use cactus_core::Result;
+use cactus_core::cookies::{self, CookieEntry, CookieKey};
 use cactus_core::critter::{self, Critter, CritterSummary, Species};
 use cactus_core::env::{self, Context};
 use tauri::{AppHandle, State};
@@ -103,4 +104,20 @@ pub fn clear_context(app: AppHandle, project: PathBuf, id: String, names: Option
     let removed = env::clear_context(&project, &id, names.as_deref())?;
     notify(&ContextChanged { critter: id }, &app);
     Ok(removed)
+}
+
+/// The cookies in the critter's jar.
+#[tauri::command(async)]
+#[specta::specta]
+pub fn load_cookies(project: PathBuf, id: String) -> Result<Vec<CookieEntry>> {
+    cookies::list(&project, &id)
+}
+
+/// Remove the given cookies, or all of them when `cookies` is `None`.
+#[tauri::command(async)]
+#[specta::specta]
+pub fn remove_cookies(app: AppHandle, project: PathBuf, id: String, cookies: Option<Vec<CookieKey>>) -> Result<()> {
+    cookies::remove(&project, &id, cookies.as_deref())?;
+    notify(&ContextChanged { critter: id }, &app);
+    Ok(())
 }

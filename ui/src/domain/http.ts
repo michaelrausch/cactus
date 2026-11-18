@@ -1,3 +1,5 @@
+import type { OAuth2Flow } from "@/api/client";
+
 export const HTTP_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"] as const;
 
 /** A path segment that names nothing: a `{{variable}}`, a `:param`, or an id. */
@@ -37,7 +39,7 @@ export const BODY_KIND_LABELS: Record<BodyKind, string> = {
 export const TEXT_BODY_KINDS = ["json", "text", "xml"] as const;
 export type TextBodyKind = (typeof TEXT_BODY_KINDS)[number];
 
-export const AUTH_KINDS = ["none", "inherit", "bearer", "basic", "apikey"] as const;
+export const AUTH_KINDS = ["none", "inherit", "bearer", "basic", "apikey", "digest", "oauth2"] as const;
 export type AuthKind = (typeof AUTH_KINDS)[number];
 
 export const AUTH_KIND_LABELS: Record<AuthKind, string> = {
@@ -46,9 +48,18 @@ export const AUTH_KIND_LABELS: Record<AuthKind, string> = {
   bearer: "Bearer token",
   basic: "Basic auth",
   apikey: "API key",
+  digest: "Digest auth",
+  oauth2: "OAuth 2.0",
 };
 
 export const isAuthKind = (value: string): value is AuthKind => (AUTH_KINDS as readonly string[]).includes(value);
+
+/** The OAuth2 grants cactus runs; an `oauth2` auth with any other is kept as written. */
+export const OAUTH2_FLOWS: readonly string[] = [
+  "client_credentials",
+  "resource_owner_password_credentials",
+  "authorization_code",
+] satisfies OAuth2Flow[];
 
 /** Operators cactus checks, as Bruno names them. Mirrors `ASSERTION_OPERATORS` in core (checked by core/tests/ui_contract.rs). */
 export const ASSERTION_OPERATORS = [

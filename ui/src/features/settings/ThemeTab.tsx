@@ -1,8 +1,9 @@
 import { Check } from "lucide-react";
+import { trackDistinct } from "@/actions/achievements";
 import { Logo } from "@/components/Logo";
 import { cn } from "@/lib/utils";
 import { useSettingsStore } from "@/stores/settingsStore";
-import { THEME_GROUPS, THEMES, type ThemeEntry } from "@/theme/themes";
+import { MAIN_THEME_IDS, THEMES, type ThemeEntry } from "@/theme/themes";
 
 /**
  * A tiny mock of the app. It carries `data-theme` itself, so it is drawn with
@@ -78,31 +79,40 @@ export function ThemeCard({
   );
 }
 
-export function ThemeTab() {
+const MAIN_THEMES = THEMES.filter((theme) => MAIN_THEME_IDS.includes(theme.id));
+const OTHER_THEMES = THEMES.filter((theme) => !MAIN_THEME_IDS.includes(theme.id));
+
+/** The main dark and light themes side by side, then a divider, then everything else. */
+export function ThemePicker({ columns }: { columns: string }) {
   const themeId = useSettingsStore((s) => s.themeId);
   const setTheme = useSettingsStore((s) => s.setTheme);
+  const card = (theme: ThemeEntry) => (
+    <ThemeCard
+      key={theme.id}
+      theme={theme}
+      selected={theme.id === themeId}
+      onSelect={() => {
+        setTheme(theme.id);
+        trackDistinct("themesTried", theme.id);
+      }}
+    />
+  );
+  return (
+    <div role="radiogroup" aria-label="Theme" className="flex flex-col gap-4">
+      <div className="grid grid-cols-2 gap-2">{MAIN_THEMES.map(card)}</div>
+      <div className="h-px bg-border" />
+      <div className={cn("grid gap-2", columns)}>{OTHER_THEMES.map(card)}</div>
+    </div>
+  );
+}
+
+export function ThemeTab() {
   const animateCritters = useSettingsStore((s) => s.animateCritters);
   const setAnimateCritters = useSettingsStore((s) => s.setAnimateCritters);
 
   return (
     <div className="flex flex-col gap-5">
-      <div role="radiogroup" aria-label="Theme" className="flex flex-col gap-5">
-        {THEME_GROUPS.map(({ group, label }) => (
-          <section key={group} className="flex flex-col gap-2">
-            <h3 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{label}</h3>
-            <div className="grid grid-cols-2 gap-2 lg:grid-cols-3">
-              {THEMES.filter((theme) => theme.group === group).map((theme) => (
-                <ThemeCard
-                  key={theme.id}
-                  theme={theme}
-                  selected={theme.id === themeId}
-                  onSelect={() => setTheme(theme.id)}
-                />
-              ))}
-            </div>
-          </section>
-        ))}
-      </div>
+      <ThemePicker columns="grid-cols-2 lg:grid-cols-3" />
       <section className="flex flex-col gap-2">
         <h3 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Motion</h3>
         <label className="flex items-center gap-2 text-sm">

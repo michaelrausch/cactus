@@ -206,20 +206,20 @@ fn vault_file(project: &Path) -> PathBuf {
     layout::workspace_dir(project).join(VAULT_FILE)
 }
 
-/// Every secrets and context file the project has.
+/// Every sealed file the project has: secrets, context, cookies and OAuth2 tokens.
 fn sealed_files(project: &Path) -> Result<Vec<PathBuf>> {
     let workspace = layout::workspace_dir(project);
-    let mut files = vec![workspace.join(SECRETS_FILE), layout::captured_file(project)];
+    let mut files = vec![workspace.join(SECRETS_FILE), layout::captured_file(project), layout::tokens_file(project)];
     let critters = workspace.join(layout::CRITTERS_DIR);
     match fs::read_dir(&critters) {
         Ok(entries) => {
             for entry in entries {
                 let dir = entry.map_err(Error::file(&critters))?.path();
+                let id = dir.file_name().unwrap_or_default().to_string_lossy().into_owned();
                 files.push(dir.join(SECRETS_FILE));
-                files.push(layout::critter_context_file(
-                    project,
-                    &dir.file_name().unwrap_or_default().to_string_lossy(),
-                ));
+                files.push(layout::critter_context_file(project, &id));
+                files.push(layout::critter_cookies_file(project, &id));
+                files.push(layout::critter_tokens_file(project, &id));
             }
         }
         Err(e) if e.kind() == ErrorKind::NotFound => {}

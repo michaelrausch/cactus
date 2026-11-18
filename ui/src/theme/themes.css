@@ -87,8 +87,6 @@
   --shadow: oklch(0 0 0);
 }
 
-/* ---------- Variations: same layout and contrast, a different hue. ---------- */
-
 /* agave: cool blue-teal. */
 [data-theme="agave"] {
   --background: oklch(0.14 0.014 235);
@@ -330,8 +328,6 @@
   --shadow: oklch(0.35 0.06 40);
 }
 
-/* ---------- Colorful: same layout, the saturation turned up. ---------- */
-
 /* oasis: deep lagoon greens, turquoise water and a gold sun. */
 [data-theme="oasis"] {
   --background: oklch(0.15 0.03 185);
@@ -469,8 +465,6 @@
   --captured: oklch(0.45 0.09 190);
   --shadow: oklch(0.4 0.08 60);
 }
-
-/* ---------- Fun. Still only tokens: no theme-specific code in components. ---------- */
 
 /* synthwave: deep indigo, hot pink to cyan, and a neon grid on the horizon. */
 [data-theme="synthwave"] {
@@ -932,6 +926,363 @@
   --template-resolved: oklch(0.45 0.09 200);
   --captured: oklch(0.45 0.09 200);
   --shadow: oklch(0.45 0.12 345);
+}
+
+/* ember: charcoal and banked coals, an orange glow rising from below. */
+[data-theme="ember"] {
+  --background: oklch(0.14 0.008 40);
+  --foreground: oklch(0.94 0.012 70);
+  --card: oklch(0.175 0.012 40);
+  --card-foreground: oklch(0.94 0.012 70);
+  --popover: oklch(0.19 0.014 40);
+  --popover-foreground: oklch(0.94 0.012 70);
+  --secondary: oklch(0.23 0.016 40);
+  --muted: oklch(0.22 0.014 40);
+  --muted-foreground: oklch(0.72 0.025 55);
+  --accent: oklch(0.25 0.02 40);
+  --border: oklch(0.85 0.08 50 / 10%);
+  --input: oklch(0.85 0.08 50 / 13%);
+  --ring: oklch(0.72 0.18 45 / 60%);
+  --sidebar: oklch(0.125 0.008 40);
+  --sidebar-accent: oklch(0.2 0.018 40);
+  --sidebar-border: oklch(0.85 0.08 50 / 7%);
+
+  --brand-1: #fcd34d;
+  --brand-2: #f97316;
+  --brand-3: #dc2626;
+  --brand-foreground: oklch(0.16 0.02 40);
+  --flower: #fde68a;
+  --glow-1: #f97316;
+  --glow-2: #dc2626;
+  --glow-intensity: 1.4;
+
+  --app-backdrop: radial-gradient(ellipse 90% 35% at 50% 115%, oklch(0.62 0.2 40 / 18%), transparent 70%);
+
+  /* Danger leans pink-red and warning toward yellow, away from the orange brand. */
+  --success: oklch(0.8 0.15 155);
+  --warning: oklch(0.88 0.15 95);
+  --danger: oklch(0.7 0.2 10);
+  --info: oklch(0.78 0.12 230);
+  --method-patch: oklch(0.76 0.15 300);
+  --syntax-key: oklch(0.82 0.1 230);
+  --syntax-string: oklch(0.84 0.13 150);
+  --syntax-number: oklch(0.85 0.15 65);
+  --syntax-literal: oklch(0.8 0.13 320);
+}
+
+/* aurora: arctic night, with green and violet curtains hanging from the top. */
+[data-theme="aurora"] {
+  --background: oklch(0.14 0.025 250);
+  --card: oklch(0.175 0.03 250);
+  --popover: oklch(0.19 0.034 250);
+  --secondary: oklch(0.235 0.038 250);
+  --muted: oklch(0.225 0.034 250);
+  --muted-foreground: oklch(0.73 0.04 240);
+  --accent: oklch(0.25 0.042 250);
+  --border: oklch(0.85 0.08 200 / 11%);
+  --input: oklch(0.85 0.08 200 / 14%);
+  --ring: oklch(0.8 0.16 165 / 60%);
+  --sidebar: oklch(0.125 0.022 250);
+  --sidebar-accent: oklch(0.205 0.036 250);
+  --sidebar-border: oklch(0.85 0.08 200 / 8%);
+
+  --brand-1: #6ee7b7;
+  --brand-2: #34d399;
+  --brand-3: #a78bfa;
+  --brand-foreground: oklch(0.16 0.03 250);
+  --flower: #f0abfc;
+  --glow-1: #34d399;
+  --glow-2: #a78bfa;
+  --glow-intensity: 1.5;
+
+  --app-backdrop:
+    radial-gradient(ellipse 45% 30% at 25% -5%, oklch(0.8 0.17 160 / 14%), transparent 70%),
+    radial-gradient(ellipse 40% 28% at 70% -5%, oklch(0.7 0.16 295 / 13%), transparent 70%);
+
+  --success: oklch(0.83 0.16 160);
+  --warning: oklch(0.87 0.15 88);
+  --danger: oklch(0.71 0.2 20);
+  --info: oklch(0.8 0.11 225);
+  --method-patch: oklch(0.77 0.16 310);
+  --syntax-key: oklch(0.83 0.1 220);
+  --syntax-string: oklch(0.86 0.14 160);
+  --syntax-number: oklch(0.88 0.14 90);
+  --syntax-literal: oklch(0.8 0.14 310);
+}
+
+/* stargazer: a desert sky after midnight, scattered with stars. */
+[data-theme="stargazer"] {
+  --background: oklch(0.13 0.035 270);
+  --foreground: oklch(0.95 0.01 260);
+  --card: oklch(0.165 0.04 270);
+  --card-foreground: oklch(0.95 0.01 260);
+  --popover: oklch(0.18 0.045 270);
+  --popover-foreground: oklch(0.95 0.01 260);
+  --secondary: oklch(0.225 0.05 270);
+  --muted: oklch(0.215 0.045 270);
+  --muted-foreground: oklch(0.74 0.04 265);
+  --accent: oklch(0.24 0.055 270);
+  --border: oklch(0.85 0.06 260 / 11%);
+  --input: oklch(0.85 0.06 260 / 14%);
+  --ring: oklch(0.85 0.12 90 / 60%);
+  --sidebar: oklch(0.115 0.03 270);
+  --sidebar-accent: oklch(0.2 0.05 270);
+  --sidebar-border: oklch(0.85 0.06 260 / 8%);
+
+  --brand-1: #fef9c3;
+  --brand-2: #fde047;
+  --brand-3: #93c5fd;
+  --brand-foreground: oklch(0.16 0.04 270);
+  --flower: #c4b5fd;
+  --glow-1: #818cf8;
+  --glow-2: #fde047;
+  --glow-intensity: 0.9;
+
+  --app-backdrop:
+    radial-gradient(1px 1px at 12% 18%, oklch(1 0 0 / 70%), transparent),
+    radial-gradient(1px 1px at 38% 72%, oklch(1 0 0 / 55%), transparent),
+    radial-gradient(1.5px 1.5px at 64% 28%, oklch(1 0 0 / 75%), transparent),
+    radial-gradient(1px 1px at 82% 58%, oklch(1 0 0 / 50%), transparent),
+    radial-gradient(1px 1px at 22% 88%, oklch(1 0 0 / 45%), transparent),
+    radial-gradient(1.5px 1.5px at 91% 12%, oklch(1 0 0 / 65%), transparent),
+    radial-gradient(1px 1px at 52% 46%, oklch(1 0 0 / 40%), transparent),
+    radial-gradient(ellipse 80% 40% at 50% 120%, oklch(0.45 0.12 280 / 25%), transparent 70%);
+
+  --success: oklch(0.82 0.15 160);
+  --warning: oklch(0.87 0.15 85);
+  --danger: oklch(0.71 0.2 18);
+  --info: oklch(0.8 0.11 235);
+  --method-patch: oklch(0.77 0.15 300);
+  --syntax-key: oklch(0.83 0.09 245);
+  --syntax-string: oklch(0.85 0.13 155);
+  --syntax-number: oklch(0.9 0.14 95);
+  --syntax-literal: oklch(0.8 0.13 300);
+}
+
+/* amber: phosphor's sibling. An amber monochrome monitor, monospace and scanlines. */
+[data-theme="amber"] {
+  --background: oklch(0.13 0.015 60);
+  --foreground: oklch(0.85 0.15 70);
+  --card: oklch(0.16 0.02 60);
+  --card-foreground: oklch(0.85 0.15 70);
+  --popover: oklch(0.18 0.024 60);
+  --popover-foreground: oklch(0.85 0.15 70);
+  --primary: oklch(0.83 0.16 70);
+  --primary-foreground: oklch(0.15 0.02 60);
+  --secondary: oklch(0.21 0.03 60);
+  --secondary-foreground: oklch(0.85 0.15 70);
+  --muted: oklch(0.2 0.028 60);
+  --muted-foreground: oklch(0.64 0.1 65);
+  --accent: oklch(0.24 0.04 60);
+  --accent-foreground: oklch(0.9 0.16 75);
+  --border: oklch(0.8 0.15 70 / 16%);
+  --input: oklch(0.8 0.15 70 / 20%);
+  --ring: oklch(0.83 0.16 70 / 60%);
+  --sidebar: oklch(0.11 0.013 60);
+  --sidebar-foreground: oklch(0.83 0.14 70);
+  --sidebar-accent: oklch(0.19 0.03 60);
+  --sidebar-accent-foreground: oklch(0.9 0.16 75);
+  --sidebar-border: oklch(0.8 0.15 70 / 12%);
+
+  --radius: 0.125rem;
+  --app-font: ui-monospace, "JetBrains Mono", "Cascadia Code", "DejaVu Sans Mono", monospace;
+
+  --brand-1: oklch(0.92 0.14 90);
+  --brand-2: oklch(0.8 0.16 70);
+  --brand-3: oklch(0.66 0.15 55);
+  --brand-foreground: oklch(0.14 0.02 60);
+  --flower: oklch(0.9 0.08 95);
+  --glow-1: oklch(0.8 0.16 70);
+  --glow-2: oklch(0.75 0.15 55);
+  --glow-intensity: 1.3;
+
+  --app-overlay:
+    repeating-linear-gradient(to bottom, oklch(0 0 0 / 16%) 0 1px, transparent 1px 3px),
+    radial-gradient(ellipse at center, transparent 60%, oklch(0 0 0 / 35%) 100%);
+
+  /* Not everything can be amber: success and info keep a cool tint so status still reads. */
+  --success: oklch(0.85 0.15 130);
+  --warning: oklch(0.9 0.15 95);
+  --danger: oklch(0.68 0.2 28);
+  --info: oklch(0.82 0.08 200);
+  --method-patch: oklch(0.8 0.1 40);
+  --syntax-key: oklch(0.92 0.1 80);
+  --syntax-string: oklch(0.8 0.16 70);
+  --syntax-number: oklch(0.88 0.14 100);
+  --syntax-literal: oklch(0.76 0.13 45);
+}
+
+/* matcha: a soft light theme. Whisked green tea on cream, a cherry blossom flower. */
+[data-theme="matcha"] {
+  color-scheme: light;
+
+  --background: oklch(0.97 0.018 120);
+  --foreground: oklch(0.27 0.035 140);
+  --card: oklch(0.985 0.01 120);
+  --card-foreground: oklch(0.27 0.035 140);
+  --popover: oklch(0.99 0.008 120);
+  --popover-foreground: oklch(0.27 0.035 140);
+  --primary: oklch(0.32 0.05 140);
+  --primary-foreground: oklch(0.98 0.012 120);
+  --secondary: oklch(0.93 0.03 125);
+  --secondary-foreground: oklch(0.27 0.035 140);
+  --muted: oklch(0.94 0.026 125);
+  --muted-foreground: oklch(0.5 0.04 140);
+  --accent: oklch(0.91 0.038 125);
+  --accent-foreground: oklch(0.27 0.035 140);
+  --destructive: oklch(0.56 0.21 25);
+  --border: oklch(0.4 0.06 140 / 15%);
+  --input: oklch(0.4 0.06 140 / 19%);
+  --ring: oklch(0.6 0.13 140 / 60%);
+  --sidebar: oklch(0.945 0.03 122);
+  --sidebar-foreground: oklch(0.27 0.035 140);
+  --sidebar-primary: oklch(0.5 0.12 140);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.9 0.042 125);
+  --sidebar-accent-foreground: oklch(0.27 0.035 140);
+  --sidebar-border: oklch(0.4 0.06 140 / 11%);
+  --sidebar-ring: oklch(0.6 0.11 140);
+
+  --brand-1: #a3b86c;
+  --brand-2: #5f7f3a;
+  --brand-3: #3f6b4f;
+  --brand-foreground: #ffffff;
+  --flower: #f4a7b9;
+  --glow-1: #c5d88a;
+  --glow-2: #f4a7b9;
+  --glow-intensity: 0.7;
+
+  --app-backdrop: radial-gradient(50% 40% at 100% 100%, oklch(0.9 0.06 125 / 45%), transparent);
+
+  --success: oklch(0.5 0.12 155);
+  --warning: oklch(0.57 0.13 70);
+  --danger: oklch(0.54 0.2 22);
+  --info: oklch(0.5 0.12 240);
+  --method-patch: oklch(0.52 0.18 300);
+  --syntax-key: oklch(0.47 0.12 240);
+  --syntax-string: oklch(0.48 0.12 145);
+  --syntax-number: oklch(0.55 0.14 55);
+  --syntax-literal: oklch(0.52 0.17 350);
+
+  --template-resolved: oklch(0.45 0.09 190);
+  --captured: oklch(0.45 0.09 190);
+  --shadow: oklch(0.35 0.05 140);
+}
+
+/*
+ * vanilla: the familiar API-client look. White panes, a light grey sidebar,
+ * system font, softly rounded corners, one orange accent, no glow or backdrop.
+ */
+[data-theme="vanilla"] {
+  color-scheme: light;
+
+  --background: #ffffff;
+  --foreground: #212121;
+  --card: #ffffff;
+  --card-foreground: #212121;
+  --popover: #ffffff;
+  --popover-foreground: #212121;
+  --primary: #212121;
+  --primary-foreground: #ffffff;
+  --secondary: #f2f2f2;
+  --secondary-foreground: #212121;
+  --muted: #f5f5f5;
+  --muted-foreground: #6b6b6b;
+  --accent: #ededed;
+  --accent-foreground: #212121;
+  --destructive: #d32f2f;
+  --border: #e0e0e0;
+  --input: #d6d6d6;
+  --ring: oklch(0.7 0.18 45 / 55%);
+  --sidebar: #f7f7f7;
+  --sidebar-foreground: #212121;
+  --sidebar-primary: #f26b3a;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e9e9e9;
+  --sidebar-accent-foreground: #212121;
+  --sidebar-border: #e0e0e0;
+  --sidebar-ring: #f26b3a;
+
+  --radius: 0.5rem;
+  --app-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  --brand-1: #ff8f5e;
+  --brand-2: #f26b3a;
+  --brand-3: #e0522a;
+  --brand-foreground: #ffffff;
+  --flower: #f26b3a;
+  --glow-intensity: 0;
+
+  /* The conventional method colours: GET green, POST amber, PUT blue, PATCH purple, DELETE red. */
+  --success: #1b8a4b;
+  --warning: #b26a00;
+  --danger: #d32f2f;
+  --info: #1f6fd1;
+  --method-patch: #7e3fc2;
+  --syntax-key: #a21caf;
+  --syntax-string: #0a7f45;
+  --syntax-number: #1f5fc4;
+  --syntax-literal: #b45309;
+
+  --template-resolved: oklch(0.45 0.09 190);
+  --captured: oklch(0.45 0.09 190);
+  --shadow: oklch(0.2 0 0);
+}
+
+/* paper: ink on newsprint. Serif type, flat greys, one red pen for accents. */
+[data-theme="paper"] {
+  color-scheme: light;
+
+  --background: oklch(0.965 0.008 85);
+  --foreground: oklch(0.22 0.005 60);
+  --card: oklch(0.985 0.005 85);
+  --card-foreground: oklch(0.22 0.005 60);
+  --popover: oklch(0.99 0.004 85);
+  --popover-foreground: oklch(0.22 0.005 60);
+  --primary: oklch(0.22 0.005 60);
+  --primary-foreground: oklch(0.98 0.005 85);
+  --secondary: oklch(0.925 0.008 85);
+  --secondary-foreground: oklch(0.22 0.005 60);
+  --muted: oklch(0.935 0.008 85);
+  --muted-foreground: oklch(0.48 0.008 60);
+  --accent: oklch(0.91 0.01 85);
+  --accent-foreground: oklch(0.22 0.005 60);
+  --destructive: oklch(0.52 0.2 25);
+  --border: oklch(0.25 0.01 60 / 16%);
+  --input: oklch(0.25 0.01 60 / 22%);
+  --ring: oklch(0.5 0.18 25 / 55%);
+  --sidebar: oklch(0.945 0.009 85);
+  --sidebar-foreground: oklch(0.22 0.005 60);
+  --sidebar-primary: oklch(0.22 0.005 60);
+  --sidebar-primary-foreground: oklch(0.98 0.005 85);
+  --sidebar-accent: oklch(0.9 0.01 85);
+  --sidebar-accent-foreground: oklch(0.22 0.005 60);
+  --sidebar-border: oklch(0.25 0.01 60 / 12%);
+  --sidebar-ring: oklch(0.5 0.15 25);
+
+  --radius: 0.25rem;
+  --app-font: "Iowan Old Style", "Charter", "Palatino Linotype", Palatino, Georgia, serif;
+
+  --brand-1: #57534e;
+  --brand-2: #292524;
+  --brand-3: #b91c1c;
+  --brand-foreground: #ffffff;
+  --flower: #b91c1c;
+  --glow-intensity: 0;
+
+  --success: oklch(0.48 0.11 155);
+  --warning: oklch(0.55 0.13 65);
+  --danger: oklch(0.52 0.2 25);
+  --info: oklch(0.47 0.12 250);
+  --method-patch: oklch(0.48 0.16 305);
+  --syntax-key: oklch(0.4 0.1 250);
+  --syntax-string: oklch(0.45 0.1 150);
+  --syntax-number: oklch(0.52 0.14 50);
+  --syntax-literal: oklch(0.48 0.17 340);
+
+  --template-resolved: oklch(0.42 0.08 190);
+  --captured: oklch(0.42 0.08 190);
+  --shadow: oklch(0.25 0.01 60);
 }
 
 /*

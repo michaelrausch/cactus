@@ -4,6 +4,7 @@
 @import "@fontsource-variable/geist";
 @import "./theme/themes.css";
 @import "./components/critters/critters.css";
+@import "./components/achievements/achievements.css";
 
 @custom-variant dark (&:is(.dark *));
 

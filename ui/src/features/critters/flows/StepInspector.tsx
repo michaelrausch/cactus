@@ -46,15 +46,15 @@ function Section({ title, hint, children }: { title: string; hint?: string; chil
 function sourceText(source: UseSource): string {
   switch (source.kind) {
     case "with":
-      return "this step's With";
+      return "With";
     case "step":
-      return `captured by step ${source.step + 1}`;
+      return `Step ${source.step + 1}`;
     case "request":
-      return "the request's variables";
+      return "Request";
     case "scope":
       return source.label;
     case "missing":
-      return "not set";
+      return "Not set";
   }
 }
 
@@ -66,22 +66,26 @@ function Uses({ dataflow, index, update }: { dataflow: Dataflow; index: number; 
   const uses = dataflow.uses[index] ?? [];
   if (uses.length === 0) return <p className="text-xs text-muted-foreground">No {"{{variables}}"}.</p>;
   return (
-    <ul className="flex flex-col gap-0.5 text-xs">
+    <ul className="flex flex-col divide-y overflow-hidden rounded-lg border bg-card/40 text-xs">
       {uses.map(({ name, source }) => (
-        <li key={name} className="flex items-center gap-2">
-          <span className="font-mono">{`{{${name}}}`}</span>
-          {source.kind === "missing" && !update && <span className="text-warning">not set</span>}
-          {source.kind === "missing" && update && (
+        <li key={name} className="flex h-8 items-center justify-between gap-3 px-3">
+          <span className="truncate font-mono">{name}</span>
+          {source.kind === "missing" && update ? (
             <button
               type="button"
               onClick={() => update((step) => withOverride(step, name))}
-              className="rounded text-warning underline-offset-2 focus-ring hover:underline"
+              className="flex shrink-0 items-center gap-1 rounded text-warning focus-ring hover:underline [&_svg]:size-3"
             >
-              not set · add to With
+              <Plus /> Add to With
             </button>
-          )}
-          {source.kind !== "missing" && (
-            <span className={cn("text-muted-foreground", source.kind === "step" && "text-captured")}>
+          ) : (
+            <span
+              className={cn(
+                "shrink-0 text-muted-foreground",
+                source.kind === "step" && "text-captured",
+                source.kind === "missing" && "text-warning",
+              )}
+            >
               {sourceText(source)}
             </span>
           )}

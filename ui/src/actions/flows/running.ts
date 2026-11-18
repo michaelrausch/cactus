@@ -3,6 +3,7 @@ import { reportErrors } from "@/lib/errors";
 import { selectFlowDirty } from "@/stores/flowStore";
 import { useResponseStore } from "@/stores/responseStore";
 import { useUiStore } from "@/stores/uiStore";
+import { track } from "../achievements";
 import { selectScenario } from "../scenario";
 import { switchToFlow } from "./navigation";
 import { saveOpenFlow } from "./persist";
@@ -40,6 +41,7 @@ async function runSavedFlow(): Promise<void> {
   const run = await reportErrors(() => backend.runFlow(project, open.critter, open.flow, null), "Run failed");
   // `null` when cancelled by another send.
   flowStore().runFinished(run ?? null);
+  if (run) track("flowsRun");
 }
 
 /** A step of a run is sending (the `FlowStepStarted` event). */

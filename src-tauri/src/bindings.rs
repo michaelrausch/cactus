@@ -2,15 +2,16 @@
 
 use tauri_specta::{Builder, collect_commands, collect_events};
 
-use crate::commands::{critter, env, flow, git, import, project, request, scenario, schedule};
+use crate::commands::{critter, env, flow, git, import, mcp, project, request, scenario, schedule};
 use crate::events::{
     ContextChanged, FlowAskClosed, FlowAsked, FlowDisplayed, FlowNotified, FlowProgress, FlowStepStarted, FsChanged,
-    MatrixProgress, MonitorAlert, RunProgress, ScheduledRunFinished,
+    HistoryChanged, MatrixProgress, MonitorAlert, RunProgress, ScheduledRunFinished,
 };
 
 #[cfg(debug_assertions)]
 const TYPESCRIPT_BINDINGS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../ui/src/api/bindings.ts");
 
+#[allow(clippy::too_many_lines)] // One line per command and event.
 pub fn builder() -> Builder<tauri::Wry> {
     Builder::<tauri::Wry>::new()
         .commands(collect_commands![
@@ -56,6 +57,8 @@ pub fn builder() -> Builder<tauri::Wry> {
             critter::load_context,
             critter::restore_context,
             critter::clear_context,
+            critter::load_cookies,
+            critter::remove_cookies,
             flow::list_flows,
             flow::load_flow,
             flow::save_flow,
@@ -94,6 +97,12 @@ pub fn builder() -> Builder<tauri::Wry> {
             request::send_request,
             request::run_folder,
             request::cancel_request,
+            request::oauth2_token_status,
+            request::get_oauth2_token,
+            request::clear_oauth2_token,
+            mcp::mcp_status,
+            mcp::set_mcp_settings,
+            mcp::regenerate_mcp_token,
         ])
         .events(collect_events![
             FsChanged,
@@ -107,7 +116,8 @@ pub fn builder() -> Builder<tauri::Wry> {
             MatrixProgress,
             ScheduledRunFinished,
             MonitorAlert,
-            ContextChanged
+            ContextChanged,
+            HistoryChanged
         ])
 }
 

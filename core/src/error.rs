@@ -44,6 +44,9 @@ pub enum Error {
     /// A flow tool step failed; the message says why.
     #[error("{0}")]
     Tool(String),
+    /// Getting or refreshing an OAuth2 token failed; the message says why.
+    #[error("OAuth2: {0}")]
+    OAuth2(String),
     #[error("invalid URL {url:?}: {reason}")]
     InvalidUrl { url: String, reason: String },
     #[error("invalid method: {0}")]

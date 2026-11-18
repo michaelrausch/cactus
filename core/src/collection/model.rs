@@ -164,6 +164,226 @@ pub enum AuthMode {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         placement: Option<ApiKeyPlacement>,
     },
+    /// Challenge and response: sent once without credentials, then again
+    /// answering the server's `WWW-Authenticate: Digest` challenge.
+    Digest {
+        #[serde(default)]
+        username: LenientString,
+        #[serde(default)]
+        password: LenientString,
+    },
+    #[serde(rename = "oauth2")]
+    OAuth2(Box<OAuth2>),
+}
+
+/// The OAuth 2.0 grants cactus can get a token with. The implicit grant
+/// isn't one of them, so such an `auth` is kept as written
+/// ([`Auth::Other`]).
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub enum OAuth2Flow {
+    ClientCredentials,
+    ResourceOwnerPasswordCredentials,
+    AuthorizationCode,
+}
+
+/// `auth: {type: oauth2, flow: ...}`, as OpenCollection writes it. Each
+/// grant reads only the fields it uses; the rest stay in the file.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct OAuth2 {
+    pub flow: OAuth2Flow,
+    #[serde(default, skip_serializing_if = "LenientString::is_empty")]
+    pub authorization_url: LenientString,
+    #[serde(default, skip_serializing_if = "LenientString::is_empty")]
+    pub access_token_url: LenientString,
+    /// Where a refresh goes; the access token URL when empty.
+    #[serde(default, skip_serializing_if = "LenientString::is_empty")]
+    pub refresh_token_url: LenientString,
+    #[serde(default, skip_serializing_if = "LenientString::is_empty")]
+    pub callback_url: LenientString,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub credentials: Option<OAuth2ClientCredentials>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resource_owner: Option<OAuth2ResourceOwner>,
+    /// Space-separated.
+    #[serde(default, skip_serializing_if = "LenientString::is_empty")]
+    pub scope: LenientString,
+    /// Sent with the authorization request; a random one when empty.
+    #[serde(default, skip_serializing_if = "LenientString::is_empty")]
+    pub state: LenientString,
+    /// PKCE is used when this is present and not `disabled`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pkce: Option<OAuth2Pkce>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub additional_parameters: Option<OAuth2AdditionalParameters>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub token_config: Option<OAuth2TokenConfig>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub settings: Option<OAuth2Settings>,
+}
+
+impl OAuth2 {
+    pub fn new(flow: OAuth2Flow) -> Self {
+        Self {
+            flow,
+            authorization_url: LenientString::default(),
+            access_token_url: LenientString::default(),
+            refresh_token_url: LenientString::default(),
+            callback_url: LenientString::default(),
+            credentials: None,
+            resource_owner: None,
+            scope: LenientString::default(),
+            state: LenientString::default(),
+            pkce: None,
+            additional_parameters: None,
+            token_config: None,
+            settings: None,
+        }
+    }
+
+    /// Whether a send may get a token itself when there is none.
+    pub fn auto_fetch(&self) -> bool {
+        self.settings.as_ref().and_then(|s| s.auto_fetch_token).unwrap_or(true)
+    }
+
+    /// Whether a send may refresh an expired token itself.
+    pub fn auto_refresh(&self) -> bool {
+        self.settings.as_ref().and_then(|s| s.auto_refresh_token).unwrap_or(true)
+    }
+
+    pub fn uses_pkce(&self) -> bool {
+        self.pkce.as_ref().is_some_and(|pkce| !pkce.disabled)
+    }
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub enum OAuth2CredentialsPlacement {
+    /// `Authorization: Basic` with the client id and secret; the default.
+    BasicAuthHeader,
+    /// `client_id` and `client_secret` in the form body.
+    Body,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct OAuth2ClientCredentials {
+    #[serde(default)]
+    pub client_id: LenientString,
+    #[serde(default, skip_serializing_if = "LenientString::is_empty")]
+    pub client_secret: LenientString,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub placement: Option<OAuth2CredentialsPlacement>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct OAuth2ResourceOwner {
+    #[serde(default)]
+    pub username: LenientString,
+    #[serde(default)]
+    pub password: LenientString,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub enum PkceMethod {
+    S256,
+    #[serde(rename = "plain")]
+    Plain,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct OAuth2Pkce {
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub disabled: bool,
+    /// `S256` when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub method: Option<PkceMethod>,
+}
+
+/// Extra parameters for each request of a grant, such as Auth0's `audience`.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct OAuth2AdditionalParameters {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub authorization_request: Vec<OAuth2Parameter>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub access_token_request: Vec<OAuth2Parameter>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub refresh_token_request: Vec<OAuth2Parameter>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub enum OAuth2ParameterPlacement {
+    Header,
+    Query,
+    Body,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct OAuth2Parameter {
+    #[serde(default)]
+    pub name: LenientString,
+    #[serde(default)]
+    pub value: LenientString,
+    /// The form body when absent (the query for the authorization request).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub placement: Option<OAuth2ParameterPlacement>,
+}
+
+/// How the token goes on the request: `{header: <prefix>}` sends
+/// `Authorization: <prefix> <token>`, `{query: <name>}` adds `?<name>=<token>`.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(untagged)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub enum OAuth2TokenPlacement {
+    Header { header: LenientString },
+    Query { query: LenientString },
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub enum OAuth2TokenSource {
+    AccessToken,
+    IdToken,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct OAuth2TokenConfig {
+    /// Names the cached token, so requests with the same id share it.
+    #[serde(default, skip_serializing_if = "LenientString::is_empty")]
+    pub id: LenientString,
+    /// `Authorization: Bearer <token>` when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub placement: Option<OAuth2TokenPlacement>,
+    /// The access token when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source: Option<OAuth2TokenSource>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct OAuth2Settings {
+    /// Get a token when a send has none; on when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auto_fetch_token: Option<bool>,
+    /// Refresh an expired token when a send needs it; on when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auto_refresh_token: Option<bool>,
 }
 
 /// `auth:` on a request, folder or collection.
@@ -173,7 +393,8 @@ pub enum AuthMode {
 pub enum Auth {
     Inherit(Inherit),
     Mode(AuthMode),
-    /// A mode cactus doesn't send (OAuth, AWS, digest, ...), kept as written.
+    /// A mode cactus doesn't send (AWS, NTLM, OAuth 1, OAuth2's implicit
+    /// grant, ...), kept as written.
     Other(#[cfg_attr(feature = "specta", specta(type = crate::specta_types::JsonValue))] Value),
 }
 

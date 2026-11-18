@@ -2,6 +2,8 @@
 //! and, for critters, logging in again. Also folder runs, flows and the
 //! matrix of one request sent as every critter.
 
+#[cfg(test)]
+mod auth_tests;
 mod flow;
 mod matrix;
 #[cfg(test)]
@@ -17,12 +19,13 @@ pub use self::flow::{FlowEvent, FlowRun, FlowStepResult, FlowStepStart, apply_st
 pub use self::matrix::{MatrixCell, run_matrix};
 use crate::best_effort;
 use crate::clock::now_unix_millis;
-use crate::env::Scope;
+use crate::env::{RequestScope, Scope};
 use crate::history::{self, HistoryEntry};
 use crate::http::{self, Response, scenario_passed};
+use crate::oauth2::{self, StoredToken};
 use crate::scenario::{self, Scenario, ScenarioEntry};
 use crate::tools::Headless;
-use crate::{Error, ProjectPath, Result, critter, env};
+use crate::{Error, ProjectPath, Result, cookies, critter, env};
 
 /// The status that makes a critter log in again.
 const UNAUTHORIZED: u16 = 401;
@@ -52,7 +55,7 @@ pub async fn send_and_record(
     options: SendOptions,
 ) -> Result<Response> {
     let resolved = env::resolve_for_request(project, scope, path.dir(), &scenario.runtime.variables)?;
-    let mut response = http::send(client, project, scenario, &resolved.inherited, &resolved.vars).await?;
+    let mut response = send_with_credentials(client, project, scenario, &resolved, scope).await?;
     response.critter.clone_from(&scope.critter);
     if !response.captured.is_empty() {
         match &scope.critter {
@@ -64,6 +67,56 @@ pub async fn send_and_record(
         record_history(project, path, &response);
     }
     Ok(response)
+}
+
+/// Send with the request's OAuth2 token, if it uses one, and the critter's
+/// cookie jar, if there is a critter. A cached token the server refuses with
+/// a 401 is refreshed or replaced, and the request sent once more.
+async fn send_with_credentials(
+    client: &reqwest::Client,
+    project: &Path,
+    scenario: &Scenario,
+    resolved: &RequestScope,
+    scope: &Scope,
+) -> Result<Response> {
+    let critter = scope.critter.as_deref();
+    let Some(oauth2) = http::effective_oauth2(scenario, &resolved.inherited) else {
+        return send_once(client, project, scenario, resolved, critter, None).await;
+    };
+    let token = oauth2::token_for_send(client, project, critter, oauth2, &resolved.vars).await?;
+    let response = send_once(client, project, scenario, resolved, critter, Some(&token.token)).await?;
+    if response.status != UNAUTHORIZED || token.fresh {
+        return Ok(response);
+    }
+    oauth2::expire(project, critter, oauth2, &resolved.vars)?;
+    match oauth2::token_for_send(client, project, critter, oauth2, &resolved.vars).await {
+        Ok(token) => {
+            let mut again = send_once(client, project, scenario, resolved, critter, Some(&token.token)).await?;
+            again.warnings.push("Got 401 with the cached OAuth2 token; sent again with a new one".into());
+            Ok(again)
+        }
+        Err(error) => {
+            let mut response = response;
+            response.warnings.push(format!("Got 401 with the cached OAuth2 token; {error}"));
+            Ok(response)
+        }
+    }
+}
+
+async fn send_once(
+    client: &reqwest::Client,
+    project: &Path,
+    scenario: &Scenario,
+    resolved: &RequestScope,
+    critter: Option<&str>,
+    token: Option<&StoredToken>,
+) -> Result<Response> {
+    let send =
+        http::send(client, project, scenario, &resolved.inherited, &resolved.vars, token.map(StoredToken::bearer));
+    match critter {
+        Some(critter) => cookies::with_jar(project, critter, send).await?,
+        None => send.await,
+    }
 }
 
 /// [`send_and_record`], and when a critter gets a 401 and has a `login`

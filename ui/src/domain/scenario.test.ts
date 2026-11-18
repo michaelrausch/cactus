@@ -105,6 +105,9 @@ describe("scenario", () => {
     expect(authKind(withBearer)).toBe("bearer");
     expect("auth" in withAuth(withBearer, undefined).http).toBe(false);
     expect(authKind(scenario({ auth: { type: "oauth2", flow: "implicit" } }))).toBe("other");
+    expect(authKind(scenario({ auth: { type: "oauth2", flow: "authorization_code" } }))).toBe("oauth2");
+    expect(authKind(scenario({ auth: { type: "digest", username: "u", password: "p" } }))).toBe("digest");
+    expect(authKind(scenario({ auth: { type: "awsv4" } }))).toBe("other");
   });
 
   it("keeps path params in step with the URL", () => {

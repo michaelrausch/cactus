@@ -10,6 +10,7 @@ import { useProjectStore } from "@/stores/projectStore";
 import { useResponseStore } from "@/stores/responseStore";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { useUiStore } from "@/stores/uiStore";
+import { track, trackDistinct } from "./achievements";
 import { refreshCritters } from "./critters";
 import { refreshSchedules } from "./monitors";
 import { saveAll, hasUnsavedChanges } from "./saving";
@@ -20,7 +21,7 @@ const IMPORT_FILTERS = [{ name: "Postman / OpenAPI", extensions: ["json", "yaml"
 const currentProject = (): string | null => useProjectStore.getState().project;
 
 async function pickFolder(): Promise<string | null> {
-  const choice = await open({ directory: true });
+  const choice = await open({ directory: true, canCreateDirectories: true });
   return typeof choice === "string" ? choice : null;
 }
 
@@ -44,6 +45,7 @@ async function loadProject(folder: string): Promise<void> {
   await reportErrors(async () => {
     const entries = await backend.openProject(folder);
     useProjectStore.getState().opened(folder, entries);
+    trackDistinct("projectsOpened", folder);
     useEditorStore.getState().reset();
     useResponseStore.getState().reset();
     useCritterStore.getState().reset();
@@ -134,6 +136,7 @@ export async function importCollection(): Promise<void> {
   if (typeof file !== "string") return;
   await reportErrors(async () => {
     const summary = await backend.importFile(project, file);
+    track("imports");
     await refreshEntries();
     await refreshEnvs();
     toast.success(`Imported ${summary.created.length} requests from ${summary.format}`, {

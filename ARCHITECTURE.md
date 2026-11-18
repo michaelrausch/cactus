@@ -26,6 +26,9 @@ ui/         React front end for the desktop app.
 | `.cactus/captured.json`                  | Values written by set-variable actions with no critter active                 | no        |
 | `.cactus/critters/<id>/secrets.json`     | A critter's own secrets                                                       | no        |
 | `.cactus/critters/<id>/context.json`     | What a critter's requests captured, with where and when                       | no        |
+| `.cactus/critters/<id>/cookies.json`     | A critter's cookie jar                                                        | no        |
+| `.cactus/critters/<id>/tokens.json`      | OAuth2 tokens got while sending as a critter                                  | no        |
+| `.cactus/tokens.json`                    | OAuth2 tokens got with no critter active                                      | no        |
 | `.cactus/critters/<id>/runs/<flow>.json` | The last 50 scheduled runs of a flow                                          | no        |
 | `.cactus/state.json`                     | Active environment and critter                                                | no        |
 | `.cactus/history/*.json`                 | Last responses per request (`a/b.yml` → `a%2Fb.json`)                         | no        |
@@ -58,6 +61,23 @@ skips the rest. On a 401, a critter with a `login` flow runs it and sends the
 request once more (`runner::send_as`). Steps of the login flow itself never do
 this, so it can't loop.
 
+**Cookies** are kept per critter (`core/src/cookies.rs`); sending as no one
+uses no jar. The process shares one HTTP client, whose cookie provider reads
+the jar of the send it's called from, a task-local `with_jar` sets, so
+cookies set on redirects are kept too. What responses set is applied to the
+jar on disk when the send ends, under the context write lock.
+
+**Auth** beyond bearer, basic and API keys: digest is answered in
+`http::send`, which sends once and, on a 401 with a `Digest` challenge, builds
+the request again with the answer. OAuth2 (`core/src/oauth2.rs`: client
+credentials, password, authorization code with optional PKCE) gets its token
+before the send (`runner::send_and_record`): cached per critter (or for no
+one), refreshed when expired, or fetched anew for the first two grants. The
+authorization code grant needs the browser, so only `oauth2::get_token` (the
+Auth tab's Get token) runs it, catching the code on a loopback callback URL.
+A cached token refused with a 401 is replaced and the request sent once more.
+The implicit grant, AWS, NTLM and OAuth 1 are kept as written but not sent.
+
 **Flow tools** are steps that aren't requests (`- tool: prompt`): prompt,
 pick, display, set, assert, poll, wait, run, open, webhook, slack, notify
 (`core/src/tools/`). Tools that send requests or run flows (poll, run) do so
@@ -72,8 +92,9 @@ on the terminal (or takes `--var name=value`), and scheduled runs and
 re-logins are `Headless`, so a prompt falls back to its defaults.
 
 **Secrets files** (the project's and each critter's) are read and written
-only through `crate::secrets` (`read`, `names`, `write`). They and the context
-files (`captured.json`, each critter's `context.json`) are sealed whole by
+only through `crate::secrets` (`read`, `names`, `write`). They, the context
+files (`captured.json`, each critter's `context.json`), cookie jars and OAuth2
+tokens are sealed whole by
 `secrets::vault` (XChaCha20-Poly1305). With no password the key is built in,
 so they're obscured rather than protected. A password (`.cactus/vault`: salt
 and check value) switches to an Argon2id key; the app asks for it when a
@@ -139,6 +160,19 @@ watched; the UI refreshes the status on file changes and on window focus.
   use the cancellable slot, so they and interactive sends never cancel each
   other. Each run is recorded, compared with the last and appended to the log,
   then reported as `ScheduledRunFinished` and `MonitorAlert` events.
+- `mcp/`: an MCP server for agents (Streamable HTTP via `rmcp`, at
+  `http://127.0.0.1:<port>/mcp`), off until turned on in Settings → MCP.
+  It works on the project open in the window. Its tools (`mcp/tools.rs`) are
+  adapters over core like `commands/*`: list and read requests, envs,
+  critters, flows, variables (secret values hidden) and history; send
+  requests, run folders and flows; with "Allow edits", create and save
+  requests and flows. Sends record history and capture into context as the
+  window's own do, and report `ContextChanged`/`HistoryChanged` so the UI
+  follows. A flow's prompts go to the window's ask dialog unless the call's
+  `vars` answer them. Every request needs the bearer token from
+  `mcp.json` in the app config folder, and any `Origin` header is refused,
+  so web pages can't reach it. Calls run beside the window's own sends,
+  outside the cancel slot.
 - `bindings.rs`: registers commands and events with tauri-specta.
 
 `ui/src/api/bindings.ts` is **generated** from the Rust types. Regenerate with

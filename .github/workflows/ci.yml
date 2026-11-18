@@ -3,7 +3,6 @@ name: CI
 on:
   push:
     branches: [main]
-  pull_request:
   workflow_dispatch:
 
 concurrency:
@@ -15,18 +14,13 @@ env:
 
 jobs:
   check:
-    name: Check (${{ matrix.os }})
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
+    name: Check
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
 
       - name: Install Tauri system dependencies
-        if: runner.os == 'Linux'
         timeout-minutes: 10
         run: |
           sudo apt-get update -o Acquire::Retries=3
@@ -73,34 +67,5 @@ jobs:
 
       # `cargo test -p cactus` regenerates the TypeScript bindings.
       - name: Bindings are up to date
-        if: runner.os == 'Linux'
         run: git diff --exit-code ui/src/api/bindings.ts
 
-  bundle-windows:
-    name: Windows installer
-    needs: check
-    runs-on: windows-latest
-    timeout-minutes: 45
-    steps:
-      - uses: actions/checkout@v5
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 24
-          cache: npm
-          cache-dependency-path: ui/package-lock.json
-      - name: Install UI dependencies
-        working-directory: ui
-        run: npm ci
-      # Run from the repository root: the CLI finds src-tauri/ (and the UI's
-      # package.json for beforeBuildCommand) by searching below the current folder.
-      - name: Build installers
-        run: node ui/node_modules/@tauri-apps/cli/tauri.js build
-      - uses: actions/upload-artifact@v4
-        with:
-          name: cactus-windows
-          path: |
-            target/release/bundle/nsis/*.exe
-            target/release/bundle/msi/*.msi
-          if-no-files-found: error

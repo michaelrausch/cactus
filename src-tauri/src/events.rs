@@ -1,9 +1,9 @@
 //! Events the backend pushes to the UI.
 
-use cactus_core::best_effort;
 use cactus_core::monitor::{AlertEvent, RunRecord};
 use cactus_core::runner::{FlowStepResult, FlowStepStart, MatrixCell, RunResult};
 use cactus_core::tools::Ask;
+use cactus_core::{ProjectPath, best_effort};
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use tauri_specta::Event;
@@ -99,6 +99,13 @@ pub struct ContextChanged {
 /// Project-relative paths of files that changed on disk.
 #[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
 pub struct FsChanged(pub Vec<String>);
+
+/// A request was sent from outside the window (an agent, over MCP), so its
+/// history has a new entry.
+#[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
+pub struct HistoryChanged {
+    pub path: ProjectPath,
+}
 
 /// One scenario of a folder run finished.
 #[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]

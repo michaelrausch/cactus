@@ -14,7 +14,15 @@ rowan = "0.16"
 regex = { version = "1", default-features = false, features = ["std", "unicode-perl"] }
 specta = { version = "=2.0.0-rc.28", features = ["derive", "serde_json"], optional = true }
 specta-typescript = { version = "=0.0.15", optional = true }
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "gzip", "brotli", "http2", "multipart"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "gzip", "brotli", "http2", "multipart", "cookies"] }
+# Each critter's cookie jar (`cookies`): the store reqwest's `cookies` feature uses.
+cookie_store = { version = "0.22", default-features = false, features = ["serde_json"] }
+# Digest auth's challenge parsing and response (RFC 7616).
+digest_auth = "0.3"
+# OAuth2 PKCE's S256 code challenge.
+sha2 = "0.11"
+# Already in the tree through reqwest; OAuth2 checks callback hosts with it.
+url = "2"
 # Local repository work only: without https/ssh there is no OpenSSL or libssh2
 # to build, and the vendored libgit2 builds the same on Linux and Windows.
 git2 = { version = "0.20", default-features = false, features = ["vendored-libgit2"], optional = true }
@@ -29,7 +37,9 @@ qrcode = { version = "0.14", default-features = false, features = ["svg"] }
 # Vault salts and nonces, and generated values in flows (`$uuid`).
 getrandom = "0.3"
 # Already in the tree through reqwest; flows' `wait` tool sleeps with it.
-tokio = { version = "1", features = ["time"] }
+# OAuth2's authorization code arrives on a loopback listener (`net`, `io-util`);
+# the cookie jar of a send is a task-local (`rt`).
+tokio = { version = "1", features = ["time", "rt", "net", "io-util"] }
 
 [features]
 # Derive TypeScript-exportable types for the desktop app's generated bindings.

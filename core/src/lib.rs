@@ -14,6 +14,7 @@ mod text;
 
 pub mod best_effort;
 pub mod collection;
+pub mod cookies;
 pub mod critter;
 pub mod env;
 #[cfg(feature = "git")]
@@ -24,6 +25,7 @@ pub mod import;
 pub mod jsonpath;
 pub mod layout;
 pub mod monitor;
+pub mod oauth2;
 pub mod recent;
 pub mod runner;
 pub mod scenario;
