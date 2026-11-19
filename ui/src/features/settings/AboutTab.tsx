@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { getTauriVersion } from "@tauri-apps/api/app";
 import { isTauri } from "@tauri-apps/api/core";
 import { Copy, RotateCcw } from "lucide-react";
-import { toast } from "sonner";
+import { copyText } from "@/actions/clipboard";
 import { showOnboarding } from "@/actions/project";
 import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
@@ -34,10 +34,7 @@ export function AboutTab() {
 
   const copy = () => {
     const text = rows.map(([label, value]) => `${label}: ${value}`).join("\n");
-    navigator.clipboard.writeText(`cactus\n${text}`).then(
-      () => toast.success("Build info copied"),
-      () => toast.error("Couldn't copy to the clipboard"),
-    );
+    void copyText(`cactus\n${text}`, "Build info copied");
   };
 
   return (

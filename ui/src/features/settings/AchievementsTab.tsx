@@ -19,7 +19,7 @@ function AchievementRow({ achievement }: { achievement: Achievement }) {
       <div
         className={cn(
           "flex size-8 shrink-0 items-center justify-center rounded-full [&_svg]:size-4",
-          unlockedAt ? "bg-brand text-brand-foreground" : "bg-muted text-muted-foreground/60",
+          unlockedAt ? "bg-brand-2 text-brand-foreground" : "bg-muted text-muted-foreground/60",
         )}
       >
         <Icon />

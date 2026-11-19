@@ -2,6 +2,7 @@ import { useId, useState, type ReactNode } from "react";
 import { setPassword } from "@/actions/vault";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { errorMessage } from "@/lib/errors";
 
 /** Runs work that resolves to an error to show, or null when done. */
 export function useRunner() {
@@ -9,11 +10,14 @@ export function useRunner() {
   const [busy, setBusy] = useState(false);
   const run = (work: () => Promise<string | null> | string, onDone?: () => void) => {
     setBusy(true);
-    void Promise.resolve(work()).then((problem) => {
-      setBusy(false);
-      setError(problem);
-      if (!problem) onDone?.();
-    });
+    void Promise.resolve()
+      .then(work)
+      .catch(errorMessage)
+      .then((problem) => {
+        setBusy(false);
+        setError(problem);
+        if (!problem) onDone?.();
+      });
   };
   return { run, busy, error };
 }

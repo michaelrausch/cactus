@@ -1,6 +1,6 @@
 //! The MCP server's settings.
 
-use cactus_core::Result;
+use cactus_core::{Error, Result};
 use tauri::{AppHandle, State};
 
 use crate::mcp::{McpStatus, new_token};
@@ -22,6 +22,9 @@ pub async fn set_mcp_settings(
     allow_edits: bool,
     port: u16,
 ) -> Result<McpStatus> {
+    if port < 1024 {
+        return Err(Error::InvalidPort(port));
+    }
     state
         .mcp
         .update(&app, |settings| {

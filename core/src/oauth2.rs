@@ -322,7 +322,8 @@ impl Grant {
             OAuth2Flow::AuthorizationCode => "authorization_code",
         };
         let user = if self.flow == OAuth2Flow::ResourceOwnerPasswordCredentials { self.username.as_str() } else { "" };
-        [flow, &self.access_token_url, &self.client_id, &self.scope, user].join(" ").trim_end().to_string()
+        // Newlines can't be in a URL, client id, scope or user name, so fields can't run together.
+        [flow, &self.access_token_url, &self.client_id, &self.scope, user].join("\n")
     }
 
     /// A new token with the client credentials or password grant.
@@ -424,6 +425,10 @@ impl Grant {
         }
         let mut url = Url::parse(&self.authorization_url)
             .map_err(|e| Error::OAuth2(format!("invalid authorization URL {:?}: {e}", self.authorization_url)))?;
+        // It's opened by the OS, so a project file mustn't make it a local file or app.
+        if !matches!(url.scheme(), "http" | "https") {
+            return Err(Error::OAuth2(format!("the authorization URL must be http(s), not {:?}", url.scheme())));
+        }
         {
             let mut query = url.query_pairs_mut();
             query.append_pair("response_type", "code");
@@ -655,8 +660,7 @@ mod tests {
             Some(crate::collection::OAuth2ResourceOwner { username: "{{user}}".into(), password: "p".into() });
         let vars = |user: &str| Env::from([("auth".into(), "https://id".into()), ("user".into(), user.into())]);
         let alice = Grant::resolve(&oauth2, &vars("alice")).key;
-        // Empty fields keep their place, so different fields can't collide.
-        assert_eq!(alice, "password https://id/token   alice");
+        assert_eq!(alice, "password\nhttps://id/token\n\n\nalice");
         assert_ne!(alice, Grant::resolve(&oauth2, &vars("bob")).key);
 
         oauth2.token_config = Some(crate::collection::OAuth2TokenConfig { id: "shared".into(), ..Default::default() });

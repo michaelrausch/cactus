@@ -4,12 +4,9 @@ import { removeCookies } from "@/actions/critters";
 import type { CookieEntry, CritterSummary } from "@/api/client";
 import { IconButton } from "@/components/IconButton";
 import { Button } from "@/components/ui/button";
-import { expiryText } from "@/domain/jwt";
+import { EXPIRY_TICK_MS, expiryText } from "@/domain/jwt";
 import { useNow } from "@/hooks/useNow";
 import { useCritterStore } from "@/stores/critterStore";
-
-/** How often expiry text ("expires in 4m") updates. */
-const TICK_MS = 30_000;
 
 function CookieRow({ critterId, cookie, now }: { critterId: string; cookie: CookieEntry; now: number }) {
   const [revealed, setRevealed] = useState(false);
@@ -42,7 +39,7 @@ function CookieRow({ critterId, cookie, now }: { critterId: string; cookie: Cook
 /** The critter's cookie jar: what servers set while sending as it. */
 export function CookiesList({ critter }: { critter: CritterSummary }) {
   const cookies = useCritterStore((s) => s.cookies[critter.id]) ?? [];
-  const now = useNow(TICK_MS);
+  const now = useNow(EXPIRY_TICK_MS);
   return (
     <section className="flex flex-col gap-2">
       <div className="flex items-center gap-2">

@@ -3,6 +3,7 @@
 
 use std::fmt::Write as _;
 use std::fs;
+use std::io::Write as _;
 use std::path::Path;
 
 use cactus_core::Result;
@@ -37,11 +38,19 @@ impl McpSettings {
         settings
     }
 
+    /// Readable by this user only: the token is a credential.
     pub fn save(&self, file: &Path) -> Result<()> {
         if let Some(dir) = file.parent() {
             fs::create_dir_all(dir)?;
         }
-        Ok(fs::write(file, serde_json::to_string_pretty(self)?)?)
+        let mut options = fs::OpenOptions::new();
+        options.write(true).create(true).truncate(true);
+        #[cfg(unix)]
+        std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+        let mut out = options.open(file)?;
+        #[cfg(unix)]
+        out.set_permissions(std::os::unix::fs::PermissionsExt::from_mode(0o600))?;
+        Ok(out.write_all(serde_json::to_string_pretty(self)?.as_bytes())?)
     }
 }
 

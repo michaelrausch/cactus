@@ -4,6 +4,7 @@ import { THEMES } from "@/theme/themes";
 export type Stat =
   | "requestsSent"
   | "serverErrors"
+  | "teapots"
   | "foldersRun"
   | "flowsRun"
   | "requestsCreated"
@@ -21,6 +22,7 @@ export type AchievementIcon =
   | "rocket"
   | "flame"
   | "server-crash"
+  | "teapot"
   | "folder"
   | "workflow"
   | "file-plus"
@@ -43,6 +45,14 @@ export interface Achievement {
 }
 
 export const ACHIEVEMENTS: readonly Achievement[] = [
+  {
+    id: "requests-1",
+    name: "Hello, World",
+    description: "Send your first request",
+    icon: "send",
+    stat: "requestsSent",
+    goal: 1,
+  },
   {
     id: "requests-100",
     name: "Regular",
@@ -76,6 +86,14 @@ export const ACHIEVEMENTS: readonly Achievement[] = [
     goal: 25,
   },
   {
+    id: "teapot",
+    name: "Short and Stout",
+    description: "Get a 418 I'm a teapot",
+    icon: "teapot",
+    stat: "teapots",
+    goal: 1,
+  },
+  {
     id: "folders-10",
     name: "Batch Job",
     description: "Run 10 folders",
@@ -99,6 +117,14 @@ export const ACHIEVEMENTS: readonly Achievement[] = [
     icon: "file-plus",
     stat: "requestsCreated",
     goal: 25,
+  },
+  {
+    id: "critters-1",
+    name: "It's Alive",
+    description: "Create your first critter",
+    icon: "paw",
+    stat: "crittersCreated",
+    goal: 1,
   },
   {
     id: "critters-3",

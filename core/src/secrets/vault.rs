@@ -1,4 +1,5 @@
-//! Secrets and context files at rest. Each is sealed whole:
+//! Secrets, context, cookies, OAuth2 tokens and history at rest. Each file
+//! is sealed whole:
 //!
 //! ```text
 //! "CVLT" ‖ 0x01 ‖ nonce(24) ‖ XChaCha20-Poly1305(json)
@@ -36,6 +37,7 @@ const SALT_LEN: usize = 16;
 const AAD: &[u8] = b"cactus/vault/v1";
 const CHECK: &[u8] = b"cactus";
 const VAULT_FILE: &str = "vault";
+const STAGED_SUFFIX: &str = ".reseal";
 const BUILT_IN_KEY: Key = *b"cactus/vault/v1/built-in-key-32b";
 
 /// Argon2id cost: 64 MiB and 3 passes. Tests use the minimum.
@@ -108,8 +110,12 @@ pub fn start_totp(project: &Path) -> Result<TotpSetup> {
 }
 
 /// Require a code to unlock, once `code` shows the app has `secret`.
+/// Refused while a secret is already set: turn it off first.
 pub fn enable_totp(project: &Path, secret: &str, code: &str) -> Result<()> {
     let opened = opened_with_cached_key(project)?;
+    if opened.totp.is_some() {
+        return Err(Error::WrongCode);
+    }
     let secret = totp::decode(secret)?;
     if !totp::verify(&secret, code, now_secs()) {
         return Err(Error::WrongCode);
@@ -127,12 +133,12 @@ pub fn disable_totp(project: &Path, code: &str) -> Result<()> {
     write_vault(project, &opened.salt, &opened.key, None)
 }
 
-/// For a forgotten password: delete every secrets and context file and the
-/// password, leaving the project unlocked with nothing in them.
+/// For a forgotten password: delete every sealed file and the password,
+/// leaving the project unlocked with nothing in them.
 pub fn wipe(project: &Path) -> Result<()> {
     let _guard = crate::env::write_lock();
-    let vault = vault_file(project);
-    for path in sealed_files(project)?.into_iter().chain([vault].into_iter().filter(|f| f.exists())) {
+    let files = sealed_files(project)?.into_iter().chain(staged_files(project)?).chain([vault_file(project)]);
+    for path in files.filter(|f| f.exists()) {
         fs::remove_file(&path).map_err(Error::file(&path))?;
     }
     keys().remove(&root(project));
@@ -141,43 +147,40 @@ pub fn wipe(project: &Path) -> Result<()> {
 
 /// Set, change (`new`) or remove (`None`) the password, re-sealing every
 /// file. `current` is required while a password is set.
+///
+/// Crash-safe: each file is re-sealed beside itself first, then the vault
+/// file is written (the commit point), then each is moved into place. A file
+/// the new key can't open is replaced by its staged copy when next read.
 pub fn set_password(project: &Path, current: Option<&str>, new: Option<&str>) -> Result<()> {
     if new.is_some_and(str::is_empty) {
         return Err(Error::EmptyPassword);
     }
     let _guard = crate::env::write_lock();
-    let (old, totp) = match verify(project, current.unwrap_or_default())? {
-        Some(opened) => (opened.key, opened.totp),
-        None if vault_file(project).exists() => return Err(Error::WrongPassword),
-        None => (BUILT_IN_KEY, None),
+    let (old, totp) = verify(project, current.unwrap_or_default())?.map_or((BUILT_IN_KEY, None), |o| (o.key, o.totp));
+    let salt: Option<[u8; SALT_LEN]> = new.map(|_| random()).transpose()?;
+    let key = match (new, &salt) {
+        (Some(password), Some(salt)) => derive(password, salt)?,
+        _ => BUILT_IN_KEY,
     };
-    let mut plain = Vec::new();
-    for path in sealed_files(project)? {
-        let bytes = fs::read(&path).map_err(Error::file(&path))?;
-        let json =
-            if is_plain(&bytes) { bytes } else { open(&old, &bytes).ok_or(Error::Undecryptable(path.clone()))? };
-        plain.push((path, json));
+    let files = sealed_files(project)?;
+    for path in &files {
+        // A file left unmoved by an earlier crash is read from its staged copy.
+        write_atomic(&staged(path), &seal(&key, &open_file(&old, path)?)?)?;
     }
-    let (key, salt) = match new {
-        Some(password) => {
-            let salt: [u8; SALT_LEN] = random()?;
-            (derive(password, &salt)?, Some(salt))
-        }
-        None => (BUILT_IN_KEY, None),
-    };
-    for (path, json) in plain {
-        write_atomic(&path, &seal(&key, &json)?)?;
-    }
-    let file = vault_file(project);
     if let Some(salt) = salt {
         // A new password keeps the TOTP secret; removing it drops both.
         write_vault(project, &salt, &key, totp.as_deref())?;
         keys().insert(root(project), key);
     } else {
-        if file.exists() {
-            fs::remove_file(&file).map_err(Error::file(&file))?;
-        }
+        remove_if_exists(&vault_file(project))?;
         keys().remove(&root(project));
+    }
+    for path in &files {
+        // A reader may already have moved it in (see `recover_staged`).
+        match fs::rename(staged(path), path) {
+            Err(e) if e.kind() != ErrorKind::NotFound => return Err(Error::file(path)(e)),
+            _ => {}
+        }
     }
     Ok(())
 }
@@ -192,8 +195,52 @@ pub(crate) fn read_json<T: DeserializeOwned + Default>(project: &Path, path: &Pa
     if is_plain(&bytes) {
         return Ok(serde_json::from_slice(&bytes)?);
     }
-    let json = open(&key(project)?, &bytes).ok_or_else(|| Error::Undecryptable(path.to_path_buf()))?;
+    let key = key(project)?;
+    let json = match open(&key, &bytes) {
+        Some(json) => json,
+        None => recover_staged(&key, path)?,
+    };
     Ok(serde_json::from_slice(&json)?)
+}
+
+/// After a crash in [`set_password`], or while one is moving files in: the
+/// staged copy under the new key. If it's gone, whoever moved it put it at
+/// `path`, so that is read again.
+fn recover_staged(key: &Key, path: &Path) -> Result<Vec<u8>> {
+    let staged = staged(path);
+    if let Some(json) = fs::read(&staged).ok().and_then(|bytes| open(key, &bytes)) {
+        match fs::rename(&staged, path) {
+            Err(e) if e.kind() != ErrorKind::NotFound => return Err(Error::file(path)(e)),
+            _ => return Ok(json),
+        }
+    }
+    fs::read(path).ok().and_then(|bytes| open(key, &bytes)).ok_or_else(|| Error::Undecryptable(path.to_path_buf()))
+}
+
+/// Where [`set_password`] re-seals `path` before moving it into place.
+pub(crate) fn staged(path: &Path) -> PathBuf {
+    let mut name = path.as_os_str().to_owned();
+    name.push(STAGED_SUFFIX);
+    PathBuf::from(name)
+}
+
+/// `path` under `key`, or else its staged copy if an earlier
+/// [`set_password`] stopped before moving it in.
+fn open_file(key: &Key, path: &Path) -> Result<Vec<u8>> {
+    let bytes = fs::read(path).map_err(Error::file(path))?;
+    if is_plain(&bytes) {
+        return Ok(bytes);
+    }
+    open(key, &bytes)
+        .or_else(|| fs::read(staged(path)).ok().and_then(|bytes| open(key, &bytes)))
+        .ok_or_else(|| Error::Undecryptable(path.to_path_buf()))
+}
+
+fn remove_if_exists(path: &Path) -> Result<()> {
+    match fs::remove_file(path) {
+        Err(e) if e.kind() != ErrorKind::NotFound => Err(Error::file(path)(e)),
+        _ => Ok(()),
+    }
 }
 
 /// Seal `value` and write it atomically.
@@ -206,27 +253,45 @@ fn vault_file(project: &Path) -> PathBuf {
     layout::workspace_dir(project).join(VAULT_FILE)
 }
 
-/// Every sealed file the project has: secrets, context, cookies and OAuth2 tokens.
+/// Every sealed file the project has: secrets, context, cookies, OAuth2
+/// tokens and history.
 fn sealed_files(project: &Path) -> Result<Vec<PathBuf>> {
     let workspace = layout::workspace_dir(project);
     let mut files = vec![workspace.join(SECRETS_FILE), layout::captured_file(project), layout::tokens_file(project)];
-    let critters = workspace.join(layout::CRITTERS_DIR);
-    match fs::read_dir(&critters) {
-        Ok(entries) => {
-            for entry in entries {
-                let dir = entry.map_err(Error::file(&critters))?.path();
-                let id = dir.file_name().unwrap_or_default().to_string_lossy().into_owned();
-                files.push(dir.join(SECRETS_FILE));
-                files.push(layout::critter_context_file(project, &id));
-                files.push(layout::critter_cookies_file(project, &id));
-                files.push(layout::critter_tokens_file(project, &id));
-            }
-        }
-        Err(e) if e.kind() == ErrorKind::NotFound => {}
-        Err(e) => return Err(Error::file(&critters)(e)),
+    for dir in entries_of(&workspace.join(layout::CRITTERS_DIR))? {
+        let id = dir.file_name().unwrap_or_default().to_string_lossy().into_owned();
+        files.push(dir.join(SECRETS_FILE));
+        files.push(layout::critter_context_file(project, &id));
+        files.push(layout::critter_cookies_file(project, &id));
+        files.push(layout::critter_tokens_file(project, &id));
     }
+    files.extend(
+        entries_of(&layout::history_dir(project))?.into_iter().filter(|f| f.extension() == Some("json".as_ref())),
+    );
     files.retain(|f| f.is_file());
     Ok(files)
+}
+
+/// Every staged copy left in the folders sealed files live in, including
+/// ones whose file has since gone.
+fn staged_files(project: &Path) -> Result<Vec<PathBuf>> {
+    let workspace = layout::workspace_dir(project);
+    let mut dirs = vec![workspace.clone(), layout::history_dir(project)];
+    dirs.extend(entries_of(&workspace.join(layout::CRITTERS_DIR))?.into_iter().filter(|d| d.is_dir()));
+    let mut files = Vec::new();
+    for dir in dirs {
+        files.extend(entries_of(&dir)?.into_iter().filter(|f| f.as_os_str().to_string_lossy().ends_with(STAGED_SUFFIX)));
+    }
+    Ok(files)
+}
+
+/// What `dir` holds; nothing when it doesn't exist.
+fn entries_of(dir: &Path) -> Result<Vec<PathBuf>> {
+    match fs::read_dir(dir) {
+        Ok(entries) => entries.map(|entry| Ok(entry.map_err(Error::file(dir))?.path())).collect(),
+        Err(e) if e.kind() == ErrorKind::NotFound => Ok(Vec::new()),
+        Err(e) => Err(Error::file(dir)(e)),
+    }
 }
 
 fn root(project: &Path) -> PathBuf {
@@ -306,7 +371,7 @@ fn now_secs() -> u64 {
 
 fn derive(password: &str, salt: &[u8]) -> Result<Key> {
     let (memory_kib, iterations, parallelism) = COST;
-    let failed = |e: argon2::Error| Error::Tool(format!("key derivation: {e}"));
+    let failed = |e: argon2::Error| Error::Crypto(format!("key derivation: {e}"));
     let params = Params::new(memory_kib, iterations, parallelism, Some(32)).map_err(failed)?;
     let mut key = [0; 32];
     Argon2::new(Algorithm::Argon2id, Version::V0x13, params)
@@ -324,7 +389,7 @@ fn seal(key: &Key, plain: &[u8]) -> Result<Vec<u8>> {
     let nonce: [u8; NONCE_LEN] = random()?;
     let sealed = XChaCha20Poly1305::new(&(*key).into())
         .encrypt(&XNonce::from(nonce), Payload { msg: plain, aad: AAD })
-        .map_err(|_| Error::Tool("can't encrypt".into()))?;
+        .map_err(|_| Error::Crypto("can't encrypt".into()))?;
     let mut out = MAGIC.to_vec();
     out.push(VERSION);
     out.extend_from_slice(&nonce);
@@ -455,6 +520,81 @@ mod tests {
         disable_totp(p, &code()).unwrap();
         forget(p);
         assert_eq!(unlock(p, "pw2", None).unwrap(), Unlocked::Unlocked);
+    }
+
+    #[test]
+    fn a_reseal_cut_short_is_finished_on_read() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path();
+        env::save(p, &EnvFile::Secrets, &values(&[("A", "1")])).unwrap();
+        let file = layout::workspace_dir(p).join(SECRETS_FILE);
+        let old = fs::read(&file).unwrap();
+        set_password(p, None, Some("pw")).unwrap();
+        // As if it stopped after writing the vault, before moving the file into place.
+        fs::rename(&file, staged(&file)).unwrap();
+        fs::write(&file, old).unwrap();
+        assert_eq!(env::load(p, &EnvFile::Secrets).unwrap(), values(&[("A", "1")]));
+        assert!(!staged(&file).exists());
+    }
+
+    /// As if `set_password` stopped after writing the vault, before moving `file` in.
+    fn cut_short(file: &Path, old: Vec<u8>) {
+        fs::rename(file, staged(file)).unwrap();
+        fs::write(file, old).unwrap();
+    }
+
+    #[test]
+    fn a_reseal_cut_short_doesnt_block_the_next_password_change() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path();
+        env::save(p, &EnvFile::Secrets, &values(&[("A", "1")])).unwrap();
+        let file = layout::workspace_dir(p).join(SECRETS_FILE);
+        let old = fs::read(&file).unwrap();
+        set_password(p, None, Some("pw")).unwrap();
+        cut_short(&file, old);
+        set_password(p, Some("pw"), Some("pw2")).unwrap();
+        assert!(!staged(&file).exists());
+        assert_eq!(env::load(p, &EnvFile::Secrets).unwrap(), values(&[("A", "1")]));
+    }
+
+    #[test]
+    fn history_that_cant_be_opened_isnt_overwritten() {
+        use crate::history::{self, HistoryEntry};
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path();
+        let path = crate::ProjectPath::parse("a.yml").unwrap();
+        let entry = |body: &str| HistoryEntry {
+            at: 1,
+            response: serde_json::from_value(serde_json::json!({"method":"GET","url":"","status":200,
+                "statusText":"","headers":[],"body":body,"truncated":false,"timeMs":0,"sizeBytes":0,"unresolved":[]}))
+            .unwrap(),
+        };
+        history::push(p, &path, entry("first")).unwrap();
+        let file = layout::history_file(p, &path);
+        let old = fs::read(&file).unwrap();
+        set_password(p, None, Some("pw")).unwrap();
+        cut_short(&file, old);
+        fs::remove_file(staged(&file)).unwrap();
+        assert!(matches!(history::push(p, &path, entry("second")), Err(Error::Undecryptable(_))));
+        assert!(fs::read(&file).unwrap().starts_with(MAGIC));
+    }
+
+    #[test]
+    fn renaming_history_takes_its_staged_copy_and_wipe_finds_orphans() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path();
+        let (a, b) = (crate::ProjectPath::parse("a.yml").unwrap(), crate::ProjectPath::parse("b.yml").unwrap());
+        let file = layout::history_file(p, &a);
+        layout::ensure_workspace(p).unwrap();
+        fs::create_dir_all(layout::history_dir(p)).unwrap();
+        fs::write(&file, b"[]").unwrap();
+        fs::write(staged(&file), b"x").unwrap();
+        crate::history::rename(p, &a, &b);
+        let moved = layout::history_file(p, &b);
+        assert!(staged(&moved).exists() && !staged(&file).exists());
+        fs::remove_file(&moved).unwrap();
+        wipe(p).unwrap();
+        assert!(!staged(&moved).exists());
     }
 
     #[test]

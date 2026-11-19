@@ -1,8 +1,8 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { isTauri } from "@tauri-apps/api/core";
 import { Copy, RotateCw, Terminal } from "lucide-react";
-import { toast } from "sonner";
-import { copyText, loadMcpStatus, regenerateMcpToken, saveMcpSettings } from "@/actions/mcp";
+import { copyText } from "@/actions/clipboard";
+import { loadMcpStatus, regenerateMcpToken, saveMcpSettings } from "@/actions/mcp";
 import type { McpStatus } from "@/api/client";
 import { IconButton } from "@/components/IconButton";
 import { Button } from "@/components/ui/button";
@@ -33,18 +33,15 @@ function Toggle({ label, checked, onChange }: { label: string; checked: boolean;
 /** Mounted per saved port, so it starts from that port. */
 function PortInput({ status, onSave }: { status: McpStatus; onSave: (port: number) => void }) {
   const [text, setText] = useState(String(status.port));
+  const port = parsePort(text);
   const commit = () => {
-    const port = parsePort(text);
-    if (port === null) {
-      toast.error("Port must be 1024–65535");
-      setText(String(status.port));
-    } else if (port !== status.port) {
-      onSave(port);
-    }
+    if (port !== null && port !== status.port) onSave(port);
   };
   return (
     <Input
       aria-label="Port"
+      title="1024–65535"
+      aria-invalid={port === null}
       value={text}
       inputMode="numeric"
       onChange={(event) => setText(event.target.value)}

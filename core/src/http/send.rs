@@ -41,6 +41,8 @@ pub async fn send(
     let mut reply = client.execute(prepared.request).await?;
     if let Some(credentials) = prepared.digest
         && reply.status() == StatusCode::UNAUTHORIZED
+        // After a redirect the challenge is another server's: don't answer it here.
+        && reply.url().as_str() == sent.url
     {
         match digest_challenge(reply.headers()) {
             Some(challenge) => {

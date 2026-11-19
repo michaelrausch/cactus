@@ -6,10 +6,12 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 
 use crate::best_effort;
+use crate::env::write_lock;
 use crate::http::Response;
-use crate::storage::{ensure_parent_dir, read_json_lenient, write_json};
+use crate::secrets::{read_sealed, staged_copy, write_sealed};
+use crate::storage::ensure_parent_dir;
 use crate::text::truncate_utf8;
-use crate::{ProjectPath, Result, layout};
+use crate::{Error, ProjectPath, Result, layout};
 
 const MAX_HISTORY_ENTRIES: usize = 10;
 /// Older entries are trimmed harder than live bodies to keep files small.
@@ -27,35 +29,50 @@ pub struct HistoryEntry {
     pub response: Response,
 }
 
-/// Newest first. A missing or corrupt history is simply empty.
+/// Newest first. A missing, corrupt or locked history is simply empty.
 pub fn load(project: &Path, scenario: &ProjectPath) -> Vec<HistoryEntry> {
-    read_json_lenient(&layout::history_file(project, scenario))
+    read_sealed(project, &layout::history_file(project, scenario)).unwrap_or_default()
 }
 
 /// Prepend `entry`, keeping at most [`MAX_HISTORY_ENTRIES`]. The newest entry
 /// keeps its full body, since reopening a scenario shows it and a cut-off JSON
 /// body can't be parsed; only older entries are trimmed.
 pub fn push(project: &Path, scenario: &ProjectPath, entry: HistoryEntry) -> Result<()> {
+    // Held so a password change can't re-seal this file mid-update.
+    let _guard = write_lock();
     layout::ensure_workspace(project)?;
     let file = layout::history_file(project, scenario);
     ensure_parent_dir(&file)?;
-    let mut entries = load(project, scenario);
+    // Only a corrupt history starts over: one that can't be opened right
+    // now (locked, wrong key) must not be overwritten.
+    let mut entries: Vec<HistoryEntry> = match read_sealed(project, &file) {
+        Ok(entries) => entries,
+        Err(Error::Json(_)) => Vec::new(),
+        Err(e) => return Err(e),
+    };
     for older in &mut entries {
         trim_body(&mut older.response);
     }
     entries.insert(0, entry);
     entries.truncate(MAX_HISTORY_ENTRIES);
-    write_json(&file, &entries)
+    write_sealed(project, &file, &entries)
 }
 
 /// Best effort: a scenario without history is not an error.
+/// Its staged copy from a password change goes too.
 pub fn clear(project: &Path, scenario: &ProjectPath) {
-    ignore_missing(fs::remove_file(layout::history_file(project, scenario)), "clear history");
+    let _guard = write_lock();
+    let file = layout::history_file(project, scenario);
+    ignore_missing(fs::remove_file(&file), "clear history");
+    ignore_missing(fs::remove_file(staged_copy(&file)), "clear history");
 }
 
-/// Best effort, like [`clear`].
+/// Best effort, like [`clear`]; the staged copy moves along.
 pub fn rename(project: &Path, from: &ProjectPath, to: &ProjectPath) {
-    ignore_missing(fs::rename(layout::history_file(project, from), layout::history_file(project, to)), "move history");
+    let _guard = write_lock();
+    let (from, to) = (layout::history_file(project, from), layout::history_file(project, to));
+    ignore_missing(fs::rename(&from, &to), "move history");
+    ignore_missing(fs::rename(staged_copy(&from), staged_copy(&to)), "move history");
 }
 
 /// No history yet is normal; any other failure is logged.

@@ -75,6 +75,12 @@ pub enum Error {
     NoPassword,
     #[error("{}: can't decrypt", .0.display())]
     Undecryptable(PathBuf),
+    #[error("encryption: {0}")]
+    Crypto(String),
+    #[error("invalid authenticator secret")]
+    InvalidTotpSecret,
+    #[error("port must be 1024–65535, not {0}")]
+    InvalidPort(u16),
     #[cfg(feature = "git")]
     #[error("git: {}", .0.message())]
     Git(#[from] git2::Error),

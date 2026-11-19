@@ -92,9 +92,6 @@ describe("flow data flow", () => {
 
   it("reports missing requests, and waits for ones still loading", () => {
     const flow = flowDataflow([{ request: "gone.yml" }, { request: "" }, { request: "loading.yml" }], requests, scope);
-    expect(flow.problems.map((p) => p.message)).toEqual([
-      "gone.yml doesn't exist or doesn't parse",
-      "No request",
-    ]);
+    expect(flow.problems.map((p) => p.message)).toEqual(["gone.yml doesn't exist or doesn't parse", "No request"]);
   });
 });
