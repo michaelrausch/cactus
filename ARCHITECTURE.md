@@ -14,16 +14,16 @@ ui/         React front end for the desktop app.
 
 ## On disk
 
-| Path                     | What                                          | Committed |
-| ------------------------ | --------------------------------------------- | --------- |
-| `opencollection.yml`     | The collection: its defaults (`request.headers`, `auth`) and shared variables | yes |
-| `environments/<name>.yml`| A named environment                           | yes       |
-| `<folder>/folder.yml`    | A folder's name, `seq` and defaults           | yes       |
-| `**/*.yml`               | Requests (every other `.yml`)                 | yes       |
-| `.cactus/secrets.json`   | Local secrets, the values of `secret: true` variables | no |
-| `.cactus/captured.json`  | Values written by set-variable actions        | no        |
-| `.cactus/state.json`     | Active environment                            | no        |
-| `.cactus/history/*.json` | Last responses per request (`a/b.yml` → `a__b.json`) | no |
+| Path                      | What                                                                          | Committed |
+| ------------------------- | ----------------------------------------------------------------------------- | --------- |
+| `opencollection.yml`      | The collection: its defaults (`request.headers`, `auth`) and shared variables | yes       |
+| `environments/<name>.yml` | A named environment                                                           | yes       |
+| `<folder>/folder.yml`     | A folder's name, `seq` and defaults                                           | yes       |
+| `**/*.yml`                | Requests (every other `.yml`)                                                 | yes       |
+| `.cactus/secrets.json`    | Local secrets, the values of `secret: true` variables                         | no        |
+| `.cactus/captured.json`   | Values written by set-variable actions                                        | no        |
+| `.cactus/state.json`      | Active environment                                                            | no        |
+| `.cactus/history/*.json`  | Last responses per request (`a/b.yml` → `a__b.json`)                          | no        |
 
 All path rules live in `core/src/layout.rs`. Request paths are a validated
 newtype (`ScenarioPath`) that can never escape the project. Requests are listed
@@ -50,15 +50,15 @@ says so in the response's `warnings`.
 
 ## core
 
-| Module      | Responsibility |
-| ----------- | -------------- |
-| `collection`| `model` (shared OpenCollection types, root/folder/environment files), `patch` (in-place saves), `emit` (new files), defaults chain |
-| `scenario`  | `model` (the request file), `listing` (discovery, tree order), `store` (create/save/rename/delete) |
-| `env`       | `layers` (env layers and merge), `capture`, `template` (`Substituter`) |
-| `http`      | `request` (scenario + inherited defaults → reqwest request), `send`, `response`, `expression` (`res.*`), `assertions` (actions, checks, pass/fail) |
-| `import`    | Postman and OpenAPI → requests |
-| `runner`    | Send + persist captures + record history; folder runs |
-| `history`, `recent`, `state`, `storage`, `layout` | Persistence |
+| Module                                            | Responsibility                                                                                                                                     |
+| ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `collection`                                      | `model` (shared OpenCollection types, root/folder/environment files), `patch` (in-place saves), `emit` (new files), defaults chain                 |
+| `scenario`                                        | `model` (the request file), `listing` (discovery, tree order), `store` (create/save/rename/delete)                                                 |
+| `env`                                             | `layers` (env layers and merge), `capture`, `template` (`Substituter`)                                                                             |
+| `http`                                            | `request` (scenario + inherited defaults → reqwest request), `send`, `response`, `expression` (`res.*`), `assertions` (actions, checks, pass/fail) |
+| `import`                                          | Postman and OpenAPI → requests                                                                                                                     |
+| `runner`                                          | Send + persist captures + record history; folder runs                                                                                              |
+| `history`, `recent`, `state`, `storage`, `layout` | Persistence                                                                                                                                        |
 
 Errors are typed (`core/src/error.rs`) and reach the UI as their message.
 
@@ -76,22 +76,24 @@ Errors are typed (`core/src/error.rs`) and reach the UI as their message.
 
 Data flows one way: **component → action → backend → store → component**.
 
-| Folder        | Contains | May import |
-| ------------- | -------- | ---------- |
-| `api/`        | Generated bindings, plus `client.ts` with the type aliases the UI uses | — |
-| `domain/`     | Pure functions with no React or backend imports, unit-tested | `api` types |
-| `stores/`     | Zustand state, plus synchronous setters only | `api` types |
-| `actions/`    | Async workflows: call the backend, update stores, report errors | everything above |
-| `hooks/`      | App lifecycle and keyboard shortcuts | actions, stores |
-| `components/` | Generic presentational pieces (`ui/` is generated by shadcn) | domain, theme |
-| `features/`   | Screens, one folder per area; read stores, call actions | all of the above |
-| `app/`        | `App.tsx` layout and the `SHORTCUTS` table | features, hooks |
+| Folder        | Contains                                                               | May import       |
+| ------------- | ---------------------------------------------------------------------- | ---------------- |
+| `api/`        | Generated bindings, plus `client.ts` with the type aliases the UI uses | —                |
+| `domain/`     | Pure functions with no React or backend imports, unit-tested           | `api` types      |
+| `stores/`     | Zustand state, plus synchronous setters only                           | `api` types      |
+| `actions/`    | Async workflows: call the backend, update stores, report errors        | everything above |
+| `hooks/`      | App lifecycle and keyboard shortcuts                                   | actions, stores  |
+| `components/` | Generic presentational pieces (`ui/` is generated by shadcn)           | domain, theme    |
+| `features/`   | Screens, one folder per area; read stores, call actions                | all of the above |
+| `app/`        | `App.tsx` layout and the `SHORTCUTS` table                             | features, hooks  |
 
 Stores never import each other or actions, which keeps the graph acyclic
 (enforced by `import/no-cycle`). Cross-store work belongs in `actions/`.
 
-Autosave (`actions/autosave.ts`) debounces edits and is flushed before switching
-scenario or project. The editor remounts via `key={path:editorVersion}`
+Nothing is saved automatically. Edits live in `editorStore` buffers (the open
+scenario plus any other with unsaved edits), which are dirty until saved with
+Ctrl+S (`actions/saving.ts`). If a file changes on disk under a dirty buffer it
+is flagged as a conflict, resolved by reloading from disk or overwriting. The editor remounts via `key={path:editorVersion}`
 whenever its draft state must reset.
 
 ## Common changes

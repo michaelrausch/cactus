@@ -2,12 +2,13 @@ import { toast } from "sonner";
 import { backend, backendEvents, type HttpResponse, type RunResult, type ScenarioPath } from "@/api/client";
 import { isWithinDir } from "@/domain/paths";
 import { errorMessage, reportErrors } from "@/lib/errors";
-import { useEditorStore } from "@/stores/editorStore";
+import { dirtyPaths, useEditorStore } from "@/stores/editorStore";
 import { useProjectStore } from "@/stores/projectStore";
 import { useResponseStore } from "@/stores/responseStore";
 import { useRunStore } from "@/stores/runStore";
-import { flushPendingSave } from "./autosave";
+import { useUiStore } from "@/stores/uiStore";
 import { selectScenario } from "./scenario";
+import { saveAll } from "./saving";
 import { refreshVariableNames } from "./variables";
 
 /** As kept by the backend (`core/src/history.rs`). */
@@ -60,9 +61,26 @@ function recordRunResult(result: RunResult): void {
 
 /** Run every scenario under `dir`, streaming results into the run dialog. */
 export async function runFolder(dir: string): Promise<void> {
+  const { project } = useProjectStore.getState();
+  if (!project) return;
+  const unsaved = dirtyPaths(useEditorStore.getState().buffers).filter((path) => isWithinDir(path, dir));
+  if (unsaved.length === 0) return runSaved(dir);
+  // Runs read from disk, so unsaved edits would silently not take part.
+  useUiStore.getState().askConfirm({
+    title: "Unsaved changes",
+    description: `${unsaved.length === 1 ? unsaved[0] : `${unsaved.length} scenarios`} ha${unsaved.length === 1 ? "s" : "ve"} unsaved edits. A run uses the saved files.`,
+    action: "Save and run",
+    destructive: false,
+    onConfirm: async () => {
+      if (await saveAll(unsaved)) await runSaved(dir);
+    },
+    alternative: { action: "Run saved versions", onConfirm: () => runSaved(dir) },
+  });
+}
+
+async function runSaved(dir: string): Promise<void> {
   const { project, entries } = useProjectStore.getState();
   if (!project) return;
-  await flushPendingSave();
   const total = entries.filter((entry) => isWithinDir(entry.relPath, dir)).length;
   if (total === 0) {
     toast.info("Nothing to run");

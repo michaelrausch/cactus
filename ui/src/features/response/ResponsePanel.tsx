@@ -11,16 +11,16 @@ import { ResponseSummary } from "./ResponseSummary";
 
 function RequestFailed({ error }: { error: string }) {
   return (
-    <div className="p-4">
-      <p className="mb-2 text-xs font-medium text-rose-400">Request failed</p>
-      <pre className="font-mono text-xs whitespace-pre-wrap text-rose-300/90">{error}</pre>
+    <div className="animate-in p-4 duration-150 fade-in-0">
+      <p className="mb-2 text-xs font-medium text-danger">Request failed</p>
+      <pre className="font-mono text-xs whitespace-pre-wrap text-danger/90">{error}</pre>
     </div>
   );
 }
 
 function NothingSentYet() {
   return (
-    <div className="grid h-full place-items-center p-6 text-center text-sm text-muted-foreground">
+    <div className="grid h-full animate-in place-items-center p-6 text-center text-sm text-muted-foreground duration-150 fade-in-0">
       <div>
         <div className="mx-auto mb-3 size-14 rounded-full bg-[radial-gradient(closest-side,var(--color-brand-2),transparent)] opacity-30" />
         Press <kbd className="rounded border px-1.5 py-0.5 text-xs">Ctrl</kbd>{" "}
@@ -35,7 +35,7 @@ function ChecksTabLabel({ response }: { response: HttpResponse }) {
   return (
     <>
       Checks
-      <span className={cn("ml-1 text-[11px] tabular-nums", failed ? "text-rose-400" : "text-emerald-400")}>
+      <span className={cn("ml-1 text-[11px] tabular-nums", failed ? "text-danger" : "text-success")}>
         {response.checks.length - failed}/{response.checks.length}
       </span>
     </>
@@ -88,7 +88,10 @@ export function ResponsePanel() {
   if (!response) return <NothingSentYet />;
   return (
     <div className="flex h-full flex-col gap-3 p-4">
-      <ResponseSummary response={response} historyAt={historyAt} />
+      {/* Remount per response so it fades in on every send or history pick. */}
+      <div key={`${historyAt}:${response.timeMs}`} className="animate-in duration-150 fade-in-0">
+        <ResponseSummary response={response} historyAt={historyAt} />
+      </div>
       <ResponseTabs response={response} historyAt={historyAt} />
     </div>
   );

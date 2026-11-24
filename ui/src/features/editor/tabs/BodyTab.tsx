@@ -107,7 +107,7 @@ function TextEditor({ scenario, onChange, kind }: ScenarioTabProps & { kind: "js
           fieldClassName="px-2.5 py-2 font-mono text-xs leading-relaxed md:text-sm"
         />
       </div>
-      {problem && <span className="truncate text-xs text-amber-400">Not valid JSON: {problem}</span>}
+      {problem && <span className="truncate text-xs text-warning">Not valid JSON: {problem}</span>}
     </>
   );
 }

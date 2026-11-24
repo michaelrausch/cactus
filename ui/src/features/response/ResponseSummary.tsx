@@ -15,7 +15,7 @@ export function ResponseSummary({ response, historyAt }: { response: HttpRespons
         <span className="text-muted-foreground tabular-nums">{response.timeMs} ms</span>
         <span className="text-muted-foreground/50">·</span>
         <span className="text-muted-foreground tabular-nums">{formatBytes(response.sizeBytes)}</span>
-        {response.truncated && <span className="text-amber-400">truncated</span>}
+        {response.truncated && <span className="text-warning">truncated</span>}
         {historyAt !== null && (
           <span className="ml-auto flex items-center gap-1 text-muted-foreground">
             <Clock className="size-3" /> {timeAgo(historyAt)} ago
@@ -28,14 +28,14 @@ export function ResponseSummary({ response, historyAt }: { response: HttpRespons
         response.captureFailures.length > 0) && (
         <div className="flex flex-wrap gap-1.5 text-[11px]">
           {response.warnings.map((warning) => (
-            <span key={warning} className="rounded-full bg-amber-400/10 px-2 py-0.5 text-amber-300">
+            <span key={warning} className="rounded-full bg-warning/10 px-2 py-0.5 text-warning">
               {warning}
             </span>
           ))}
           {response.unresolved.map((name) => (
             <span
               key={name}
-              className="rounded-full bg-amber-400/10 px-2 py-0.5 text-amber-300"
+              className="rounded-full bg-warning/10 px-2 py-0.5 text-warning"
               title="Not defined in any env layer"
             >
               {`{{${name}}}`} unresolved
@@ -44,7 +44,7 @@ export function ResponseSummary({ response, historyAt }: { response: HttpRespons
           {response.captureFailures.map((failure) => (
             <span
               key={failure.name}
-              className="rounded-full bg-rose-400/10 px-2 py-0.5 text-rose-300"
+              className="rounded-full bg-danger/10 px-2 py-0.5 text-danger"
               title={`${failure.expression}: ${failure.reason}`}
             >
               capture {failure.name} failed

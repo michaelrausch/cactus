@@ -1,29 +1,28 @@
-import { toast } from "sonner";
 import { backend, type Scenario, type ScenarioPath } from "@/api/client";
 import { withRequestExtension } from "@/domain/paths";
 import { reportErrors } from "@/lib/errors";
-import { stableStringify } from "@/lib/format";
-import { useEditorStore } from "@/stores/editorStore";
+import { isDirty, useEditorStore } from "@/stores/editorStore";
 import { useProjectStore } from "@/stores/projectStore";
 import { useResponseStore } from "@/stores/responseStore";
 import { useUiStore } from "@/stores/uiStore";
-import { discardPendingSave, flushPendingSave, hasPendingSave, scheduleSave } from "./autosave";
 import { refreshEntries } from "./project";
+import { saveScenario } from "./saving";
 
 const currentProject = (): string | null => useProjectStore.getState().project;
 
-/** Apply an edit to the open scenario and schedule it to be saved. */
+/** Apply an edit to the open scenario's buffer. It stays unsaved until the user saves. */
 export function editScenario(scenario: Scenario): void {
   useEditorStore.getState().edited(scenario);
-  const project = currentProject();
-  const { path } = useEditorStore.getState();
-  if (project && path) scheduleSave({ project, path, scenario });
 }
 
 export async function selectScenario(path: ScenarioPath): Promise<void> {
   const project = currentProject();
   if (!project) return;
-  await flushPendingSave();
+  if (isDirty(useEditorStore.getState().buffers[path])) {
+    useEditorStore.getState().shown(path);
+    useResponseStore.getState().showHistory(await backend.loadHistory(project, path));
+    return;
+  }
   await reportErrors(async () => {
     const [scenario, history] = await Promise.all([
       backend.loadScenario(project, path),
@@ -63,7 +62,6 @@ export function renameScenario(from: ScenarioPath): void {
       if (!input) return;
       const to = withRequestExtension(input);
       if (to === from) return;
-      await flushPendingSave();
       await reportErrors(async () => {
         await backend.renameScenario(project, from, to);
         useEditorStore.getState().moved(from, to);
@@ -73,14 +71,27 @@ export function renameScenario(from: ScenarioPath): void {
   });
 }
 
-export async function duplicateScenario(path: ScenarioPath): Promise<void> {
-  const project = currentProject();
-  if (!project) return;
-  await flushPendingSave();
+async function duplicateSaved(project: string, path: ScenarioPath): Promise<void> {
   await reportErrors(async () => {
     const created = await backend.duplicateScenario(project, path);
     await refreshEntries();
     await selectScenario(created);
+  });
+}
+
+/** Duplicates the file on disk, so unsaved edits have to be saved first. */
+export async function duplicateScenario(path: ScenarioPath): Promise<void> {
+  const project = currentProject();
+  if (!project) return;
+  if (!isDirty(useEditorStore.getState().buffers[path])) return duplicateSaved(project, path);
+  useUiStore.getState().askConfirm({
+    title: "Save before duplicating?",
+    description: `${path} has unsaved changes, which a copy of the file wouldn't include.`,
+    action: "Save and duplicate",
+    destructive: false,
+    onConfirm: async () => {
+      if (await saveScenario(path)) await duplicateSaved(project, path);
+    },
   });
 }
 
@@ -93,33 +104,17 @@ export function deleteScenario(path: ScenarioPath): void {
     action: "Delete",
     onConfirm: () =>
       void reportErrors(async () => {
-        discardPendingSave(path);
         await backend.deleteScenario(project, path);
-        if (useEditorStore.getState().path === path) {
-          useEditorStore.getState().closed();
-          useResponseStore.getState().clearResponse();
-        }
+        if (useEditorStore.getState().path === path) useResponseStore.getState().clearResponse();
+        useEditorStore.getState().removed(path);
         await refreshEntries();
       }),
   });
 }
 
-/**
- * Reload the open scenario after an external edit, unless the user has
- * unsaved changes or the file on disk already matches (our own save).
- */
-export async function reloadIfChangedOnDisk(changedPaths: string[]): Promise<void> {
-  const project = currentProject();
-  const { path } = useEditorStore.getState();
-  if (!project || !path || !changedPaths.includes(path) || hasPendingSave()) return;
-  try {
-    const onDisk = await backend.loadScenario(project, path);
-    const current = useEditorStore.getState();
-    const unchanged = stableStringify(onDisk) === stableStringify(current.scenario);
-    if (hasPendingSave() || current.path !== path || unchanged) return;
-    current.reloaded(onDisk);
-    toast.info("Reloaded: file changed on disk");
-  } catch {
-    // Deleted or mid-write; the list refresh covers deletion.
-  }
+/** Close the editor for `path`, throwing away its unsaved edits. */
+export function discardChanges(path: ScenarioPath): void {
+  if (useEditorStore.getState().path === path) useResponseStore.getState().clearResponse();
+  useEditorStore.getState().removed(path);
+  void reportErrors(refreshEntries);
 }

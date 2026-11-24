@@ -20,7 +20,7 @@ export function WelcomeScreen() {
           <button
             type="button"
             onClick={() => void openProject()}
-            className="flex items-center gap-2 rounded-full bg-brand px-4 py-2 text-sm font-medium text-black shadow-lg shadow-emerald-500/20 hover:brightness-110"
+            className="flex items-center gap-2 rounded-full bg-brand px-4 py-2 text-sm font-medium text-brand-foreground shadow-lg shadow-brand-2/20 hover:brightness-110"
           >
             <FolderOpen className="size-4" /> Open a folder
           </button>

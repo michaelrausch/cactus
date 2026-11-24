@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { memo, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import type { JsonValue } from "@/api/client";
 import { cn } from "@/lib/utils";
@@ -10,25 +10,38 @@ const INITIALLY_OPEN_DEPTH = 2;
 
 function Scalar({ value }: { value: JsonValue }) {
   if (value === null) return <span className="text-muted-foreground">null</span>;
-  if (typeof value === "string") return <span className="break-all text-emerald-300">"{value}"</span>;
-  if (typeof value === "number") return <span className="text-amber-300">{value}</span>;
-  return <span className="text-violet-300">{String(value)}</span>;
+  if (typeof value === "string") return <span className="break-all text-syntax-string">"{value}"</span>;
+  if (typeof value === "number") return <span className="text-syntax-number">{value}</span>;
+  return <span className="text-syntax-literal">{String(value)}</span>;
 }
 
 function Label({ name }: { name: string | undefined }) {
   if (name === undefined) return null;
   return (
     <>
-      <span className="text-sky-300">{name}</span>
+      <span className="text-syntax-key">{name}</span>
       <span className="text-muted-foreground">: </span>
     </>
   );
 }
 
-const childrenOf = (value: JsonValue[] | { [key: string]: JsonValue }): [string, JsonValue][] =>
-  Array.isArray(value) ? value.map((child, index) => [String(index), child]) : Object.entries(value);
+type Container = JsonValue[] | { [key: string]: JsonValue };
 
-function Node({ name, value, depth }: { name?: string; value: JsonValue; depth: number }) {
+/** The first `limit` children, without building entries for the rest. */
+function childrenOf(value: Container, limit: number): [string, JsonValue][] {
+  if (Array.isArray(value)) return value.slice(0, limit).map((child, index) => [String(index), child]);
+  const entries: [string, JsonValue][] = [];
+  for (const key in value) {
+    if (entries.length >= limit) break;
+    if (Object.hasOwn(value, key)) entries.push([key, value[key] as JsonValue]);
+  }
+  return entries;
+}
+
+const childCount = (value: Container): number => (Array.isArray(value) ? value.length : Object.keys(value).length);
+
+/** Memoised: values never change in place, so a node only re-renders when it is toggled. */
+const Node = memo(function Node({ name, value, depth }: { name?: string; value: JsonValue; depth: number }) {
   const [open, setOpen] = useState(depth < INITIALLY_OPEN_DEPTH);
   const [shown, setShown] = useState(CHILDREN_PAGE_SIZE);
 
@@ -42,9 +55,9 @@ function Node({ name, value, depth }: { name?: string; value: JsonValue; depth: 
   }
 
   const isArray = Array.isArray(value);
-  const children = childrenOf(value);
+  const count = childCount(value);
   const [openBracket, closeBracket] = isArray ? ["[", "]"] : ["{", "}"];
-  const hidden = children.length - shown;
+  const hidden = count - shown;
 
   return (
     <div className={cn(depth > 0 && "pl-4")}>
@@ -59,20 +72,20 @@ function Node({ name, value, depth }: { name?: string; value: JsonValue; depth: 
         {!open && (
           <span className="text-muted-foreground">
             {" "}
-            {children.length} {isArray ? "items" : "keys"} {closeBracket}
+            {count} {isArray ? "items" : "keys"} {closeBracket}
           </span>
         )}
       </button>
       {open && (
         <>
           <div className="border-l border-border/60">
-            {children.slice(0, shown).map(([key, child]) => (
+            {childrenOf(value, shown).map(([key, child]) => (
               <Node key={key} name={key} value={child} depth={depth + 1} />
             ))}
             {hidden > 0 && (
               <button
                 type="button"
-                className="pl-4 text-xs text-emerald-300 hover:underline"
+                className="pl-4 text-xs text-syntax-string hover:underline"
                 onClick={() => setShown(shown + CHILDREN_PAGE_SIZE)}
               >
                 show {Math.min(CHILDREN_PAGE_SIZE, hidden)} more of {hidden}
@@ -84,7 +97,7 @@ function Node({ name, value, depth }: { name?: string; value: JsonValue; depth: 
       )}
     </div>
   );
-}
+});
 
 export function JsonTree({ value }: { value: JsonValue }) {
   return (

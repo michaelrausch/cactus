@@ -66,7 +66,7 @@ export function EnvLayerEditor({ project, file, ref }: EnvLayerEditorProps) {
       <DialogHeader className="mb-4">
         <DialogTitle className="flex items-baseline gap-2">
           {info.label} <span className="font-mono text-xs font-normal text-muted-foreground">{info.path}</span>
-          {dirty && <span className="size-1.5 self-center rounded-full bg-amber-400" title="Unsaved changes" />}
+          {dirty && <span className="size-1.5 self-center rounded-full bg-warning" title="Unsaved changes" />}
         </DialogTitle>
         <DialogDescription>{info.note}</DialogDescription>
       </DialogHeader>

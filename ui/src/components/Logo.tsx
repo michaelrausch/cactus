@@ -10,7 +10,10 @@ export function Logo({ className }: { className?: string }) {
       viewBox="0 0 20 20"
       role="img"
       aria-label="cactus"
-      className={cn("size-5 shrink-0 drop-shadow-[0_0_6px_rgba(74,222,128,0.35)]", className)}
+      className={cn(
+        "size-5 shrink-0 drop-shadow-[0_0_6px_color-mix(in_oklch,var(--color-brand-2)_35%,transparent)]",
+        className,
+      )}
     >
       <defs>
         <linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="1">
@@ -26,7 +29,7 @@ export function Logo({ className }: { className?: string }) {
         <rect x="14" y="5" width="3" height="6.5" rx="1.5" />
         <rect x="11" y="9" width="6" height="2.5" rx="1.25" />
       </g>
-      <circle cx="10" cy="3" r="1.8" fill="#f472b6" />
+      <circle cx="10" cy="3" r="1.8" fill="var(--color-flower)" />
     </svg>
   );
 }

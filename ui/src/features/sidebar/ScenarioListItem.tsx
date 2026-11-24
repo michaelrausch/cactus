@@ -1,10 +1,11 @@
-import type { MouseEvent, ReactNode } from "react";
+import { memo, type MouseEvent, type ReactNode } from "react";
 import { Copy, Pencil, Trash2 } from "lucide-react";
 import type { ScenarioEntry } from "@/api/client";
 import { deleteScenario, duplicateScenario, renameScenario, selectScenario } from "@/actions/scenario";
 import { MethodBadge } from "@/components/MethodBadge";
 import { StatusCode } from "@/components/StatusCode";
 import { cn } from "@/lib/utils";
+import { isDirty, useEditorStore } from "@/stores/editorStore";
 
 interface ScenarioListItemProps {
   entry: ScenarioEntry;
@@ -24,8 +25,10 @@ function RowAction({ label, onClick, children }: { label: string; onClick: () =>
   );
 }
 
-export function ScenarioListItem({ entry, selected, lastStatus }: ScenarioListItemProps) {
+/** Memoised: only the rows whose selection, status or dirty flag change re-render. */
+export const ScenarioListItem = memo(function ScenarioListItem({ entry, selected, lastStatus }: ScenarioListItemProps) {
   const path = entry.relPath;
+  const dirty = useEditorStore((s) => isDirty(s.buffers[path]));
   return (
     <div
       onClick={() => void selectScenario(path)}
@@ -45,6 +48,7 @@ export function ScenarioListItem({ entry, selected, lastStatus }: ScenarioListIt
       >
         {entry.title}
       </span>
+      {dirty && <span title="Unsaved changes" className="size-1.5 shrink-0 rounded-full bg-brand" />}
       {lastStatus !== undefined && <StatusCode status={lastStatus} className="text-[11px] group-hover:hidden" />}
       <span className="hidden items-center gap-1.5 text-muted-foreground group-hover:flex">
         <RowAction label="Duplicate" onClick={() => void duplicateScenario(path)}>
@@ -54,9 +58,9 @@ export function ScenarioListItem({ entry, selected, lastStatus }: ScenarioListIt
           <Pencil className="size-3.5 hover:text-foreground" />
         </RowAction>
         <RowAction label="Delete" onClick={() => deleteScenario(path)}>
-          <Trash2 className="size-3.5 hover:text-rose-400" />
+          <Trash2 className="size-3.5 hover:text-danger" />
         </RowAction>
       </span>
     </div>
   );
-}
+});

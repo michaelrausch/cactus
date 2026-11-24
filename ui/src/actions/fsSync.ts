@@ -3,12 +3,11 @@ import { reportErrors } from "@/lib/errors";
 import { useProjectStore } from "@/stores/projectStore";
 import { refreshEntries, refreshEnvs } from "./project";
 import { refreshVariableNames } from "./variables";
-import { isOwnRecentWrite } from "./autosave";
-import { reloadIfChangedOnDisk } from "./scenario";
+import { isOwnRecentWrite, reloadIfChangedOnDisk } from "./saving";
 
 /**
- * React to files changing on disk, whoever changed them. Autosave's own
- * writes are skipped: the store already has what was saved, and re-listing
+ * React to files changing on disk, whoever changed them. Our own
+ * saves are skipped: the store already has what was saved, and re-listing
  * the project after every pause in typing re-parses every file in it.
  */
 export async function handleFilesChanged(changed: string[]): Promise<void> {

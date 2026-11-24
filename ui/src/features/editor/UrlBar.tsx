@@ -30,7 +30,7 @@ function SendButton() {
       type="button"
       onClick={() => void sendCurrentScenario()}
       title={withShortcut("Send", "send")}
-      className="grid size-9 shrink-0 place-items-center rounded-lg bg-brand-2 text-black shadow-md shadow-emerald-500/20 transition hover:brightness-110 active:scale-95"
+      className="grid size-9 shrink-0 place-items-center rounded-lg bg-brand-2 text-brand-foreground shadow-md shadow-brand-2/20 transition hover:brightness-110 active:scale-95"
     >
       <ArrowUp className="size-4" strokeWidth={2.5} />
     </button>
@@ -39,7 +39,7 @@ function SendButton() {
 
 export function UrlBar({ scenario, onChange }: ScenarioTabProps) {
   return (
-    <div className="flex items-center gap-1 rounded-xl border bg-card p-1 shadow-sm shadow-black/20 transition-colors focus-within:border-emerald-400/40">
+    <div className="flex items-center gap-1 rounded-xl border bg-card p-1 shadow-sm shadow-black/20 transition-colors focus-within:border-brand-2/40">
       <Select
         value={scenario.http.method.toUpperCase()}
         onValueChange={(method) => onChange({ ...scenario, http: { ...scenario.http, method } })}

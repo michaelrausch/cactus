@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { Play, Plus } from "lucide-react";
 import { runFolder } from "@/actions/request";
 import { createScenarioIn } from "@/actions/scenario";
@@ -54,7 +55,7 @@ function FolderSection({ group }: { group: FolderGroup }) {
 export function ScenarioList({ filter }: { filter: string }) {
   const project = useProjectStore((s) => s.project);
   const entries = useProjectStore((s) => s.entries);
-  const groups = groupByFolder(entries, filter);
+  const groups = useMemo(() => groupByFolder(entries, filter), [entries, filter]);
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">

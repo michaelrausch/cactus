@@ -23,6 +23,7 @@ interface UiState {
   prompt: PromptRequest | null;
   confirm: ConfirmRequest | null;
   envDialogOpen: boolean;
+  settingsOpen: boolean;
   switcherOpen: boolean;
   responseVisible: boolean;
 
@@ -31,15 +32,18 @@ interface UiState {
   closePrompt: () => void;
   closeConfirm: () => void;
   setEnvDialogOpen: (open: boolean) => void;
+  setSettingsOpen: (open: boolean) => void;
   setSwitcherOpen: (open: boolean) => void;
   toggleSwitcher: () => void;
   toggleResponse: () => void;
+  setResponseVisible: (visible: boolean) => void;
 }
 
 export const useUiStore = create<UiState>()((set) => ({
   prompt: null,
   confirm: null,
   envDialogOpen: false,
+  settingsOpen: false,
   switcherOpen: false,
   responseVisible: true,
 
@@ -48,7 +52,9 @@ export const useUiStore = create<UiState>()((set) => ({
   closePrompt: () => set({ prompt: null }),
   closeConfirm: () => set({ confirm: null }),
   setEnvDialogOpen: (envDialogOpen) => set({ envDialogOpen }),
+  setSettingsOpen: (settingsOpen) => set({ settingsOpen }),
   setSwitcherOpen: (switcherOpen) => set({ switcherOpen }),
   toggleSwitcher: () => set((s) => ({ switcherOpen: !s.switcherOpen })),
   toggleResponse: () => set((s) => ({ responseVisible: !s.responseVisible })),
+  setResponseVisible: (responseVisible) => set({ responseVisible }),
 }));
