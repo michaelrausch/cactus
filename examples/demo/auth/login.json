@@ -1,0 +1,17 @@
+{
+  "title": "Login",
+  "description": "POSTs a JSON body and captures a value into {{token}} for later requests. {{password}} is intentionally undefined: put it in Secrets to resolve it.",
+  "method": "POST",
+  "url": "{{baseUrl}}/post",
+  "headers": {},
+  "body": {
+    "username": "{{user}}",
+    "password": "{{password}}"
+  },
+  "capture": {
+    "token": "$.json.username"
+  },
+  "expect": {
+    "status": 200
+  }
+}
