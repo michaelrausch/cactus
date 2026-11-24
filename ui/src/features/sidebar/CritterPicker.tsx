@@ -1,8 +1,9 @@
-import { Check, ChevronsUpDown, Pause, Play, Plus, UserRound, Users } from "lucide-react";
-import { actAs, openNewCritter, runFlowNow, toggleCrittersView } from "@/actions/critters";
+import { Check, ChevronsUpDown, Lock, Pause, Play, Plus, UserRound } from "lucide-react";
+import { actAs, openNewCritter } from "@/actions/critters";
+import { runFlow } from "@/actions/flows";
 import { refreshSchedules, setSchedulesPaused } from "@/actions/monitors";
+import { ensureUnlocked } from "@/actions/secrets";
 import type { CritterSummary } from "@/api/client";
-import { shortcutLabel } from "@/app/shortcuts";
 import { CritterSprite } from "@/components/critters/CritterSprite";
 import { SPECIES } from "@/components/critters/species";
 import {
@@ -11,7 +12,6 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { selectActiveCritter, useCritterStore } from "@/stores/critterStore";
@@ -46,10 +46,9 @@ function FlowItems({ critter }: { critter: CritterSummary }) {
           key={flow.id}
           disabled={!!flow.error}
           title={flow.error ?? undefined}
-          onSelect={() => void runFlowNow(critter.id, flow.id)}
+          onSelect={() => void runFlow(critter.id, flow.id)}
         >
           <Play /> <span className="min-w-0 flex-1 truncate">{flow.name}</span>
-          {flow.trigger && <span className="text-xs text-muted-foreground">⏱ {flow.trigger.every}</span>}
         </DropdownMenuItem>
       ))}
     </>
@@ -67,6 +66,8 @@ export function CritterPicker() {
   const failing = useMonitorStore((s) => selectFailingSchedules(s).length);
   const scheduled = useMonitorStore((s) => s.schedules.length);
   const paused = useMonitorStore((s) => s.paused);
+  const waiting = useMonitorStore((s) => s.schedules.filter((x) => x.waiting === "secretsLocked").length);
+  const alerted = useMonitorStore((s) => s.flashing !== null && s.flashing === activeId);
 
   const label = active ? `Sending as ${active.name}` : "Sending as no critter";
   return (
@@ -77,7 +78,14 @@ export function CritterPicker() {
         className="relative flex h-8 min-w-0 flex-1 items-center gap-2 rounded-lg px-2 text-left text-sm focus-ring hover:bg-sidebar-accent"
       >
         {active ? (
-          <CritterSprite species={active.species} size={16} label={active.name} seed={active.id} asleep={paused} />
+          <CritterSprite
+            species={active.species}
+            size={16}
+            state={alerted ? "fail" : "idle"}
+            label={active.name}
+            seed={active.id}
+            asleep={paused}
+          />
         ) : (
           <UserRound className="size-4 shrink-0 text-muted-foreground" />
         )}
@@ -103,6 +111,11 @@ export function CritterPicker() {
         ))}
         {active && <FlowItems critter={active} />}
         <DropdownMenuSeparator />
+        {waiting > 0 && !paused && (
+          <DropdownMenuItem onSelect={() => void ensureUnlocked()}>
+            <Lock /> <span className="flex-1">Unlock schedules</span>
+          </DropdownMenuItem>
+        )}
         {scheduled > 0 && (
           <DropdownMenuItem onSelect={() => void setSchedulesPaused(!paused)}>
             {paused ? <Play /> : <Pause />}
@@ -112,10 +125,6 @@ export function CritterPicker() {
         )}
         <DropdownMenuItem onSelect={openNewCritter}>
           <Plus /> New critter…
-        </DropdownMenuItem>
-        <DropdownMenuItem onSelect={toggleCrittersView}>
-          <Users /> Manage critters…
-          <DropdownMenuShortcut>{shortcutLabel("critters")}</DropdownMenuShortcut>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

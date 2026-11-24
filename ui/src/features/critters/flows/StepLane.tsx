@@ -23,7 +23,11 @@ const isOurDrag = (event: DragEvent): boolean =>
 function PassingChips({ names }: { names: string[] }) {
   if (names.length === 0) return <div className="h-2" />;
   return (
-    <div className="flex flex-wrap items-center gap-1 py-1 pl-7" aria-label={`Passes on ${names.join(", ")}`}>
+    <div
+      role="group"
+      className="flex flex-wrap items-center gap-1 py-1 pl-7"
+      aria-label={`Passes on ${names.join(", ")}`}
+    >
       {names.map((name) => (
         <span
           key={name}
@@ -133,7 +137,7 @@ export function StepLane({ critter, steps, dataflow }: StepLaneProps) {
         steps.map((step, index) => (
           // Steps have no ids; their order is their identity, and moves re-render the lane.
           // oxlint-disable-next-line react/no-array-index-key
-          <div key={index}>
+          <div key={index} role="listitem">
             <StepCard
               index={index}
               step={step}

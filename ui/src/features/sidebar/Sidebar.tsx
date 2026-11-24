@@ -8,7 +8,9 @@ import { IconButton } from "@/components/IconButton";
 import { Logo } from "@/components/Logo";
 import { useProjectStore } from "@/stores/projectStore";
 import { useUiStore } from "@/stores/uiStore";
+import { LockButton } from "@/features/secrets/LockButton";
 import { CritterPicker } from "./CritterPicker";
+import { CritterTree } from "./CritterTree";
 import { EnvPicker } from "./EnvPicker";
 import { ProjectSwitcher } from "./ProjectSwitcher";
 import { ScenarioList } from "./ScenarioList";
@@ -58,7 +60,8 @@ function SettingsButton() {
 }
 
 export function Sidebar() {
-  const hasProject = useProjectStore((s) => s.project !== null);
+  const project = useProjectStore((s) => s.project);
+  const hasProject = project !== null;
   const [filter, setFilter] = useState("");
 
   return (
@@ -68,6 +71,7 @@ export function Sidebar() {
         <div className="min-w-0 flex-1">
           <ProjectSwitcher />
         </div>
+        {hasProject && <LockButton />}
         {hasProject && (
           <IconButton label="Import Postman / OpenAPI" tone="sidebar" onClick={() => void importCollection()}>
             <FileDown />
@@ -75,7 +79,11 @@ export function Sidebar() {
         )}
       </div>
       {hasProject && <ScenarioToolbar filter={filter} onFilterChange={setFilter} />}
-      <ScenarioList filter={filter} />
+      {/* Keyed so another project starts scrolled to the top. */}
+      <div key={project ?? ""} className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
+        <ScenarioList filter={filter} />
+        {hasProject && <CritterTree filter={filter} />}
+      </div>
       {hasProject && (
         <div className="flex items-center gap-1 border-t border-sidebar-border p-2">
           <EnvPicker />

@@ -31,6 +31,7 @@ async fn project() -> (tempfile::TempDir, Arc<AtomicUsize>) {
             }
         }
         "/admin" if request.method == "DELETE" => (200, "{}".into()),
+        "/course/fresh" => (200, "{}".into()),
         _ => (401, "{}".into()),
     })
     .await;
@@ -79,14 +80,19 @@ async fn flow_passes_captures_along_and_skips_after_a_failure() {
     critter::create_flow(p, "bob", "main", &flow(vec![login_step(), watch_version, expect_403, step("me.yml")]))
         .unwrap();
 
-    let mut reported = Vec::new();
+    let (mut started, mut finished) = (Vec::new(), Vec::new());
     let client = build_client();
-    let run = run_flow(&client, p, "bob", "main", None, SendOptions::BACKGROUND, |s: &FlowStepResult| {
-        reported.push(s.index);
+    let run = run_flow(&client, p, "bob", "main", None, SendOptions::BACKGROUND, |event| match event {
+        FlowEvent::Started(start) => started.push((start.index, start.method.clone(), start.url.clone())),
+        FlowEvent::Finished(result) => finished.push(result.index),
     })
     .await
     .unwrap();
-    assert_eq!(reported, [0, 1, 2, 3]);
+    assert_eq!(finished, [0, 1, 2, 3]);
+    assert_eq!(started.iter().map(|(index, ..)| *index).collect::<Vec<_>>(), [0, 1, 2], "a skipped step never starts");
+    let (_, method, url) = &started[0];
+    assert!(method == "POST" && url.ends_with("/login") && !url.contains("{{"), "{method} {url}");
+    assert_eq!(&run.steps[0].url, url);
     let states: Vec<_> = run.steps.iter().map(|s| (s.title.as_str(), s.ok, s.skipped)).collect();
     assert_eq!(states, [("Login", true, false), ("Me", true, false), ("Admin", false, false), ("me.yml", false, true)]);
     assert!(!run.ok);
@@ -99,6 +105,24 @@ async fn flow_passes_captures_along_and_skips_after_a_failure() {
 }
 
 #[tokio::test]
+async fn with_values_take_captures_from_earlier_steps() {
+    let (dir, _) = project().await;
+    let p = dir.path();
+    fs::write(p.join("course.yml"), "info: {name: Course}\nhttp: {method: GET, url: '{{base}}/course/{{COURSE}}'}\n")
+        .unwrap();
+    critter::create(p, "bob", &Critter::default()).unwrap();
+    let course = FlowStep {
+        with: BTreeMap::from([("COURSE".into(), LenientString::from("{{token}}"))]),
+        expect: Some(200),
+        ..step("course.yml")
+    };
+    critter::create_flow(p, "bob", "main", &flow(vec![login_step(), course])).unwrap();
+    let run = run_flow(&build_client(), p, "bob", "main", None, SendOptions::BACKGROUND, |_| {}).await.unwrap();
+    assert!(run.steps[1].url.ends_with("/course/fresh"), "{}", run.steps[1].url);
+    assert!(run.ok, "{:?}", run.failure());
+}
+
+#[tokio::test]
 async fn bad_request_paths_are_step_errors() {
     let (dir, _) = project().await;
     let p = dir.path();
@@ -108,13 +132,12 @@ async fn bad_request_paths_are_step_errors() {
     critter::create_flow(p, "bob", "not-a-request", &flow(vec![step("environments/dev.yml")])).unwrap();
     let client = build_client();
     for name in ["broken", "escape", "not-a-request"] {
-        let run =
-            run_flow(&client, p, "bob", name, None, SendOptions::BACKGROUND, |_: &FlowStepResult| {}).await.unwrap();
+        let run = run_flow(&client, p, "bob", name, None, SendOptions::BACKGROUND, |_| {}).await.unwrap();
         assert!(!run.ok && run.steps[0].error.is_some(), "{name}");
     }
-    let missing = run_flow(&client, p, "bob", "gone", None, SendOptions::BACKGROUND, |_: &FlowStepResult| {}).await;
+    let missing = run_flow(&client, p, "bob", "gone", None, SendOptions::BACKGROUND, |_| {}).await;
     assert!(matches!(missing, Err(Error::FlowNotFound { .. })));
-    let nobody = run_flow(&client, p, "nobody", "x", None, SendOptions::BACKGROUND, |_: &FlowStepResult| {}).await;
+    let nobody = run_flow(&client, p, "nobody", "x", None, SendOptions::BACKGROUND, |_| {}).await;
     assert!(matches!(nobody, Err(Error::CritterNotFound(_))));
 }
 
@@ -151,8 +174,7 @@ async fn a_failed_login_returns_the_original_401() {
     assert_eq!(me_calls.load(Ordering::SeqCst), 1);
 
     // Running the login flow on its own terminates too.
-    let run =
-        run_flow(&client, p, "alice", "login", None, SendOptions::BACKGROUND, |_: &FlowStepResult| {}).await.unwrap();
+    let run = run_flow(&client, p, "alice", "login", None, SendOptions::BACKGROUND, |_| {}).await.unwrap();
     assert!(!run.ok);
 }
 
@@ -198,4 +220,30 @@ async fn matrix_sends_as_everyone_and_skips_missing_secrets() {
     assert_eq!(statuses, [Some(401), Some(200), None]);
     assert_eq!(cells[2].skipped.as_deref(), Some("missing secrets: API_KEY"));
     assert!(!p.join(".cactus/history").exists());
+}
+
+#[cfg(feature = "encryption")]
+#[tokio::test]
+async fn locked_secrets_stop_runs_before_anything_is_sent() {
+    let (dir, me_calls) = project().await;
+    let p = dir.path();
+    critter::create(p, "bob", &Critter::default()).unwrap();
+    critter::create_flow(p, "bob", "main", &flow(vec![step("me.yml")])).unwrap();
+    env::save(p, &EnvFile::Secrets, &Env::from([("token".into(), "fresh".into())])).unwrap();
+    crate::secrets::enable(p, &"password1".to_string().into(), None).unwrap();
+    crate::secrets::lock(p);
+
+    let client = build_client();
+    let scenario = scenario::load(p, &path("me.yml")).unwrap();
+    let locked = |e: Option<Error>| matches!(e, Some(Error::SecretsLocked));
+    let sent = send_as(&client, p, &path("me.yml"), &scenario, &Scope::default(), SendOptions::INTERACTIVE).await;
+    assert!(locked(sent.err()));
+    assert!(locked(run(&client, p, "", &Scope::default(), |_| {}).await.err()));
+    assert!(locked(run_flow(&client, p, "bob", "main", None, SendOptions::BACKGROUND, |_| {}).await.err()));
+    assert!(locked(run_matrix(&client, p, &path("me.yml"), &scenario, |_| {}).await.err()));
+    assert_eq!(me_calls.load(Ordering::SeqCst), 0);
+
+    crate::secrets::unlock(p, &"password1".to_string().into()).unwrap();
+    let response = send_as(&client, p, &path("me.yml"), &scenario, &Scope::default(), SendOptions::INTERACTIVE).await;
+    assert_eq!(response.unwrap().status, 200);
 }

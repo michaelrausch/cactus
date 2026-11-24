@@ -26,7 +26,7 @@ fn the_ui_names_the_files_core_uses() {
     let workspace_file = |path: std::path::PathBuf| path.to_string_lossy().replace('\\', "/");
     for expected in [
         layout::COLLECTION_FILE.to_string(),
-        workspace_file(layout::secrets_file(root)),
+        format!("{}/{}", layout::WORKSPACE_DIR, cactus_core::secrets::SECRETS_FILE),
         workspace_file(layout::captured_file(root)),
         format!("`{}/${{", layout::ENVIRONMENTS_DIR),
     ] {

@@ -9,7 +9,8 @@ use super::{SendOptions, send_as};
 use crate::env::Scope;
 use crate::http::Response;
 use crate::scenario::Scenario;
-use crate::{ProjectPath, Result, critter};
+use crate::secrets::{self, SecretFile};
+use crate::{Error, ProjectPath, Result, critter};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -34,6 +35,10 @@ pub async fn run_matrix(
     scenario: &Scenario,
     mut on_cell: impl FnMut(&MatrixCell) + Send,
 ) -> Result<Vec<MatrixCell>> {
+    // Refused as a whole while locked, rather than failing row by row.
+    if secrets::locked_for(project, &SecretFile::all(project)) {
+        return Err(Error::SecretsLocked);
+    }
     let base = Scope::env(project, None);
     let critters = critter::list(project)?;
     let mut rows = vec![(None, None)];

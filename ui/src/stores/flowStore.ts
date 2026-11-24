@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { Flow, FlowRun, FlowStepResult, Scenario, VarSource } from "@/api/client";
+import type { Flow, FlowRun, FlowStepResult, FlowStepStart, Scenario, VarSource } from "@/api/client";
 import { flowFingerprint } from "@/domain/flowEdit";
 
 /** Undo history kept per open flow. */
@@ -18,19 +18,34 @@ export interface ParseProblem {
   column: number | null;
 }
 
+/** The right-hand pane: the selected step's settings, or the run. */
+export type FlowPanel = "step" | "run";
+
 export interface FlowRunState {
   running: boolean;
+  /** Per step, where it is sending, once it starts. */
+  started: (FlowStepStart | null)[];
   /** One per step: its last result, or null while queued or never run. */
   results: (FlowStepResult | null)[];
   /** The step running now. */
   current: number | null;
   /** The finished run, for the summary line. */
   last: FlowRun | null;
+  /** The selection moves to each step as it starts, until the user picks one. */
+  following: boolean;
   /** The flow was edited after this run, so the results may no longer match it. */
   stale: boolean;
 }
 
-const NO_RUN: FlowRunState = { running: false, results: [], current: null, last: null, stale: false };
+const NO_RUN: FlowRunState = {
+  running: false,
+  started: [],
+  results: [],
+  current: null,
+  last: null,
+  following: false,
+  stale: false,
+};
 
 interface FlowState {
   open: OpenFlow | null;
@@ -45,8 +60,9 @@ interface FlowState {
   parseProblem: ParseProblem | null;
   undo: Flow[];
   redo: Flow[];
-  /** The step shown in the inspector. */
+  /** The step shown in the inspector and the run pane. */
   selected: number | null;
+  panel: FlowPanel;
   /** Each step's request by path; null when it doesn't exist or doesn't parse. */
   requests: Record<string, Scenario | null>;
   /** What the flow's critter sees before any step runs. */
@@ -66,8 +82,10 @@ interface FlowState {
   modeChanged: (mode: FlowMode, text?: string) => void;
   saved: (model: Flow, text: string) => void;
   select: (index: number | null) => void;
+  panelShown: (panel: FlowPanel) => void;
   requestsLoaded: (requests: Record<string, Scenario | null>) => void;
   runStarted: (steps: number) => void;
+  stepStarted: (start: FlowStepStart) => void;
   stepFinished: (result: FlowStepResult) => void;
   runFinished: (run: FlowRun | null) => void;
   conflicted: () => void;
@@ -87,6 +105,7 @@ export const useFlowStore = create<FlowState>()((set) => ({
   undo: [],
   redo: [],
   selected: null,
+  panel: "step",
   requests: {},
   scope: {},
   run: NO_RUN,
@@ -103,13 +122,23 @@ export const useFlowStore = create<FlowState>()((set) => ({
       undo: [],
       redo: [],
       selected: model.steps.length > 0 ? 0 : null,
+      panel: "step",
       scope,
       run: NO_RUN,
       conflict: false,
       // Keep the mode and loaded requests when the same flow reloads.
       mode: state.open?.critter === open.critter && state.open.flow === open.flow ? state.mode : "visual",
     })),
-  closed: () => set({ open: null, model: null, undo: [], redo: [], selected: null, run: NO_RUN, conflict: false }),
+  closed: () =>
+    set({
+      open: null,
+      model: null,
+      undo: [],
+      redo: [],
+      selected: null,
+      run: NO_RUN,
+      conflict: false,
+    }),
   edited: (model) =>
     set((state) => ({
       model,
@@ -155,11 +184,31 @@ export const useFlowStore = create<FlowState>()((set) => ({
       parseProblem: null,
       conflict: false,
     }),
-  select: (selected) => set({ selected }),
+  select: (selected) => set((state) => ({ selected, run: { ...state.run, following: false } })),
+  panelShown: (panel) => set({ panel }),
   requestsLoaded: (requests) => set((state) => ({ requests: { ...state.requests, ...requests } })),
   runStarted: (steps) =>
     set({
-      run: { running: true, results: Array.from({ length: steps }, () => null), current: 0, last: null, stale: false },
+      run: {
+        running: true,
+        started: Array.from({ length: steps }, () => null),
+        results: Array.from({ length: steps }, () => null),
+        current: 0,
+        last: null,
+        following: true,
+        stale: false,
+      },
+      panel: "run",
+      selected: steps > 0 ? 0 : null,
+    }),
+  stepStarted: (start) =>
+    set((state) => {
+      const started = [...state.run.started];
+      started[start.index] = start;
+      return {
+        run: { ...state.run, started, current: start.index },
+        selected: state.run.following ? start.index : state.selected,
+      };
     }),
   stepFinished: (result) =>
     set((state) => {
@@ -168,11 +217,14 @@ export const useFlowStore = create<FlowState>()((set) => ({
       return { run: { ...state.run, results, current: result.skipped ? null : result.index + 1 } };
     }),
   runFinished: (last) =>
-    set((state) => ({
-      run: last
-        ? { running: false, results: last.steps, current: null, last, stale: false }
-        : { ...state.run, running: false, current: null },
-    })),
+    set((state) => {
+      if (!last) return { run: { ...state.run, running: false, current: null } };
+      const failedAt = last.steps.findIndex((step) => !step.ok && !step.skipped);
+      return {
+        run: { ...state.run, running: false, results: last.steps, current: null, last, stale: false },
+        selected: state.run.following && failedAt >= 0 ? failedAt : state.selected,
+      };
+    }),
   conflicted: () => set({ conflict: true }),
 }));
 

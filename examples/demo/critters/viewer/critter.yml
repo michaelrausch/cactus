@@ -1,0 +1,10 @@
+name: Viewer
+species: gecko
+notes: Read-only account
+login: login
+variables:
+  - name: user
+    value: viewer-demo
+  # Only in .cactus/critters/viewer/secrets.json; cactus asks for it.
+  - name: apiKey
+    secret: true

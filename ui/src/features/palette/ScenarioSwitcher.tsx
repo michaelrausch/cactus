@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Play, UserRound } from "lucide-react";
-import { actAs, runFlowNow } from "@/actions/critters";
+import { actAs } from "@/actions/critters";
+import { runFlow } from "@/actions/flows";
 import { selectScenario } from "@/actions/scenario";
 import { CritterSprite } from "@/components/critters/CritterSprite";
 import { MethodBadge } from "@/components/MethodBadge";
@@ -96,7 +97,7 @@ function FlowItems({ close }: { close: () => void }) {
             disabled={!!flow.error}
             onSelect={() => {
               close();
-              void runFlowNow(critter.id, flow.id);
+              void runFlow(critter.id, flow.id);
             }}
           >
             <Play className="text-muted-foreground" />

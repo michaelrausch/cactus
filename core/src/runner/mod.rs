@@ -13,13 +13,14 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
-pub use self::flow::{FlowRun, FlowStepResult, apply_step, run_flow};
+pub use self::flow::{FlowEvent, FlowRun, FlowStepResult, FlowStepStart, apply_step, run_flow};
 pub use self::matrix::{MatrixCell, run_matrix};
 use crate::clock::now_unix_millis;
 use crate::env::Scope;
 use crate::history::{self, HistoryEntry};
 use crate::http::{self, Response, scenario_passed};
 use crate::scenario::{self, Scenario, ScenarioEntry};
+use crate::secrets::{self, SecretFile};
 use crate::{Error, ProjectPath, Result, critter, env};
 
 /// The status that makes a critter log in again.
@@ -88,18 +89,7 @@ pub async fn send_as(
     };
     let login = login.trim();
     let base = Scope { overrides: env::Env::new(), ..scope.clone() };
-    let failure = match flow::run_steps(
-        &flow::Plain,
-        client,
-        project,
-        id,
-        login,
-        &base,
-        options,
-        |_: &FlowStepResult| {},
-    )
-    .await
-    {
+    let failure = match flow::run_steps(&flow::Plain, client, project, id, login, &base, options, |_| {}).await {
         Ok(run) => run.failure(),
         Err(error) => Some(error.to_string()),
     };
@@ -111,6 +101,18 @@ pub async fn send_as(
     again.relogged = true;
     again.warnings.push(format!("Logged in again after 401 using flow `{login}`; the request was sent twice"));
     Ok(again)
+}
+
+/// Fail the whole run with [`Error::SecretsLocked`] before anything is sent
+/// when the secrets `critter` (or no critter) resolves with are locked,
+/// rather than failing each request in turn.
+pub fn ensure_unlocked_for(project: &Path, critter: Option<&str>) -> Result<()> {
+    let mut files = vec![SecretFile::Project];
+    files.extend(critter.map(|id| SecretFile::Critter(id.to_string())));
+    if secrets::locked_for(project, &files) {
+        return Err(Error::SecretsLocked);
+    }
+    Ok(())
 }
 
 /// History is a convenience; failing to write it shouldn't fail the request.
@@ -151,6 +153,7 @@ pub async fn run(
     scope: &Scope,
     mut on_result: impl FnMut(&RunResult),
 ) -> Result<Vec<RunResult>> {
+    ensure_unlocked_for(project, scope.critter.as_deref())?;
     let entries = scenario::list(project)?.into_iter().filter(|entry| entry.rel_path.is_within(dir));
     let mut results = Vec::new();
     for entry in entries {

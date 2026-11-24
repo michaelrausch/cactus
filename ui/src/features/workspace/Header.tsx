@@ -116,39 +116,25 @@ function ScenarioActions() {
   );
 }
 
-function CrittersBreadcrumb({ project }: { project: string }) {
-  return (
-    <div className="flex min-w-0 flex-1 items-center gap-2 text-sm">
-      <span className="truncate text-muted-foreground">{baseName(project)}</span>
-      <Separator />
-      <span className="truncate font-medium">Critters</span>
-      <span className="text-xs text-muted-foreground">Esc to go back</span>
-    </div>
-  );
-}
-
 export function Header() {
   const project = useProjectStore((s) => s.project);
   const responseVisible = useUiStore((s) => s.responseVisible);
-  const inCritters = useUiStore((s) => s.view === "critters");
   const hasResponse = useResponseStore(hasResponseContent);
+  // A critter or flow has its own header below.
+  const editing = useUiStore((s) => s.view === "editor");
   return (
     <header className="relative flex h-12 shrink-0 items-center gap-2 px-4">
-      {project && inCritters && (
+      {project && (
         <>
-          <CrittersBreadcrumb project={project} />
+          {editing ? (
+            <Breadcrumb project={project} />
+          ) : (
+            <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">{baseName(project)}</span>
+          )}
           <div className="ml-auto flex items-center gap-1">
             <GitChip />
-          </div>
-        </>
-      )}
-      {project && !inCritters && (
-        <>
-          <Breadcrumb project={project} />
-          <div className="ml-auto flex items-center gap-1">
-            <GitChip />
-            <ScenarioActions />
-            {hasResponse && (
+            {editing && <ScenarioActions />}
+            {editing && hasResponse && (
               <IconButton
                 label={withShortcut("Toggle response", "toggleResponse")}
                 onClick={() => useUiStore.getState().toggleResponse()}

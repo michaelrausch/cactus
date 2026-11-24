@@ -1,7 +1,7 @@
 import { useMemo, type KeyboardEvent } from "react";
-import { ArrowLeft, Play, Redo2, Save, TriangleAlert, Undo2 } from "lucide-react";
+import { Play, Redo2, Save, TriangleAlert, Undo2 } from "lucide-react";
+import { showCritter } from "@/actions/critters";
 import {
-  closeFlow,
   editFlow,
   overwriteFlow,
   redoFlowEdit,
@@ -13,18 +13,20 @@ import {
 } from "@/actions/flows";
 import type { CritterSummary, Flow } from "@/api/client";
 import { withShortcut } from "@/app/shortcuts";
+import { CritterSprite } from "@/components/critters/CritterSprite";
 import { IconButton } from "@/components/IconButton";
 import { Button } from "@/components/ui/button";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { flowDataflow, type Dataflow } from "@/domain/flowDataflow";
-import { flowRunSummary } from "@/domain/flowRun";
-import { FLOW_EDITOR_ATTRIBUTE } from "@/hooks/useKeyboardShortcuts";
 import { cn } from "@/lib/utils";
-import { selectFlowDirty, useFlowStore, type FlowMode } from "@/stores/flowStore";
+import { selectFlowDirty, useFlowStore, type FlowMode, type FlowPanel } from "@/stores/flowStore";
 import { FlowYamlEditor } from "./FlowYamlEditor";
 import { RequestPalette } from "./RequestPalette";
+import { RunPanel } from "./RunPanel";
 import { StepInspector } from "./StepInspector";
 import { StepLane } from "./StepLane";
+import { Triggers } from "./Triggers";
 
 const MODES: { mode: FlowMode; label: string }[] = [
   { mode: "visual", label: "Visual" },
@@ -59,7 +61,7 @@ function ModeSwitch() {
   );
 }
 
-function FlowHeader({ model }: { model: Flow }) {
+function FlowHeader({ model, critter, flowId }: { model: Flow; critter: CritterSummary; flowId: string }) {
   const dirty = useFlowStore(selectFlowDirty);
   const visual = useFlowStore((s) => s.mode === "visual");
   const canUndo = useFlowStore((s) => s.undo.length > 0);
@@ -67,9 +69,16 @@ function FlowHeader({ model }: { model: Flow }) {
   const running = useFlowStore((s) => s.run.running);
   return (
     <div className="flex items-center gap-2 border-b px-3 py-2">
-      <IconButton label="Back to flows" onClick={closeFlow}>
-        <ArrowLeft />
-      </IconButton>
+      <button
+        type="button"
+        title={`Show ${critter.name}`}
+        onClick={() => showCritter(critter.id)}
+        className="flex shrink-0 items-center gap-1.5 rounded-md px-1 text-sm text-muted-foreground focus-ring hover:bg-accent/40 hover:text-foreground"
+      >
+        <CritterSprite species={critter.species} size={16} label={critter.name} seed={critter.id} />
+        {critter.name}
+      </button>
+      <span className="text-muted-foreground/50">/</span>
       <input
         value={model.name}
         disabled={!visual}
@@ -83,6 +92,7 @@ function FlowHeader({ model }: { model: Flow }) {
           <span className="sr-only">Unsaved changes</span>
         </span>
       )}
+      <Triggers critter={critter} flowId={flowId} model={model} editable={visual} />
       <ModeSwitch />
       <IconButton label="Undo (Ctrl+Z)" onClick={undoFlowEdit} disabled={!visual || !canUndo}>
         <Undo2 />
@@ -97,25 +107,6 @@ function FlowHeader({ model }: { model: Flow }) {
         <Play /> {running ? "Running…" : "Run"}
       </Button>
     </div>
-  );
-}
-
-/** "3/3 passed · 1.24s" or the first failure, once a run finishes. */
-function RunSummary() {
-  const last = useFlowStore((s) => s.run.last);
-  const stale = useFlowStore((s) => s.run.stale);
-  if (!last) return null;
-  return (
-    <p
-      className={cn(
-        "border-b px-4 py-1.5 text-xs",
-        last.ok ? "text-success" : "text-danger",
-        stale && "text-muted-foreground",
-      )}
-    >
-      {flowRunSummary(last)}
-      {stale && " · edited since, may be stale"}
-    </p>
   );
 }
 
@@ -159,9 +150,34 @@ function ProblemsFooter({ dataflow, steps }: { dataflow: Dataflow; steps: number
   );
 }
 
-/** Palette, step lane and inspector, or the flow's YAML. Ctrl+S saves, Ctrl+Enter runs. */
+/** The selected step's settings, or the run as it happens. */
+function SidePanel({ critter, model, dataflow }: { critter: CritterSummary; model: Flow; dataflow: Dataflow }) {
+  const panel = useFlowStore((s) => s.panel);
+  const show = useFlowStore((s) => s.panelShown);
+  const running = useFlowStore((s) => s.run.running);
+  return (
+    <Tabs value={panel} onValueChange={(value) => show(value as FlowPanel)} className="flex h-full flex-col gap-0">
+      <TabsList variant="line" className="h-9 shrink-0 gap-2 border-b px-3">
+        <TabsTrigger value="step">Step</TabsTrigger>
+        <TabsTrigger value="run">
+          Run
+          {running && <span className="ml-1 size-1.5 animate-pulse rounded-full bg-brand" />}
+        </TabsTrigger>
+      </TabsList>
+      <TabsContent value="step" className="min-h-0 flex-1">
+        <StepInspector critter={critter} dataflow={dataflow} />
+      </TabsContent>
+      <TabsContent value="run" className="min-h-0 flex-1">
+        <RunPanel critter={critter} steps={model.steps} />
+      </TabsContent>
+    </Tabs>
+  );
+}
+
+/** Palette, step lane and step or run pane, or the flow's YAML. Ctrl+S saves, Ctrl+Enter runs. */
 export function FlowEditor({ critter }: { critter: CritterSummary }) {
   const model = useFlowStore((s) => s.model);
+  const flowId = useFlowStore((s) => s.open?.flow);
   const mode = useFlowStore((s) => s.mode);
   const requests = useFlowStore((s) => s.requests);
   const scope = useFlowStore((s) => s.scope);
@@ -169,7 +185,7 @@ export function FlowEditor({ critter }: { critter: CritterSummary }) {
     () => (model ? flowDataflow(model.steps, requests, scope, critter.name) : null),
     [model, requests, scope, critter.name],
   );
-  if (!model || !dataflow) return null;
+  if (!model || !dataflow || !flowId) return null;
 
   const onKeyDown = (event: KeyboardEvent) => {
     if (!(event.ctrlKey || event.metaKey) || mode !== "visual" || isTextField(event.target)) return;
@@ -181,28 +197,32 @@ export function FlowEditor({ critter }: { critter: CritterSummary }) {
   };
 
   return (
-    <div {...{ [FLOW_EDITOR_ATTRIBUTE]: "" }} className="flex h-full min-h-96 flex-col" onKeyDown={onKeyDown}>
-      <FlowHeader model={model} />
+    <div className="flex h-full min-h-96 flex-col" onKeyDown={onKeyDown}>
+      <FlowHeader model={model} critter={critter} flowId={flowId} />
       <ConflictBanner />
-      <RunSummary />
       <div className="min-h-0 flex-1">
-        {mode === "visual" ? (
-          <ResizablePanelGroup orientation="horizontal">
-            <ResizablePanel defaultSize="26%" minSize="160px">
-              <RequestPalette />
+        {/* Remounted per mode, as the panels differ. */}
+        <ResizablePanelGroup key={mode} orientation="horizontal">
+          {mode === "visual" ? (
+            <>
+              <ResizablePanel defaultSize="22%" minSize="160px">
+                <RequestPalette />
+              </ResizablePanel>
+              <ResizableHandle />
+              <ResizablePanel defaultSize="34%" minSize="220px">
+                <StepLane critter={critter} steps={model.steps} dataflow={dataflow} />
+              </ResizablePanel>
+            </>
+          ) : (
+            <ResizablePanel defaultSize="56%" minSize="320px">
+              <FlowYamlEditor />
             </ResizablePanel>
-            <ResizableHandle />
-            <ResizablePanel defaultSize="38%" minSize="220px">
-              <StepLane critter={critter} steps={model.steps} dataflow={dataflow} />
-            </ResizablePanel>
-            <ResizableHandle />
-            <ResizablePanel defaultSize="36%" minSize="240px">
-              <StepInspector critter={critter} dataflow={dataflow} />
-            </ResizablePanel>
-          </ResizablePanelGroup>
-        ) : (
-          <FlowYamlEditor />
-        )}
+          )}
+          <ResizableHandle />
+          <ResizablePanel defaultSize="44%" minSize="280px">
+            <SidePanel critter={critter} model={model} dataflow={dataflow} />
+          </ResizablePanel>
+        </ResizablePanelGroup>
       </div>
       <ProblemsFooter dataflow={dataflow} steps={model.steps.length} />
     </div>

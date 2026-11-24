@@ -34,7 +34,7 @@ pub struct FlowSummary {
     pub id: String,
     pub name: String,
     pub steps: u32,
-    pub trigger: Option<Trigger>,
+    pub triggers: Vec<Trigger>,
     /// Why the flow file couldn't be read.
     pub error: Option<String>,
 }
@@ -49,7 +49,7 @@ pub enum FlowParse {
     Invalid { message: String, line: Option<u32>, column: Option<u32> },
 }
 
-/// `"<critter>/<flow>"`, how `state.schedules` names a flow.
+/// `"<critter>/<flow>"`, how the scheduler names a flow.
 pub fn schedule_key(critter: &str, flow: &str) -> String {
     format!("{critter}/{flow}")
 }
@@ -138,15 +138,9 @@ pub fn rename(project: &Path, from: &str, to: &str) -> Result<()> {
     let source = layout::critter_dir(project, from);
     fs::rename(&source, &target).map_err(Error::file(&source))?;
     move_if_exists(&layout::critter_workspace_dir(project, from), &layout::critter_workspace_dir(project, to))?;
-    let old_prefix = schedule_key(from, "");
     state::update(project, |state| {
         if state.critter.as_deref() == Some(from) {
             state.critter = Some(to.into());
-        }
-        for key in &mut state.schedules {
-            if let Some(flow) = key.strip_prefix(&old_prefix) {
-                *key = schedule_key(to, flow);
-            }
         }
     })
 }
@@ -185,12 +179,10 @@ pub fn delete(project: &Path, id: &str) -> Result<()> {
     }
     fs::remove_dir_all(&dir).map_err(Error::file(&dir))?;
     remove_dir_if_exists(&layout::critter_workspace_dir(project, id))?;
-    let prefix = schedule_key(id, "");
     state::update(project, |state| {
         if state.critter.as_deref() == Some(id) {
             state.critter = None;
         }
-        state.schedules.retain(|key| !key.starts_with(&prefix));
     })
 }
 
@@ -209,22 +201,14 @@ pub fn set_active(project: &Path, id: Option<String>) -> Result<()> {
     state::update(project, |state| state.critter = id)
 }
 
-/// Scheduled flows enabled on this machine, as `"<critter>/<flow>"`.
-pub fn enabled_schedules(project: &Path) -> Vec<String> {
-    state::load(project).schedules
-}
-
-/// Enable or disable a flow's schedule on this machine.
-pub fn set_schedule_enabled(project: &Path, id: &str, flow: &str, enabled: bool) -> Result<()> {
-    validate_critter_id(id)?;
-    validate_flow_id(flow)?;
-    let key = schedule_key(id, flow);
-    state::update(project, |state| {
-        state.schedules.retain(|k| *k != key);
-        if enabled {
-            state.schedules.push(key);
-        }
-    })
+/// Every critter's flows as `"<critter>/<flow>"`, readable or not, for the
+/// scheduler to pick out the ones with a schedule.
+pub fn flow_keys(project: &Path) -> Vec<String> {
+    list(project)
+        .unwrap_or_default()
+        .iter()
+        .flat_map(|critter| critter.flows.iter().map(|flow| schedule_key(&critter.id, &flow.id)))
+        .collect()
 }
 
 /// The critter's flows, sorted by id. A flow that doesn't parse is listed
@@ -244,14 +228,14 @@ pub fn list_flows(project: &Path, id: &str) -> Result<Vec<FlowSummary>> {
             Ok(flow) => FlowSummary {
                 name: if flow.name.is_empty() { flow_id.clone() } else { flow.name.0 },
                 steps: u32::try_from(flow.steps.len()).unwrap_or(u32::MAX),
-                trigger: flow.trigger,
+                triggers: flow.triggers,
                 error: None,
                 id: flow_id,
             },
             Err(error) => FlowSummary {
                 name: flow_id.clone(),
                 steps: 0,
-                trigger: None,
+                triggers: Vec::new(),
                 error: Some(error.to_string()),
                 id: flow_id,
             },
@@ -295,7 +279,7 @@ pub fn create_flow(project: &Path, id: &str, flow_id: &str, flow: &Flow) -> Resu
     collection::write(&file, flow)
 }
 
-/// Rename a flow file, with its run log, schedule and the critter's
+/// Rename a flow file, with its run log and the critter's
 /// `login` if it pointed at it.
 pub fn rename_flow(project: &Path, id: &str, from: &str, to: &str) -> Result<()> {
     let source = flow_path(project, id, from)?;
@@ -316,17 +300,10 @@ pub fn rename_flow(project: &Path, id: &str, from: &str, to: &str) -> Result<()>
         critter.login = Some(to.into());
         save(project, id, &critter)?;
     }
-    let (old_key, new_key) = (schedule_key(id, from), schedule_key(id, to));
-    state::update(project, |state| {
-        for key in &mut state.schedules {
-            if *key == old_key {
-                key.clone_from(&new_key);
-            }
-        }
-    })
+    Ok(())
 }
 
-/// Delete a flow file, its run log and its schedule.
+/// Delete a flow file and its run log.
 pub fn delete_flow(project: &Path, id: &str, flow: &str) -> Result<()> {
     let file = flow_path(project, id, flow)?;
     fs::remove_file(&file).map_err(|e| match e.kind() {
@@ -339,8 +316,7 @@ pub fn delete_flow(project: &Path, id: &str, flow: &str) -> Result<()> {
     {
         return Err(Error::file(&log)(e));
     }
-    let key = schedule_key(id, flow);
-    state::update(project, |state| state.schedules.retain(|k| *k != key))
+    Ok(())
 }
 
 /// The flow file exactly as written, for the YAML editor.
@@ -456,21 +432,20 @@ mod tests {
         critter.login = Some("login".into());
         save(p, "bob", &critter).unwrap();
         set_active(p, Some("bob".into())).unwrap();
-        state::update(p, |s| s.schedules = vec!["bob/login".into(), "other/login".into()]).unwrap();
+        assert_eq!(flow_keys(p), ["bob/broken", "bob/login"]);
         save_secret(p, "bob");
         assert!(matches!(set_active(p, Some("nobody".into())), Err(Error::CritterNotFound(_))));
 
         rename(p, "bob", "robert").unwrap();
         assert!(!p.join("critters/bob").exists() && p.join("critters/robert/flows/login.yml").exists());
-        assert!(layout::critter_secrets_file(p, "robert").exists());
+        assert_eq!(crate::secrets::names(p, &crate::secrets::SecretFile::Critter("robert".into())).unwrap(), ["k"]);
         assert_eq!(active(p).as_deref(), Some("robert"));
-        assert_eq!(state::load(p).schedules, ["robert/login", "other/login"]);
 
         rename_flow(p, "robert", "login", "sign-in").unwrap();
         assert_eq!(load(p, "robert").unwrap().login.unwrap(), "sign-in");
-        assert_eq!(state::load(p).schedules, ["robert/sign-in", "other/login"]);
+        assert_eq!(flow_keys(p), ["robert/broken", "robert/sign-in"]);
         delete_flow(p, "robert", "sign-in").unwrap();
-        assert_eq!(state::load(p).schedules, ["other/login"]);
+        assert_eq!(flow_keys(p), ["robert/broken"]);
         assert!(matches!(delete_flow(p, "robert", "sign-in"), Err(Error::FlowNotFound { .. })));
 
         delete(p, "robert").unwrap();

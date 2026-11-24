@@ -1,0 +1,12 @@
+# A persona: requests sent as Admin use these variables and keep what they
+# capture (the token) apart from every other critter's.
+name: Admin
+species: armadillo
+notes: Full access on staging
+# Run after a 401 to log in again.
+login: login
+variables:
+  - name: user
+    value: admin-demo
+  - name: role
+    value: admin

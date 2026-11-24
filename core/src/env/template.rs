@@ -36,6 +36,11 @@ impl<'a> Substituter<'a> {
         output
     }
 
+    /// Names left unresolved so far, in first-seen order.
+    pub fn unresolved(&self) -> &[String] {
+        &self.unresolved
+    }
+
     /// Unresolved names in first-seen order, without duplicates.
     pub fn into_unresolved(self) -> Vec<String> {
         self.unresolved

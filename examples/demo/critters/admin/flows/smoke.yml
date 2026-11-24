@@ -1,0 +1,19 @@
+# Log in, then use the token: the editor shows "token ↓" passing between steps.
+name: Smoke test
+steps:
+  - request: auth/login.yml
+  - request: get-anything.yml
+    expect: 200
+    assert:
+      # httpbin echoes the Authorization header back.
+      - expression: res.body.headers.Authorization
+        operator: eq
+        value: Bearer admin-demo
+  # `with` sets {{user}} for this step only.
+  - request: form-post.yml
+    with:
+      user: admin-form
+    assert:
+      - expression: res.body.form.name
+        operator: eq
+        value: admin-form

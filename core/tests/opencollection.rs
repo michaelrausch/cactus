@@ -10,7 +10,7 @@ use cactus_core::env::{self, EnvFile};
 use cactus_core::scenario::{
     self, Action, Assertion, Body, MultipartField, PartKind, PartValue, SetVariable, TypedBody,
 };
-use cactus_core::{ProjectPath, import};
+use cactus_core::{ProjectPath, critter, import};
 use serde_json::{Value, json};
 
 const SCHEMA: &str = include_str!("fixtures/opencollection-v1.0.0.json");
@@ -64,13 +64,52 @@ fn walk(dir: &Path) -> Vec<PathBuf> {
         .collect()
 }
 
+/// `critters/` holds cactus's personas and flows, not OpenCollection files.
+fn collection_files(project: &Path) -> Vec<PathBuf> {
+    yaml_files(project).into_iter().filter(|f| !f.strip_prefix(project).unwrap().starts_with("critters")).collect()
+}
+
 #[test]
 fn demo_is_valid_opencollection() {
-    let files = yaml_files(&demo());
+    let files = collection_files(&demo());
     assert_eq!(files.len(), 6);
     for file in files {
         assert_valid(&demo(), &file);
     }
+}
+
+#[test]
+fn demo_critters_load_and_save_unchanged() {
+    let dir = tempfile::tempdir().unwrap();
+    for file in yaml_files(&demo()) {
+        let target = dir.path().join(file.strip_prefix(demo()).unwrap());
+        fs::create_dir_all(target.parent().unwrap()).unwrap();
+        fs::copy(&file, &target).unwrap();
+    }
+    let p = dir.path();
+    let critters = critter::list(p).unwrap();
+    let summary: Vec<_> = critters
+        .iter()
+        .map(|c| (c.id.as_str(), c.flows.iter().map(|f| f.id.as_str()).collect::<Vec<_>>(), c.missing_secrets.clone()))
+        .collect();
+    assert_eq!(
+        summary,
+        [("admin", vec!["login", "smoke"], vec![]), ("viewer", vec!["health", "login"], vec!["apiKey".to_string()]),]
+    );
+    for c in &critters {
+        assert_eq!(c.error, None, "{}", c.id);
+        let before = fs::read_to_string(p.join(format!("critters/{}/critter.yml", c.id))).unwrap();
+        critter::save(p, &c.id, &critter::load(p, &c.id).unwrap()).unwrap();
+        assert_eq!(fs::read_to_string(p.join(format!("critters/{}/critter.yml", c.id))).unwrap(), before);
+        for flow in &c.flows {
+            assert_eq!(flow.error, None, "{}/{}", c.id, flow.id);
+            let text = critter::load_flow_text(p, &c.id, &flow.id).unwrap();
+            critter::save_flow(p, &c.id, &flow.id, &critter::load_flow(p, &c.id, &flow.id).unwrap()).unwrap();
+            assert_eq!(critter::load_flow_text(p, &c.id, &flow.id).unwrap(), text, "{}/{}", c.id, flow.id);
+        }
+    }
+    let health = critter::load_flow(p, "viewer", "health").unwrap();
+    assert_eq!(health.schedule().unwrap().every.to_string(), "5m");
 }
 
 #[test]

@@ -6,12 +6,12 @@ mod secrets;
 mod store;
 
 pub use model::{
-    AlertOn, AlertRule, ContextEntry, Critter, Flow, FlowStep, Interval, Species, Trigger, validate_critter_id,
-    validate_flow_id,
+    AlertOn, AlertRule, ContextEntry, Critter, Flow, FlowStep, Interval, Schedule, Species, Trigger,
+    validate_critter_id, validate_flow_id,
 };
 pub use secrets::missing_secrets;
 pub use store::{
-    CritterSummary, FlowParse, FlowSummary, active, create, create_flow, delete, delete_flow, duplicate,
-    enabled_schedules, exists, flow_yaml, list, list_flows, load, load_flow, load_flow_text, parse_flow, rename,
-    rename_flow, save, save_flow, save_flow_text, schedule_key, set_active, set_schedule_enabled,
+    CritterSummary, FlowParse, FlowSummary, active, create, create_flow, delete, delete_flow, duplicate, exists,
+    flow_keys, flow_yaml, list, list_flows, load, load_flow, load_flow_text, parse_flow, rename, rename_flow, save,
+    save_flow, save_flow_text, schedule_key, set_active,
 };

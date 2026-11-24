@@ -1,0 +1,4 @@
+name: Login
+steps:
+  # The request saves {{token}} itself; as Admin, it lands in Admin's context.
+  - request: auth/login.yml

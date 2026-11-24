@@ -9,6 +9,7 @@ import { useRunStore } from "@/stores/runStore";
 import { useUiStore } from "@/stores/uiStore";
 import { selectScenario } from "./scenario";
 import { saveAll } from "./saving";
+import { ensureUnlocked } from "./secrets";
 import { refreshVariableNames } from "./variables";
 
 /** A capture that found nothing leaves the variable stale, which is easy to miss. */
@@ -28,6 +29,7 @@ export async function sendCurrentScenario(): Promise<void> {
   const { path, scenario } = useEditorStore.getState();
   const responses = useResponseStore.getState();
   if (!project || !path || !scenario || responses.sending) return;
+  if (!(await ensureUnlocked())) return;
 
   responses.sendStarted();
   try {
@@ -80,6 +82,7 @@ async function runSaved(dir: string): Promise<void> {
     toast.info("Nothing to run");
     return;
   }
+  if (!(await ensureUnlocked())) return;
 
   useRunStore.getState().started(dir, total);
   const unlisten = await backendEvents.runProgress.listen((event) => recordRunResult(event.payload));

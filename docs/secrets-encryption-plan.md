@@ -1,6 +1,17 @@
 # Encrypted secrets
 
-Status: plan. Nothing here is built yet.
+Status: built, **off by default** behind the `encryption` Cargo feature and
+the `CACTUS_ENCRYPTION=1` UI build flag. To try it:
+`CACTUS_ENCRYPTION=1 cargo tauri dev --features encryption`, and
+`cargo build -p cactus-cli --features encryption`.
+
+**As built, there is no `vault.json`**: every sealed value
+carries its own salt (`enc:v1:<salt>:<nonce‖ciphertext‖tag>`), and whether
+encryption is on lives in `.cactus/state.json` as a setting with no key
+material. Where this plan still describes a vault (§2.1, the KEK/DEK
+envelope, re-wrapping weaker KDF parameters, `VaultMissing`,
+`UnsupportedVaultVersion`), read it with the changes in
+[§13 As built](#13-as-built).
 
 A project can turn on **secret encryption** and set a password. After that,
 each secret's value is encrypted in place inside its `secrets.json`, and
@@ -635,3 +646,54 @@ Each phase starts by re-checking its §0 rows and ends green on the checks in
    §9.1 into the critters plan's text so its phases build it in.
 6. **Wrap-up.** `ARCHITECTURE.md` (on-disk table, `secrets` module, locked
    behaviour), and a release note on what is and isn't encrypted.
+
+## 13. As built
+
+What changed from the plan above, and why.
+
+**No vault file.** Encrypted values stay inline in the same
+`secrets.json` files, and each one is self-describing:
+
+```
+enc:v1:<base64url(salt)>:<base64url(nonce ‖ ciphertext ‖ tag)>
+```
+
+- The key is Argon2id(password, salt) with the parameters fixed by `v1`
+  (64 MiB, 3 passes, 1 lane). A project uses one salt for all its values, so
+  unlocking derives one key. The associated data is still
+  `cactus/secrets/v1/<name>`.
+- "On" is `.cactus/state.json` → `secrets: { autoLockMinutes }` being set,
+  **or** any sealed value existing. A lost or reset state file never exposes
+  new values as plain text.
+- A wrong password is detected by trying to open a sealed value. With
+  nothing sealed yet there is nothing to check against, so unlocking sets the
+  password; the UI asks for it twice then (`SecretsInfo.hasSealedValues`).
+- Changing the password re-seals every value under a fresh salt (the files
+  are small and local). If that's interrupted, values sit under two salts:
+  the keyring holds keys per salt, the project stays `Locked` until both
+  passwords have been given, and the next full unlock brings every value
+  under the password given last. Every intermediate state stays readable.
+- `enc:` with an unknown version is `UnsupportedSecretFormat`; a malformed
+  value, or one that doesn't open with a key that opens its salt, is
+  `SecretCorrupt`. `VaultMissing` and `UnsupportedVaultVersion` don't exist.
+  Raising KDF cost later means a `v2` format, sealed on the next unlock.
+
+**Core API** (`core/src/secrets/`): `cipher`, `keyring`, `store`
+(`read`/`names`/`write`/`locked_for`, the only code that opens secrets
+files), `lifecycle` (`info`, `status`, `enable`, `disable`,
+`change_password`, `reset`, `set_auto_lock`, `unlock`, `unlock_read_only`,
+`has_sealed_values`). `runner::ensure_unlocked_for` refuses folder runs and
+flows before anything is sent; the matrix refuses as a whole.
+
+**Desktop:** commands as §4.1 (`secrets_status` returns `SecretsInfo`;
+`change_secrets_password` takes `current`, `next`). Auto-lock is a task
+started with the app that checks the open project once a minute
+(`auto_lock::should_lock`). Scheduled ticks skip while
+`scheduler::waiting_for_secrets`, and `schedule_states` reports
+`waiting: "secretsLocked"`. `run_scheduled_now` refuses while locked.
+
+**CLI:** `--password-stdin` on `run`, `send` and `flow`; then
+`CACTUS_SECRETS_PASSWORD`; then a TTY prompt. `secrets <project>
+status|enable|disable|change-password`. `change-password` reads current and
+new from two stdin lines, and refuses the env var (one variable can't hold
+two passwords).

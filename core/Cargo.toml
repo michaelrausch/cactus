@@ -18,12 +18,21 @@ reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"
 # Local repository work only: without https/ssh there is no OpenSSL or libssh2
 # to build, and the vendored libgit2 builds the same on Linux and Windows.
 git2 = { version = "0.20", default-features = false, features = ["vendored-libgit2"], optional = true }
+# Secret encryption (docs/secrets-encryption-plan.md): pure Rust, no OpenSSL.
+chacha20poly1305 = { version = "0.11.0", default-features = false, features = ["alloc", "zeroize"], optional = true }
+argon2 = { version = "0.6.0", default-features = false, features = ["alloc", "zeroize"], optional = true }
+zeroize = { version = "1.9.2", optional = true }
+base64 = { version = "0.23.1", optional = true }
+getrandom = { version = "0.3", optional = true }
 
 [features]
 # Derive TypeScript-exportable types for the desktop app's generated bindings.
 specta = ["dep:specta", "dep:specta-typescript"]
 # Stage, diff and commit in the project's git repository (desktop app only).
 git = ["dep:git2"]
+# Encrypt secret values with a password. Off until it ships; without it,
+# secrets are plain text and the secrets API refuses as `EncryptionOff`.
+encryption = ["dep:chacha20poly1305", "dep:argon2", "dep:zeroize", "dep:base64", "dep:getrandom"]
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "io-util"] }

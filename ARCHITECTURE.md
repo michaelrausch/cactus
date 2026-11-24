@@ -14,16 +14,21 @@ ui/         React front end for the desktop app.
 
 ## On disk
 
-| Path                      | What                                                                          | Committed |
-| ------------------------- | ----------------------------------------------------------------------------- | --------- |
-| `opencollection.yml`      | The collection: its defaults (`request.headers`, `auth`) and shared variables | yes       |
-| `environments/<name>.yml` | A named environment                                                           | yes       |
-| `<folder>/folder.yml`     | A folder's name, `seq` and defaults                                           | yes       |
-| `**/*.yml`                | Requests (every other `.yml`)                                                 | yes       |
-| `.cactus/secrets.json`    | Local secrets, the values of `secret: true` variables                         | no        |
-| `.cactus/captured.json`   | Values written by set-variable actions                                        | no        |
-| `.cactus/state.json`      | Active environment                                                            | no        |
-| `.cactus/history/*.json`  | Last responses per request (`a/b.yml` → `a%2Fb.json`)                         | no        |
+| Path                                     | What                                                                          | Committed |
+| ---------------------------------------- | ----------------------------------------------------------------------------- | --------- |
+| `opencollection.yml`                     | The collection: its defaults (`request.headers`, `auth`) and shared variables | yes       |
+| `environments/<name>.yml`                | A named environment                                                           | yes       |
+| `<folder>/folder.yml`                    | A folder's name, `seq` and defaults                                           | yes       |
+| `critters/<id>/critter.yml`              | A critter (persona): name, species, notes, login flow, variables              | yes       |
+| `critters/<id>/flows/<flow>.yml`         | A critter's flow: steps, and optionally `triggers` (a schedule) and `alert`   | yes       |
+| `**/*.yml`                               | Requests (every other `.yml`)                                                 | yes       |
+| `.cactus/secrets.json`                   | Local secrets, the values of `secret: true` variables; sealed when encrypted  | no        |
+| `.cactus/captured.json`                  | Values written by set-variable actions with no critter active                 | no        |
+| `.cactus/critters/<id>/secrets.json`     | A critter's own secrets                                                       | no        |
+| `.cactus/critters/<id>/context.json`     | What a critter's requests captured, with where and when                       | no        |
+| `.cactus/critters/<id>/runs/<flow>.json` | The last 50 scheduled runs of a flow                                          | no        |
+| `.cactus/state.json`                     | Active environment and critter; whether secrets are encrypted, and auto-lock  | no        |
+| `.cactus/history/*.json`                 | Last responses per request (`a/b.yml` → `a%2Fb.json`)                         | no        |
 
 All path rules live in `core/src/layout.rs`. Paths in the project (requests,
 attachments, the files git lists) are a validated newtype (`ProjectPath`) that
@@ -34,9 +39,41 @@ and run in tree order: at each level, folders and requests sorted together by
 
 **Variable precedence**, lowest first: collection variables → active
 environment → folder variables (outermost first) → request `runtime.variables`
-→ secrets → captured (see `env::resolve_for_request`). `{{name}}` substitution
-is a single pass. Headers and auth are inherited the same way: collection, then
-folders, then the request; `auth: inherit` takes the nearest one set.
+→ secrets → captured. With a critter active, the global captured values are
+left out and its own layers come last instead: critter variables → critter
+secrets → critter context, then a flow step's `with`. One function
+(`env::layers`) builds the ordered layers; `resolve_for_request` merges them
+and `sources_for_request` says where each value came from, so the two can't
+disagree. `{{name}}` substitution is a single pass. Headers and auth are
+inherited the same way: collection, then folders, then the request;
+`auth: inherit` takes the nearest one set.
+
+**Critters** are personas. Sending as one uses its layers and saves what the
+request captures to its context, never to another critter's. A flow runs
+existing requests in order, each with its step's overlay applied in memory
+(`expect` replaces status assertions, `assert` adds checks, `capture` adds
+set-variable actions); the request files are never touched, and a failed step
+skips the rest. On a 401, a critter with a `login` flow runs it and sends the
+request once more (`runner::send_as`). Steps of the login flow itself never do
+this, so it can't loop.
+
+**Encrypted secrets** are built only with the `encryption` Cargo feature
+(core, CLI and desktop) and the `CACTUS_ENCRYPTION=1` UI build flag; both
+are off by default. Without them secrets are plain text, the commands and
+bindings are unchanged and report encryption as off, and a sealed value is
+refused rather than sent. With them, encryption is opt-in per project, per machine. Every secrets file
+(the project's and each critter's) is read and written only through
+`crate::secrets` (`read`, `names`, `write`); the path functions are private
+there, so nothing can bypass it. With encryption on, each value is sealed
+inline as `enc:v1:<salt>:<nonce‖ciphertext‖tag>` (Argon2id key,
+XChaCha20-Poly1305, the variable name as associated data); names stay
+readable, and an older build still reads the file. Unlocked keys live in a
+process-wide keyring keyed by canonical project path. While locked,
+resolving a layer with a sealed value is `Error::SecretsLocked`, so nothing
+is sent with a secret missing; anything that needs only names
+(`sources_for_request` via `Need::Names`, `missing_secrets`) still works.
+Plain values are valid while on, so every crash point leaves secrets
+readable. See `docs/secrets-encryption-plan.md` §13.
 
 **Saving never rewrites a file.** `collection::write` reads the file into its
 model, diffs that against the model being saved and applies only the
@@ -56,11 +93,14 @@ says so in the response's `warnings`.
 | ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `collection`                                      | `model` (shared OpenCollection types, root/folder/environment files), `patch` (in-place saves), `emit` (new files), defaults chain                 |
 | `scenario`                                        | `model` (the request file), `listing` (discovery, tree order), `store` (create/save/rename/delete)                                                 |
-| `env`                                             | `layers` (env layers and merge), `capture`, `template` (`Substituter`)                                                                             |
+| `env`                                             | `layers` (env layers, `Scope`, merge and sources), `capture` (captured values and critter context, behind one lock), `template` (`Substituter`)    |
+| `critter`                                         | `model` (critter, flow, `Interval`, alert rule), `store` (critters and flows on disk, schedules enabled), `secrets` (missing secrets)              |
 | `http`                                            | `request` (scenario + inherited defaults → reqwest request), `send`, `response`, `expression` (`res.*`), `assertions` (actions, checks, pass/fail) |
 | `import`                                          | Postman and OpenAPI → requests                                                                                                                     |
 | `git`                                             | Status, stage/unstage, discard, diffs, commits and local branches in the project's repository (`git` feature)                                      |
-| `runner`                                          | Send + persist captures + record history; folder runs                                                                                              |
+| `runner`                                          | Send + persist captures + record history, re-login (`send_as`); folder runs; `flow` (step overlay, flow runs); `matrix`                            |
+| `secrets`                                         | Secret encryption: `cipher`, `keyring`, `store` (the only reader/writer of secrets files), `lifecycle` (enable, disable, unlock, password, reset)   |
+| `monitor`                                         | Scheduled runs: compact `RunRecord`s, alerts on changes of state (`compare`), the run log                                                          |
 | `history`, `recent`, `state`, `storage`, `layout` | Persistence                                                                                                                                        |
 
 Errors are typed (`core/src/error.rs`) and reach the UI as their message. An
@@ -79,8 +119,22 @@ watched; the UI refreshes the status on file changes and on window focus.
 ## Desktop backend (src-tauri)
 
 - `commands/*`: one adapter per command; no logic beyond argument conversion.
-- `state.rs`: shared HTTP client and the single cancellable operation.
-- `watcher.rs`: emits `FsChanged` when project files change.
+- `state.rs`: shared HTTP client, the scheduler and the single cancellable operation.
+- `watcher.rs`: emits `FsChanged` when project files change, and reloads the
+  scheduler when a file under `critters/` does.
+- `scheduler.rs`: runs enabled flows on their timers while the app is open.
+  `reload` diffs the wanted tasks against the running ones, so editing one
+  flow doesn't reset other timers. Each task awaits its run (a flow never
+  overlaps itself) and skips missed ticks after sleep. Scheduled runs don't
+  use the cancellable slot, so they and interactive sends never cancel each
+  other. Each run is recorded, compared with the last and appended to the log,
+  then reported as `ScheduledRunFinished` and `MonitorAlert` events. A tick
+  whose flow's secrets are locked runs, logs and alerts nothing; the
+  schedule reports `waiting: "secretsLocked"` until they're unlocked.
+- `auto_lock.rs`: locks the open project's secrets after its idle time.
+  Interactive sends and runs reset the timer (`AppState::touch_secrets`);
+  scheduled runs don't, so a schedule can't keep secrets unlocked. Opening
+  another project locks the previous one's.
 - `bindings.rs`: registers commands and events with tauri-specta.
 
 `ui/src/api/bindings.ts` is **generated** from the Rust types. Regenerate with
@@ -120,6 +174,19 @@ Ctrl+S (`actions/saving.ts`). If a file changes on disk under a dirty buffer it
 is flagged as a conflict, resolved by reloading from disk or overwriting. The editor remounts via `key={path:editorVersion}`
 whenever its draft state must reset.
 
+**Critters in the UI.** The Critters window (`features/critters/`, Ctrl+B)
+lists critters, their context and flows. A flow being edited lives in
+`flowStore`: the model, its YAML text, undo/redo and the last run's results.
+Visual edits are pure functions (`domain/flowEdit.ts`); `domain/flowDataflow.ts`
+works out what each step uses and captures, which drives the chips between
+steps and the problems list. Writes to `.cactus/` aren't watched, so the
+backend reports them as events (`ContextChanged`, `FlowProgress`,
+`ScheduledRunFinished`, `MonitorAlert`); `actions/alerts.ts` turns alerts into
+a toast when the window has focus, or an OS notification and an "N alerts"
+banner when it doesn't. Sprites (`components/critters/`) are pixel maps drawn
+as merged `<rect>` runs, animated by CSS alone (`critters.css`); the dev-only
+page `/#sprites` shows them all.
+
 ## Common changes
 
 **Add a backend command.** Add the function in `core`, then an adapter in
@@ -145,6 +212,9 @@ checked by `core/tests/ui_contract.rs`.
 
 ```sh
 cargo fmt --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace
+# Secret encryption is behind a feature; check it builds and passes too.
+F=cactus-core/encryption,cactus-cli/encryption,cactus/encryption
+cargo clippy --workspace --all-targets --features $F -- -D warnings && cargo test --workspace --features $F
 cd ui && npm run typecheck && npm run lint && npm run format:check && npm test && npm run build
 ```
 

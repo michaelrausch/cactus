@@ -11,10 +11,8 @@ import { useEditorStore } from "@/stores/editorStore";
 import { hasResponseContent, useResponseStore } from "@/stores/responseStore";
 import { useUiStore } from "@/stores/uiStore";
 
-/** Marks the flow editor, where Ctrl+S saves the flow and Ctrl+Enter runs it. */
-export const FLOW_EDITOR_ATTRIBUTE = "data-flow-editor";
-
-const inFlowEditor = (): boolean => Boolean(document.activeElement?.closest(`[${FLOW_EDITOR_ATTRIBUTE}]`));
+/** While a flow is showing, Ctrl+S saves it and Ctrl+Enter runs it. */
+const inFlowEditor = (): boolean => useUiStore.getState().view === "flow";
 
 const SHORTCUT_ACTIONS: Record<ShortcutId, () => void> = {
   save: () => {
@@ -56,9 +54,14 @@ function onKeyDown(event: KeyboardEvent): void {
   event.preventDefault();
   // A shortcut acts on the window behind a dialog, so it waits until the
   // dialog closes. Dialogs handle their own keys (Ctrl+S in Variables,
-  // Ctrl+Enter in Changes); Ctrl+P still closes the switcher it opened.
-  if (dialogOpen() && !(shortcut === "switcher" && useUiStore.getState().switcherOpen)) return;
+  // Ctrl+Enter in Changes); some shortcuts belong to the dialog itself.
+  if (dialogOpen() && !worksInDialog(shortcut)) return;
   SHORTCUT_ACTIONS[shortcut]();
+}
+
+/** Ctrl+P closes the switcher it opened; other shortcuts wait for dialogs to close. */
+function worksInDialog(shortcut: ShortcutId): boolean {
+  return shortcut === "switcher" && useUiStore.getState().switcherOpen;
 }
 
 export function useKeyboardShortcuts(): void {

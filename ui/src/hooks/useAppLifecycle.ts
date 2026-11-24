@@ -2,11 +2,13 @@ import { useEffect } from "react";
 import { backendEvents } from "@/api/client";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { handleFilesChanged } from "@/actions/fsSync";
+import { scheduledRunFinished, showAlert } from "@/actions/alerts";
 import { refreshContext } from "@/actions/critters";
-import { flowStepFinished } from "@/actions/flows";
+import { flowStepFinished, flowStepStarted } from "@/actions/flows";
 import { refreshGitStatus } from "@/actions/git";
 import { refreshSchedules } from "@/actions/monitors";
 import { restoreLastProject } from "@/actions/project";
+import { refreshSecrets } from "@/actions/secrets";
 import { hasUnsavedChanges, saveAll } from "@/actions/saving";
 import { refreshVariableNames } from "@/actions/variables";
 import { reportErrors } from "@/lib/errors";
@@ -86,8 +88,18 @@ export function useAppLifecycle(): void {
         void refreshContext(critter);
         if (critter === useCritterStore.getState().activeId) void refreshVariableNames();
       }),
-      backendEvents.scheduledRunFinished.listen(() => void refreshSchedules()),
+      backendEvents.scheduledRunFinished.listen(() => scheduledRunFinished()),
+      backendEvents.monitorAlert.listen(({ payload }) => showAlert(payload)),
+      backendEvents.flowStepStarted.listen(({ payload }) =>
+        flowStepStarted(payload.critter, payload.flow, payload.start),
+      ),
       backendEvents.flowProgress.listen(({ payload }) => flowStepFinished(payload.critter, payload.flow, payload.step)),
+      // Unlocked, locked (also after idling) or turned on or off. Schedules
+      // wait while locked, so their states change too.
+      backendEvents.secretsStatusChanged.listen(() => {
+        void refreshSecrets();
+        void refreshSchedules();
+      }),
     ];
     return () => unlisteners.forEach((unlisten) => void unlisten.then((stop) => stop()));
   }, []);

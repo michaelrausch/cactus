@@ -113,6 +113,8 @@ mod tests {
             index,
             request: request.into(),
             title: request.into(),
+            method: "GET".into(),
+            url: "http://h/".into(),
             ok,
             skipped,
             response,

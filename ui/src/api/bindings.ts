@@ -8,7 +8,8 @@ import * as __TAURI_EVENT from "@tauri-apps/api/event";
 export const commands = {
 	/**
 	 *  List the project's scenarios, remember it as recent, start its enabled
-	 *  schedules and start watching it.
+	 *  schedules and start watching it. Switching projects locks the previous
+	 *  one's secrets.
 	 */
 	openProject: (project: string, options?: InvokeOptions) => __TAURI_INVOKE<ScenarioEntry[]>("open_project", { project }, options),
 	/**  Re-list, and re-watch so folders created since opening are covered. */
@@ -79,8 +80,9 @@ export const commands = {
 	 */
 	flowVariableSources: (project: string, critter: string, options?: InvokeOptions) => __TAURI_INVOKE<{ [key in string]: VarSource }>("flow_variable_sources", { project, critter }, options),
 	/**
-	 *  Run a flow, emitting [`FlowProgress`] per step. `env` overrides the
-	 *  active one. Resolves to `None` when cancelled.
+	 *  Run a flow, emitting [`FlowStepStarted`] as each step sends and
+	 *  [`FlowProgress`] as it finishes. `env` overrides the active one.
+	 *  Resolves to `None` when cancelled.
 	 */
 	runFlow: (project: string, critter: string, flow: string, env: string | null, options?: InvokeOptions) => __TAURI_INVOKE<FlowRun_Serialize | null>("run_flow", { project, critter, flow, env }, options),
 	/**
@@ -88,8 +90,6 @@ export const commands = {
 	 *  emitting [`MatrixProgress`] per row. Resolves to `None` when cancelled.
 	 */
 	runMatrix: (project: string, path: ProjectPath, scenario: Scenario_Deserialize, options?: InvokeOptions) => __TAURI_INVOKE<MatrixCell_Serialize[] | null>("run_matrix", { project, path, scenario }, options),
-	/**  Turn a flow's schedule on or off on this machine. */
-	setScheduleEnabled: (project: string, critter: string, flow: string, enabled: boolean, options?: InvokeOptions) => __TAURI_INVOKE<null>("set_schedule_enabled", { project, critter, flow, enabled }, options),
 	/**  Pause or resume every schedule; nothing runs while paused. */
 	setSchedulesPaused: (paused: boolean, options?: InvokeOptions) => __TAURI_INVOKE<void>("set_schedules_paused", { paused }, options),
 	scheduleStates: (project: string, options?: InvokeOptions) => __TAURI_INVOKE<ScheduleStates_Serialize>("schedule_states", { project }, options),
@@ -97,7 +97,8 @@ export const commands = {
 	loadRunLog: (project: string, critter: string, flow: string, options?: InvokeOptions) => __TAURI_INVOKE<RunRecord_Serialize[]>("load_run_log", { project, critter, flow }, options),
 	/**
 	 *  Run a scheduled flow once now, outside its timer, the same way the timer
-	 *  does: recorded, compared and alerted on.
+	 *  does: recorded, compared and alerted on. While its secrets are locked
+	 *  it's refused rather than recorded as a failing run.
 	 */
 	runScheduledNow: (project: string, critter: string, flow: string, options?: InvokeOptions) => __TAURI_INVOKE<RunRecord_Serialize>("run_scheduled_now", { project, critter, flow }, options),
 	/**  `None` when the project isn't in a git repository. */
@@ -135,17 +136,31 @@ export const commands = {
 	 */
 	runFolder: (project: string, dir: string, options?: InvokeOptions) => __TAURI_INVOKE<RunResult_Serialize[] | null>("run_folder", { project, dir }, options),
 	cancelRequest: (options?: InvokeOptions) => __TAURI_INVOKE<void>("cancel_request", undefined, options),
+	secretsStatus: (project: string, options?: InvokeOptions) => __TAURI_INVOKE<SecretsInfo_Serialize>("secrets_status", { project }, options),
+	enableSecretsEncryption: (project: string, password: string, autoLockMinutes: number | null, options?: InvokeOptions) => __TAURI_INVOKE<null>("enable_secrets_encryption", { project, password, autoLockMinutes }, options),
+	disableSecretsEncryption: (project: string, password: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("disable_secrets_encryption", { project, password }, options),
+	changeSecretsPassword: (project: string, current: string, next: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("change_secrets_password", { project, current, next }, options),
+	/**  Argon2id takes about half a second, so it runs off the async workers. */
+	unlockSecrets: (project: string, password: string, options?: InvokeOptions) => __TAURI_INVOKE<UnlockReport>("unlock_secrets", { project, password }, options),
+	lockSecrets: (project: string, options?: InvokeOptions) => __TAURI_INVOKE<void>("lock_secrets", { project }, options),
+	/**  For a forgotten password: sealed values are removed, plain ones kept. */
+	resetSecrets: (project: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("reset_secrets", { project }, options),
+	setAutoLock: (project: string, minutes: number | null, options?: InvokeOptions) => __TAURI_INVOKE<null>("set_auto_lock", { project, minutes }, options),
+	/**  The names in a secrets layer, which work while locked. */
+	secretNames: (project: string, file: EnvFile, options?: InvokeOptions) => __TAURI_INVOKE<string[]>("secret_names", { project, file }, options),
 };
 
 /** Events */
 export const events = {
 	contextChanged: makeEvent<ContextChanged, ContextChanged>("context-changed"),
 	flowProgress: makeEvent<FlowProgress_Serialize, FlowProgress_Deserialize>("flow-progress"),
+	flowStepStarted: makeEvent<FlowStepStarted, FlowStepStarted>("flow-step-started"),
 	fsChanged: makeEvent<FsChanged, FsChanged>("fs-changed"),
 	matrixProgress: makeEvent<MatrixProgress_Serialize, MatrixProgress_Deserialize>("matrix-progress"),
 	monitorAlert: makeEvent<MonitorAlert_Serialize, MonitorAlert_Deserialize>("monitor-alert"),
 	runProgress: makeEvent<RunProgress_Serialize, RunProgress_Deserialize>("run-progress"),
 	scheduledRunFinished: makeEvent<ScheduledRunFinished_Serialize, ScheduledRunFinished_Deserialize>("scheduled-run-finished"),
+	secretsStatusChanged: makeEvent<SecretsStatusChanged, SecretsStatusChanged>("secrets-status-changed"),
 };
 
 /* Types */
@@ -572,6 +587,12 @@ export type FlowStepResult_Deserialize = {
 	/**  The step's `request`, as written. */
 	request: string,
 	title: string,
+	/**
+	 *  The method and URL it was sent to, env applied; empty when the
+	 *  request couldn't be read.
+	 */
+	method: string,
+	url: string,
 	ok: boolean,
 	/**  Not run because an earlier step failed. */
 	skipped: boolean,
@@ -590,6 +611,12 @@ export type FlowStepResult_Serialize = {
 	/**  The step's `request`, as written. */
 	request: string,
 	title: string,
+	/**
+	 *  The method and URL it was sent to, env applied; empty when the
+	 *  request couldn't be read.
+	 */
+	method: string,
+	url: string,
 	ok: boolean,
 	/**  Not run because an earlier step failed. */
 	skipped: boolean,
@@ -597,6 +624,22 @@ export type FlowStepResult_Serialize = {
 	error: string | null,
 	/**  The values of the step's `watch` expressions. */
 	watched: { [key in string]: string | null },
+};
+
+/**  A step about to send: where it's going. */
+export type FlowStepStart = {
+	index: number,
+	request: string,
+	title: string,
+	method: string,
+	url: string,
+};
+
+/**  One step of an interactive flow run is sending. */
+export type FlowStepStarted = {
+	critter: string,
+	flow: string,
+	start: FlowStepStart,
 };
 
 /**  One request of a flow and what the flow adds to it. */
@@ -643,7 +686,7 @@ export type FlowSummary_Deserialize = {
 	id: string,
 	name: string,
 	steps: number,
-	trigger?: Trigger_Deserialize | null,
+	triggers: Trigger_Deserialize[],
 	/**  Why the flow file couldn't be read. */
 	error?: string | null,
 };
@@ -652,7 +695,7 @@ export type FlowSummary_Serialize = {
 	id: string,
 	name: string,
 	steps: number,
-	trigger: Trigger_Serialize | null,
+	triggers: Trigger_Serialize[],
 	/**  Why the flow file couldn't be read. */
 	error: string | null,
 };
@@ -660,7 +703,8 @@ export type FlowSummary_Serialize = {
 /**  `critters/<id>/flows/<flow>.yml`: requests run in order as the critter. */
 export type Flow_Deserialize = {
 	name?: LenientString,
-	trigger?: Trigger_Deserialize | null,
+	/**  What runs the flow on its own, besides running it by hand. */
+	triggers?: Trigger_Deserialize[],
 	alert?: AlertRule_Deserialize | null,
 	steps?: FlowStep_Deserialize[],
 };
@@ -668,7 +712,8 @@ export type Flow_Deserialize = {
 /**  `critters/<id>/flows/<flow>.yml`: requests run in order as the critter. */
 export type Flow_Serialize = {
 	name: LenientString,
-	trigger?: Trigger_Serialize,
+	/**  What runs the flow on its own, besides running it by hand. */
+	triggers?: Trigger_Serialize[],
 	alert?: AlertRule_Serialize,
 	steps: FlowStep_Serialize[],
 };
@@ -1077,47 +1122,72 @@ export type Scenario_Serialize = {
 	docs?: LenientString,
 };
 
+/**  Run every so often while cactus is open, on machines it's turned on for. */
+export type Schedule = Schedule_Serialize | Schedule_Deserialize;
+
 export type ScheduleState = ScheduleState_Serialize | ScheduleState_Deserialize;
 
 export type ScheduleState_Deserialize = {
 	critter: string,
 	flow: string,
-	/**  `None` when the flow has no trigger or can't be read. */
+	/**  `None` when the flow has no schedule or can't be read. */
 	every?: Interval | null,
 	env?: string | null,
 	/**  Unix epoch millis of the next run; `None` when nothing is running. */
 	nextAt?: number | null,
 	/**  The most recent run. */
 	last?: RunRecord_Deserialize | null,
+	/**  Why the flow isn't running at its ticks, if something holds it. */
+	waiting?: ScheduleWaiting | null,
 };
 
 export type ScheduleState_Serialize = {
 	critter: string,
 	flow: string,
-	/**  `None` when the flow has no trigger or can't be read. */
+	/**  `None` when the flow has no schedule or can't be read. */
 	every: Interval | null,
 	env: string | null,
 	/**  Unix epoch millis of the next run; `None` when nothing is running. */
 	nextAt: number | null,
 	/**  The most recent run. */
 	last: RunRecord_Serialize | null,
+	/**  Why the flow isn't running at its ticks, if something holds it. */
+	waiting: ScheduleWaiting | null,
 };
 
-/**  Every schedule enabled on this machine, for the Scheduled list. */
+/**  Every scheduled flow and how it's doing. */
 export type ScheduleStates = ScheduleStates_Serialize | ScheduleStates_Deserialize;
 
-/**  Every schedule enabled on this machine, for the Scheduled list. */
+/**  Every scheduled flow and how it's doing. */
 export type ScheduleStates_Deserialize = {
 	/**  Whether every schedule is paused. */
 	paused: boolean,
 	schedules: ScheduleState_Deserialize[],
 };
 
-/**  Every schedule enabled on this machine, for the Scheduled list. */
+/**  Every scheduled flow and how it's doing. */
 export type ScheduleStates_Serialize = {
 	/**  Whether every schedule is paused. */
 	paused: boolean,
 	schedules: ScheduleState_Serialize[],
+};
+
+export type ScheduleWaiting = 
+/**  Its secrets are locked; it runs again once they're unlocked. */
+"secretsLocked";
+
+/**  Run every so often while cactus is open, on machines it's turned on for. */
+export type Schedule_Deserialize = {
+	every: Interval,
+	/**  The env to run in; the active one when not set. */
+	env?: string | null,
+};
+
+/**  Run every so often while cactus is open, on machines it's turned on for. */
+export type Schedule_Serialize = {
+	every: Interval,
+	/**  The env to run in; the active one when not set. */
+	env?: string,
 };
 
 /**  A scheduled flow ran (on its timer or through "Run now"). */
@@ -1150,6 +1220,47 @@ export type Script_Deserialize = {
 export type Script_Serialize = {
 	type: LenientString,
 	code: LenientString,
+};
+
+/**  What the UI shows about encryption. */
+export type SecretsInfo = SecretsInfo_Serialize | SecretsInfo_Deserialize;
+
+/**  What the UI shows about encryption. */
+export type SecretsInfo_Deserialize = {
+	status: SecretsStatus,
+	/**  Lock after this many idle minutes; `None` is never. */
+	autoLockMinutes?: number | null,
+	/**
+	 *  Whether any value is sealed. Without one, unlocking can't check the
+	 *  password, so it sets it instead.
+	 */
+	hasSealedValues: boolean,
+};
+
+/**  What the UI shows about encryption. */
+export type SecretsInfo_Serialize = {
+	status: SecretsStatus,
+	/**  Lock after this many idle minutes; `None` is never. */
+	autoLockMinutes: number | null,
+	/**
+	 *  Whether any value is sealed. Without one, unlocking can't check the
+	 *  password, so it sets it instead.
+	 */
+	hasSealedValues: boolean,
+};
+
+export type SecretsStatus = 
+/**  Secrets are stored as plain text, as before. */
+"off" | 
+/**  On, and this process doesn't hold the key for every sealed value. */
+"locked" | "unlocked";
+
+/**
+ *  Secrets were unlocked, locked (by hand or after idling), or encryption
+ *  was turned on or off.
+ */
+export type SecretsStatusChanged = {
+	status: SecretsStatus,
 };
 
 export type Selector = Selector_Serialize | Selector_Deserialize;
@@ -1224,22 +1335,27 @@ export type StepRecord_Serialize = {
 
 export type Timeout = number | Inherit;
 
-/**  When a flow runs on its own. */
+/**
+ *  Something that runs a flow on its own, named by `type` so other kinds
+ *  can join `schedule` later: `- {type: schedule, every: 5m}`.
+ */
 export type Trigger = Trigger_Serialize | Trigger_Deserialize;
 
-/**  When a flow runs on its own. */
+/**
+ *  Something that runs a flow on its own, named by `type` so other kinds
+ *  can join `schedule` later: `- {type: schedule, every: 5m}`.
+ */
 export type Trigger_Deserialize = {
-	every: Interval,
-	/**  The env to run in; the active one when not set. */
-	env?: string | null,
-};
+	type: "schedule",
+} & Schedule_Deserialize;
 
-/**  When a flow runs on its own. */
+/**
+ *  Something that runs a flow on its own, named by `type` so other kinds
+ *  can join `schedule` later: `- {type: schedule, every: 5m}`.
+ */
 export type Trigger_Serialize = {
-	every: Interval,
-	/**  The env to run in; the active one when not set. */
-	env?: string,
-};
+	type: "schedule",
+} & Schedule_Serialize;
 
 /**  The body kinds cactus sends. */
 export type TypedBody = TypedBody_Serialize | TypedBody_Deserialize;
@@ -1253,6 +1369,11 @@ export type TypedBody_Deserialize =
 export type TypedBody_Serialize = 
 /**  JSON text, sent as written after `{{var}}` substitution. */
 { type: "json"; data: LenientString } | { type: "text"; data: LenientString } | { type: "xml"; data: LenientString } | { type: "sparql"; data: LenientString } | { type: "form-urlencoded"; data: FormField_Serialize[] } | { type: "multipart-form"; data: MultipartField_Serialize[] } | { type: "file"; data: FileVariant_Serialize[] };
+
+export type UnlockReport = {
+	/**  Values that were stored as plain text and are now sealed. */
+	sealedPlainValues: number,
+};
 
 /**  Where a variable's value comes from: the highest layer that sets it. */
 export type VarSource = { kind: "collection" } | { kind: "environment"; name: string } | { kind: "folder"; dir: string } | { kind: "request" } | { kind: "secret" } | { kind: "captured" } | { kind: "critter" } | { kind: "critterSecret" } | { kind: "critterContext"; from: string; at: number } | { kind: "step" };

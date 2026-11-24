@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::Path;
 
-use cactus_core::runner::{self, FlowRun, FlowStepResult, SendOptions};
+use cactus_core::runner::{self, FlowEvent, FlowRun, SendOptions};
 use cactus_core::{Error, critter};
 use serde_json::json;
 
@@ -36,8 +36,8 @@ pub async fn flow(
         if format == Format::Report {
             println!("{}", format_flow_heading(&critter, &flow));
         }
-        let report = |step: &FlowStepResult| {
-            if format == Format::Report {
+        let report = |event: FlowEvent<'_>| {
+            if let (FlowEvent::Finished(step), Format::Report) = (event, format) {
                 println!("{}", format_step_result(step));
             }
         };

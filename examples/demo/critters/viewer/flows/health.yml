@@ -1,0 +1,15 @@
+# A scheduled health check. Turn it on with "On this machine" in the flow
+# editor; it runs while cactus is open and alerts when it starts failing,
+# recovers, or a watched value changes.
+name: Health
+triggers:
+  - type: schedule
+    every: 5m
+alert:
+  on: [failure, change]
+steps:
+  - request: auth/login.yml
+  - request: get-anything.yml
+    expect: 200
+    watch:
+      - res.body.headers.Host
