@@ -14,7 +14,7 @@ use crate::storage::write_atomic;
 use crate::{Error, Result};
 
 pub fn read<T: DeserializeOwned>(path: &Path) -> Result<T> {
-    parse(&fs::read_to_string(path)?)
+    parse(&fs::read_to_string(path).map_err(Error::file(path))?)
 }
 
 /// Like [`read`], with a missing file read as `None`.
@@ -22,7 +22,7 @@ pub fn read_if_exists<T: DeserializeOwned>(path: &Path) -> Result<Option<T>> {
     match fs::read_to_string(path) {
         Ok(text) => parse(&text).map(Some),
         Err(e) if e.kind() == ErrorKind::NotFound => Ok(None),
-        Err(e) => Err(e.into()),
+        Err(e) => Err(Error::file(path)(e)),
     }
 }
 
@@ -43,7 +43,7 @@ pub fn write<T: Serialize + DeserializeOwned>(path: &Path, value: &T) -> Result<
         Err(e) if e.kind() == ErrorKind::NotFound => {
             return write_atomic(path, to_yaml(&serde_json::to_value(value)?)?.as_bytes());
         }
-        Err(e) => return Err(e.into()),
+        Err(e) => return Err(Error::file(path)(e)),
     };
     let unpatchable = |reason: String| Error::Unpatchable { path: path.display().to_string(), reason };
     // A file that no longer parses is the user's to fix; overwriting it

@@ -1,9 +1,9 @@
-import { useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useContext, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { firstOf, placeholderSuggester, type Suggester, type Suggestion } from "@/domain/suggestions";
-import { useKnownVariables } from "@/hooks/useKnownVariables";
 import { cn } from "@/lib/utils";
 import { highlight, type Syntax } from "./highlight";
+import { KnownNamesContext } from "./knownNames";
 
 interface TemplateFieldProps {
   value: string;
@@ -53,7 +53,7 @@ export function TemplateField({
   fieldClassName,
   "aria-label": ariaLabel,
 }: TemplateFieldProps) {
-  const known = useKnownVariables();
+  const known = useContext(KnownNamesContext);
   const knownSet = useMemo(() => (known ? new Set(known) : null), [known]);
   const suggester = useMemo(
     () => firstOf(templates ? placeholderSuggester(known ?? []) : undefined, suggest),

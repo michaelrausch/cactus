@@ -2,8 +2,8 @@
 
 use serde_json::Value;
 
-use super::{ImportedScenario, ParsedCollection, child_dir, description_text};
-use crate::collection::{ApiKeyPlacement, Auth, AuthMode, Header};
+use super::{ImportedScenario, ParsedCollection, child_dir, text_value};
+use crate::collection::{ApiKeyPlacement, Auth, AuthMode, Header, LenientString};
 use crate::scenario::{
     Body, DEFAULT_METHOD, FormField, MultipartField, PartKind, PartValue, Scenario, Script, TypedBody,
 };
@@ -15,7 +15,7 @@ pub(super) fn parse(document: &Value) -> ParsedCollection {
         .as_array()
         .into_iter()
         .flatten()
-        .filter_map(|var| Some((var["key"].as_str()?.to_string(), description_text(&var["value"]))))
+        .filter_map(|var| Some((var["key"].as_str()?.to_string(), text_value(&var["value"]))))
         .collect();
     ParsedCollection { scenarios, variables }
 }
@@ -41,17 +41,17 @@ fn parse_request(name: &str, item: &Value) -> Scenario {
     let mut scenario = Scenario::titled(name);
     // A request may be just a URL string.
     if let Some(url) = request.as_str() {
-        scenario.http.url = url.to_string();
+        scenario.http.url = url.into();
         return scenario;
     }
-    scenario.http.method = request["method"].as_str().unwrap_or(DEFAULT_METHOD).to_uppercase();
-    scenario.http.url = parse_url(&request["url"]);
+    scenario.http.method = request["method"].as_str().unwrap_or(DEFAULT_METHOD).to_uppercase().into();
+    scenario.http.url = parse_url(&request["url"]).into();
     scenario.http.headers = key_values(&request["header"])
-        .map(|field| Header { name: field.key.into(), value: description_text(field.value), disabled: field.disabled })
+        .map(|field| Header { name: field.key.into(), value: text_value(field.value).into(), disabled: field.disabled })
         .collect();
     scenario.http.body = parse_body(&request["body"]);
     scenario.http.auth = parse_auth(&request["auth"]);
-    scenario.docs = parse_description(item, request);
+    scenario.docs = parse_description(item, request).into();
     scenario.runtime.scripts = parse_scripts(&item["event"]);
     scenario
 }
@@ -63,7 +63,7 @@ fn parse_url(url: &Value) -> String {
 
 /// The item's description wins over the request's.
 fn parse_description(item: &Value, request: &Value) -> String {
-    [description_text(&item["description"]), description_text(&request["description"])]
+    [text_value(&item["description"]), text_value(&request["description"])]
         .into_iter()
         .find(|d| !d.is_empty())
         .unwrap_or_default()
@@ -74,7 +74,7 @@ fn parse_body(body: &Value) -> Option<Body> {
         "raw" => raw_body(body)?,
         "urlencoded" => TypedBody::FormUrlencoded {
             data: key_values(&body["urlencoded"])
-                .map(|f| FormField { name: f.key.into(), value: description_text(f.value), disabled: f.disabled })
+                .map(|f| FormField { name: f.key.into(), value: text_value(f.value).into(), disabled: f.disabled })
                 .collect(),
         },
         "formdata" => TypedBody::MultipartForm { data: form_data(&body["formdata"]) },
@@ -85,7 +85,7 @@ fn parse_body(body: &Value) -> Option<Body> {
 
 /// Raw bodies are kept as written, typed by their language.
 fn raw_body(body: &Value) -> Option<TypedBody> {
-    let data = body["raw"].as_str().filter(|raw| !raw.is_empty())?.to_string();
+    let data = LenientString::from(body["raw"].as_str().filter(|raw| !raw.is_empty())?);
     Some(match body["options"]["raw"]["language"].as_str() {
         Some("json") => TypedBody::Json { data },
         Some("xml") => TypedBody::Xml { data },
@@ -102,14 +102,14 @@ fn form_data(fields: &Value) -> Vec<MultipartField> {
             let disabled = field["disabled"].as_bool().unwrap_or(false);
             let (kind, value) = if field["type"].as_str() == Some("file") {
                 let value = match &field["src"] {
-                    Value::Array(paths) => PartValue::Many(paths.iter().map(description_text).collect()),
-                    src => PartValue::One(description_text(src)),
+                    Value::Array(paths) => PartValue::Many(paths.iter().map(text_value).collect()),
+                    src => PartValue::One(text_value(src)),
                 };
                 (PartKind::File, value)
             } else {
-                (PartKind::Text, PartValue::One(description_text(&field["value"])))
+                (PartKind::Text, PartValue::One(text_value(&field["value"])))
             };
-            Some(MultipartField { name, kind, value, disabled })
+            Some(MultipartField { name: name.into(), kind, value, disabled })
         })
         .collect()
 }
@@ -118,8 +118,9 @@ fn form_data(fields: &Value) -> Vec<MultipartField> {
 /// a key/value list named after the auth type.
 fn parse_auth(auth: &Value) -> Option<Auth> {
     let Some(auth_type) = auth["type"].as_str() else { return Some(Auth::INHERIT) };
-    let setting =
-        |name: &str| key_values(&auth[auth_type]).find(|f| f.key == name).map_or_default(|f| description_text(f.value));
+    let setting = |name: &str| -> LenientString {
+        key_values(&auth[auth_type]).find(|f| f.key == name).map_or_default(|f| text_value(f.value)).into()
+    };
     let mode = match auth_type {
         "bearer" => AuthMode::Bearer { token: setting("token") },
         "basic" => AuthMode::Basic { username: setting("username"), password: setting("password") },
@@ -146,9 +147,9 @@ fn parse_scripts(events: &Value) -> Vec<Script> {
             };
             let code = match &event["script"]["exec"] {
                 Value::Array(lines) => lines.iter().filter_map(Value::as_str).collect::<Vec<_>>().join("\n"),
-                other => description_text(other),
+                other => text_value(other),
             };
-            (!code.trim().is_empty()).then(|| Script { kind: kind.into(), code })
+            (!code.trim().is_empty()).then(|| Script { kind: kind.into(), code: code.into() })
         })
         .collect()
 }

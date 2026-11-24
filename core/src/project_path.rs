@@ -14,14 +14,15 @@ const WINDOWS_SEPARATOR: char = '\\';
 /// of which would make a joined path leave the project on Windows.
 const DRIVE_MARKER: char = ':';
 
-/// A request file's location relative to the project root, using `/` separators.
+/// A file's location relative to the project root, using `/` separators: a
+/// request, an attachment or any other file in the project (git lists them all).
 /// It can never point outside the project, so it is safe to join onto it.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(try_from = "String", into = "String")]
 #[cfg_attr(feature = "specta", derive(specta::Type), specta(transparent))]
-pub struct ScenarioPath(String);
+pub struct ProjectPath(String);
 
-impl ScenarioPath {
+impl ProjectPath {
     /// Accepts `\` as well as `/` between folders. Every part must be a plain
     /// name: no empty parts, `.`, `..`, roots or drives.
     pub fn parse(relative: impl Into<String>) -> Result<Self> {
@@ -31,7 +32,7 @@ impl ScenarioPath {
         // Also ask the platform, which knows its own kinds of prefix.
         let only_normal_parts = Path::new(&normalized).components().all(|c| matches!(c, Component::Normal(_)));
         if !plain_parts || !only_normal_parts {
-            return Err(Error::InvalidScenarioPath(relative));
+            return Err(Error::InvalidPath(relative));
         }
         Ok(Self(normalized))
     }
@@ -86,7 +87,7 @@ fn normalize_dir(dir: &str) -> Cow<'_, str> {
     }
 }
 
-impl TryFrom<String> for ScenarioPath {
+impl TryFrom<String> for ProjectPath {
     type Error = Error;
 
     fn try_from(value: String) -> Result<Self> {
@@ -94,13 +95,13 @@ impl TryFrom<String> for ScenarioPath {
     }
 }
 
-impl From<ScenarioPath> for String {
-    fn from(path: ScenarioPath) -> Self {
+impl From<ProjectPath> for String {
+    fn from(path: ProjectPath) -> Self {
         path.0
     }
 }
 
-impl fmt::Display for ScenarioPath {
+impl fmt::Display for ProjectPath {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(&self.0)
     }
@@ -112,10 +113,10 @@ mod tests {
 
     #[test]
     fn rejects_escape() {
-        assert!(ScenarioPath::parse("../x.yml").is_err());
-        assert!(ScenarioPath::parse("/etc/passwd").is_err());
-        assert!(ScenarioPath::parse("").is_err());
-        assert!(ScenarioPath::parse("a/b.yml").is_ok());
+        assert!(ProjectPath::parse("../x.yml").is_err());
+        assert!(ProjectPath::parse("/etc/passwd").is_err());
+        assert!(ProjectPath::parse("").is_err());
+        assert!(ProjectPath::parse("a/b.yml").is_ok());
         for bad in [
             "a//b.yml",
             "a/",
@@ -127,32 +128,32 @@ mod tests {
             "\\\\srv\\share\\a.yml",
             "\\a.yml",
         ] {
-            assert!(ScenarioPath::parse(bad).is_err(), "{bad}");
+            assert!(ProjectPath::parse(bad).is_err(), "{bad}");
         }
     }
 
     #[test]
     fn normalizes_windows_separators() {
-        let path = ScenarioPath::parse("auth\\admin\\login.yml").unwrap();
+        let path = ProjectPath::parse("auth\\admin\\login.yml").unwrap();
         assert_eq!(path.as_str(), "auth/admin/login.yml");
         assert_eq!((path.dir(), path.file_name()), ("auth/admin", "login.yml"));
         assert!(path.is_within("auth\\"));
         assert!(path.is_within("auth\\admin"));
-        assert_eq!(ScenarioPath::in_dir("auth\\", "x.yml").unwrap().as_str(), "auth/x.yml");
+        assert_eq!(ProjectPath::in_dir("auth\\", "x.yml").unwrap().as_str(), "auth/x.yml");
     }
 
     #[test]
     fn splits_dir_and_name() {
-        let path = ScenarioPath::parse("a/b/c.yml").unwrap();
+        let path = ProjectPath::parse("a/b/c.yml").unwrap();
         assert_eq!((path.dir(), path.file_name()), ("a/b", "c.yml"));
-        let root = ScenarioPath::parse("c.yml").unwrap();
+        let root = ProjectPath::parse("c.yml").unwrap();
         assert_eq!((root.dir(), root.file_name()), ("", "c.yml"));
-        assert_eq!(ScenarioPath::in_dir("a/", "c.yml").unwrap().as_str(), "a/c.yml");
+        assert_eq!(ProjectPath::in_dir("a/", "c.yml").unwrap().as_str(), "a/c.yml");
     }
 
     #[test]
     fn within_matches_whole_folders() {
-        let path = ScenarioPath::parse("auth/login.yml").unwrap();
+        let path = ProjectPath::parse("auth/login.yml").unwrap();
         assert!(path.is_within(""));
         assert!(path.is_within("auth"));
         assert!(path.is_within("auth/"));

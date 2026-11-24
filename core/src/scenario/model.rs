@@ -5,12 +5,12 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::collection::model::{is_false, lenient_optional_string, lenient_string};
+use crate::collection::model::{LenientString, is_false, is_selected_json, selected_or_first};
 use crate::collection::{Auth, Header, Inherit, Variable};
 
 pub const DEFAULT_METHOD: &str = "GET";
 
-pub(crate) fn default_method() -> String {
+pub(crate) fn default_method() -> LenientString {
     DEFAULT_METHOD.into()
 }
 
@@ -25,9 +25,8 @@ pub struct Scenario {
     pub runtime: Runtime,
     #[serde(default, skip_serializing_if = "Settings::is_empty")]
     pub settings: Settings,
-    #[serde(default, skip_serializing_if = "String::is_empty", deserialize_with = "lenient_string")]
-    #[cfg_attr(feature = "specta", specta(type = String))]
-    pub docs: String,
+    #[serde(default, skip_serializing_if = "LenientString::is_empty")]
+    pub docs: LenientString,
 }
 
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
@@ -41,9 +40,8 @@ pub enum RequestType {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct RequestInfo {
-    #[serde(default, deserialize_with = "lenient_string")]
-    #[cfg_attr(feature = "specta", specta(type = String))]
-    pub name: String,
+    #[serde(default)]
+    pub name: LenientString,
     #[serde(rename = "type", default)]
     pub kind: RequestType,
     /// Position among its siblings; Bruno lists and runs requests by it.
@@ -54,12 +52,10 @@ pub struct RequestInfo {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct Http {
-    #[serde(default = "default_method", deserialize_with = "lenient_string")]
-    #[cfg_attr(feature = "specta", specta(type = String))]
-    pub method: String,
-    #[serde(default, deserialize_with = "lenient_string")]
-    #[cfg_attr(feature = "specta", specta(type = String))]
-    pub url: String,
+    #[serde(default = "default_method")]
+    pub method: LenientString,
+    #[serde(default)]
+    pub url: LenientString,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub headers: Vec<Header>,
     /// Query params mirror the URL, which is what cactus edits and sends;
@@ -77,7 +73,7 @@ impl Default for Http {
     fn default() -> Self {
         Self {
             method: default_method(),
-            url: String::new(),
+            url: LenientString::default(),
             headers: Vec::new(),
             params: Vec::new(),
             body: None,
@@ -97,12 +93,10 @@ pub enum ParamKind {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct Param {
-    #[serde(default, deserialize_with = "lenient_string")]
-    #[cfg_attr(feature = "specta", specta(type = String))]
-    pub name: String,
-    #[serde(default, deserialize_with = "lenient_string")]
-    #[cfg_attr(feature = "specta", specta(type = String))]
-    pub value: String,
+    #[serde(default)]
+    pub name: LenientString,
+    #[serde(default)]
+    pub value: LenientString,
     #[serde(rename = "type")]
     pub kind: ParamKind,
     #[serde(default, skip_serializing_if = "is_false")]
@@ -113,12 +107,10 @@ pub struct Param {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct FormField {
-    #[serde(default, deserialize_with = "lenient_string")]
-    #[cfg_attr(feature = "specta", specta(type = String))]
-    pub name: String,
-    #[serde(default, deserialize_with = "lenient_string")]
-    #[cfg_attr(feature = "specta", specta(type = String))]
-    pub value: String,
+    #[serde(default)]
+    pub name: LenientString,
+    #[serde(default)]
+    pub value: LenientString,
     #[serde(default, skip_serializing_if = "is_false")]
     pub disabled: bool,
 }
@@ -150,9 +142,8 @@ impl Default for PartValue {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct MultipartField {
-    #[serde(default, deserialize_with = "lenient_string")]
-    #[cfg_attr(feature = "specta", specta(type = String))]
-    pub name: String,
+    #[serde(default)]
+    pub name: LenientString,
     #[serde(rename = "type", default)]
     pub kind: PartKind,
     #[serde(default)]
@@ -180,24 +171,20 @@ pub struct FileVariant {
 pub enum TypedBody {
     /// JSON text, sent as written after `{{var}}` substitution.
     Json {
-        #[serde(default, deserialize_with = "lenient_string")]
-        #[cfg_attr(feature = "specta", specta(type = String))]
-        data: String,
+        #[serde(default)]
+        data: LenientString,
     },
     Text {
-        #[serde(default, deserialize_with = "lenient_string")]
-        #[cfg_attr(feature = "specta", specta(type = String))]
-        data: String,
+        #[serde(default)]
+        data: LenientString,
     },
     Xml {
-        #[serde(default, deserialize_with = "lenient_string")]
-        #[cfg_attr(feature = "specta", specta(type = String))]
-        data: String,
+        #[serde(default)]
+        data: LenientString,
     },
     Sparql {
-        #[serde(default, deserialize_with = "lenient_string")]
-        #[cfg_attr(feature = "specta", specta(type = String))]
-        data: String,
+        #[serde(default)]
+        data: LenientString,
     },
     FormUrlencoded {
         #[serde(default)]
@@ -229,7 +216,7 @@ impl Body {
         match self {
             Self::Typed(body) => Some(body.clone()),
             Self::Other(Value::Array(variants)) => {
-                let chosen = variants.iter().find(|v| v["selected"] == Value::Bool(true)).or(variants.first())?;
+                let chosen = selected_or_first(variants, is_selected_json)?;
                 serde_json::from_value(chosen["body"].clone()).ok()
             }
             Self::Other(_) => None,
@@ -241,15 +228,12 @@ impl Body {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct Assertion {
-    #[serde(default, deserialize_with = "lenient_string")]
-    #[cfg_attr(feature = "specta", specta(type = String))]
-    pub expression: String,
-    #[serde(default, deserialize_with = "lenient_string")]
-    #[cfg_attr(feature = "specta", specta(type = String))]
-    pub operator: String,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "lenient_optional_string")]
-    #[cfg_attr(feature = "specta", specta(type = Option<String>))]
-    pub value: Option<String>,
+    #[serde(default)]
+    pub expression: LenientString,
+    #[serde(default)]
+    pub operator: LenientString,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub value: Option<LenientString>,
     #[serde(default, skip_serializing_if = "is_false")]
     pub disabled: bool,
 }
@@ -273,9 +257,8 @@ pub enum ActionPhase {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct Selector {
-    #[serde(default, deserialize_with = "lenient_string")]
-    #[cfg_attr(feature = "specta", specta(type = String))]
-    pub expression: String,
+    #[serde(default)]
+    pub expression: LenientString,
     #[serde(default = "jsonq")]
     pub method: String,
 }
@@ -287,9 +270,8 @@ pub(crate) fn jsonq() -> String {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct ActionVariable {
-    #[serde(default, deserialize_with = "lenient_string")]
-    #[cfg_attr(feature = "specta", specta(type = String))]
-    pub name: String,
+    #[serde(default)]
+    pub name: LenientString,
     #[serde(default = "runtime_scope")]
     pub scope: String,
 }
@@ -318,8 +300,8 @@ impl SetVariable {
         Self {
             kind: SetVariableType::SetVariable,
             phase: Some(ActionPhase::AfterResponse),
-            selector: Selector { expression: expression.into(), method: jsonq() },
-            variable: ActionVariable { name: name.into(), scope: runtime_scope() },
+            selector: Selector { expression: LenientString(expression.into()), method: jsonq() },
+            variable: ActionVariable { name: LenientString(name.into()), scope: runtime_scope() },
             disabled: false,
         }
     }
@@ -337,12 +319,10 @@ pub enum Action {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct Script {
-    #[serde(rename = "type", default, deserialize_with = "lenient_string")]
-    #[cfg_attr(feature = "specta", specta(type = String))]
-    pub kind: String,
-    #[serde(default, deserialize_with = "lenient_string")]
-    #[cfg_attr(feature = "specta", specta(type = String))]
-    pub code: String,
+    #[serde(rename = "type", default)]
+    pub kind: LenientString,
+    #[serde(default)]
+    pub code: LenientString,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
@@ -368,8 +348,8 @@ impl Runtime {
 #[serde(untagged)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub enum Timeout {
-    // Exposed to TypeScript as `number`: timeouts stay far below 2^53.
-    Millis(#[cfg_attr(feature = "specta", specta(type = u32))] u64),
+    // A JS `number`, accepting precision loss: timeouts stay far below 2^53.
+    Millis(#[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))] u64),
     Inherit(Inherit),
 }
 
@@ -390,7 +370,7 @@ impl Scenario {
     /// A new GET request that inherits auth from its folder or collection.
     pub fn titled(title: impl Into<String>) -> Self {
         let mut scenario = Self::default();
-        scenario.info.name = title.into();
+        scenario.info.name = LenientString(title.into());
         scenario.http.auth = Some(Auth::INHERIT);
         scenario
     }
@@ -408,10 +388,15 @@ impl Scenario {
             if param.kind == ParamKind::Path || param.disabled {
                 params.push(param);
             } else if let Some((name, value)) = from_url.next() {
-                params.push(Param { name, value, ..param });
+                params.push(Param { name: name.into(), value: value.into(), ..param });
             }
         }
-        params.extend(from_url.map(|(name, value)| Param { name, value, kind: ParamKind::Query, disabled: false }));
+        params.extend(from_url.map(|(name, value)| Param {
+            name: name.into(),
+            value: value.into(),
+            kind: ParamKind::Query,
+            disabled: false,
+        }));
         self.http.params = params;
     }
 }
@@ -472,6 +457,28 @@ settings:
         let body: Body = serde_yaml_ng::from_str(yaml).unwrap();
         assert!(matches!(body, Body::Other(_)));
         assert_eq!(body.effective(), Some(TypedBody::Text { data: "b".into() }));
+    }
+
+    /// The same cases run against the editor's `withUrl` (ui/src/domain/scenario.test.ts),
+    /// which has to keep params exactly as a save writes them.
+    #[test]
+    fn query_params_match_the_shared_cases() {
+        #[derive(serde::Deserialize)]
+        struct SharedCase {
+            case: String,
+            url: String,
+            params: Vec<Param>,
+            expected: Vec<Param>,
+        }
+        let cases: Vec<SharedCase> =
+            serde_json::from_str(include_str!("../../tests/fixtures/query-params.json")).unwrap();
+        for case in cases {
+            let mut s = Scenario::default();
+            s.http.url = case.url.into();
+            s.http.params = case.params;
+            s.sync_query_params();
+            assert_eq!(s.http.params, case.expected, "{}", case.case);
+        }
     }
 
     #[test]

@@ -15,7 +15,7 @@ use serde_json::Value;
 use crate::env::{self, EnvFile};
 use crate::scenario::{self, Scenario};
 use crate::text::slugify;
-use crate::{Error, Result, ScenarioPath};
+use crate::{Error, ProjectPath, Result};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -39,7 +39,7 @@ impl ImportFormat {
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct ImportSummary {
     pub format: ImportFormat,
-    pub created: Vec<ScenarioPath>,
+    pub created: Vec<ProjectPath>,
     /// Variables added to the collection; existing ones are never overwritten.
     pub env_vars: Vec<String>,
 }
@@ -65,13 +65,13 @@ pub fn import(project: &Path, file: &Path) -> Result<ImportSummary> {
         ImportFormat::OpenApi => openapi::parse(&document),
     };
     let created = write_scenarios(project, &parsed.scenarios)?;
-    let env_vars = add_missing_env_vars(project, parsed.variables)?;
+    let env_vars = add_missing_env_vars(project, parsed.variables).inspect_err(|_| remove_all(project, &created))?;
     Ok(ImportSummary { format, created, env_vars })
 }
 
 /// YAML by extension; otherwise JSON, falling back to YAML.
 fn parse_document(file: &Path) -> Result<Value> {
-    let text = fs::read_to_string(file)?;
+    let text = fs::read_to_string(file).map_err(Error::file(file))?;
     let is_yaml =
         file.extension().is_some_and(|ext| ext.eq_ignore_ascii_case("yaml") || ext.eq_ignore_ascii_case("yml"));
     if is_yaml {
@@ -90,8 +90,27 @@ fn detect_format(document: &Value) -> Result<ImportFormat> {
     }
 }
 
-fn write_scenarios(project: &Path, scenarios: &[ImportedScenario]) -> Result<Vec<ScenarioPath>> {
-    scenarios.iter().map(|imported| scenario::create(project, &imported.dir, &imported.scenario)).collect()
+/// All of them or, if one can't be written, none: the ones already written
+/// are removed again.
+fn write_scenarios(project: &Path, scenarios: &[ImportedScenario]) -> Result<Vec<ProjectPath>> {
+    let mut created = Vec::with_capacity(scenarios.len());
+    for imported in scenarios {
+        match scenario::create(project, &imported.dir, &imported.scenario) {
+            Ok(path) => created.push(path),
+            Err(error) => {
+                remove_all(project, &created);
+                return Err(error);
+            }
+        }
+    }
+    Ok(created)
+}
+
+/// Best effort: the import is failing already, and these files are new.
+fn remove_all(project: &Path, created: &[ProjectPath]) {
+    for path in created {
+        let _ = fs::remove_file(path.resolve(project));
+    }
 }
 
 /// Add variables the collection doesn't define yet; returns their names.
@@ -120,8 +139,9 @@ fn child_dir(parent: &str, name: &str) -> String {
     }
 }
 
-/// Descriptive text that may be a plain string or `{"content": "..."}`.
-fn description_text(value: &Value) -> String {
+/// A value as text: a plain string, or `{"content": "..."}` as Postman
+/// writes descriptions; anything else is empty.
+fn text_value(value: &Value) -> String {
     match value {
         Value::String(s) => s.clone(),
         Value::Object(o) => o.get("content").and_then(Value::as_str).unwrap_or_default().to_string(),
@@ -137,8 +157,8 @@ mod tests {
     use crate::collection::{Auth, AuthMode};
     use crate::scenario::{Body, ParamKind, PartKind, PartValue, TypedBody};
 
-    fn path(rel: &str) -> ScenarioPath {
-        ScenarioPath::parse(rel).unwrap()
+    fn path(rel: &str) -> ProjectPath {
+        ProjectPath::parse(rel).unwrap()
     }
 
     #[test]
@@ -173,7 +193,7 @@ mod tests {
         )
         .unwrap();
         let sum = import(p, &file).unwrap();
-        let created: Vec<_> = sum.created.iter().map(ScenarioPath::as_str).collect();
+        let created: Vec<_> = sum.created.iter().map(ProjectPath::as_str).collect();
         assert_eq!(created, ["users/create-user.yml", "upload.yml", "ping.yml"]);
         assert_eq!(sum.env_vars, ["token"]);
         assert_eq!(env::load(p, &EnvFile::Base).unwrap()["baseUrl"], "keep-me");
@@ -234,6 +254,19 @@ paths:
         let file = dir.path().join("x.json");
         fs::write(&file, "{}").unwrap();
         assert!(matches!(import(dir.path(), &file), Err(Error::UnrecognizedImportFormat)));
+    }
+
+    #[test]
+    fn failed_import_leaves_nothing_behind() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path();
+        // Requests in folder "taken" can't be written: it is a file.
+        fs::write(p.join("taken"), "").unwrap();
+        let file = p.join("api.json");
+        let paths = json!({"/a": {"get": {"summary": "A"}}, "/b": {"get": {"summary": "B", "tags": ["taken"]}}});
+        fs::write(&file, json!({"openapi": "3.0.0", "paths": paths}).to_string()).unwrap();
+        assert!(import(p, &file).is_err());
+        assert!(!p.join("a.yml").exists());
     }
 
     #[test]

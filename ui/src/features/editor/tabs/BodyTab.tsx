@@ -1,9 +1,9 @@
 import { useMemo } from "react";
-import type { MultipartField } from "@/api/client";
-import { KeyValueTable } from "@/components/KeyValueTable";
+import { KeyValueTable, type RowKinds } from "@/components/KeyValueTable";
 import { TemplateField } from "@/components/template/TemplateField";
 import { BODY_KIND_LABELS, BODY_KINDS, type BodyKind } from "@/domain/http";
-import { listFromRows, makeRow, rowsFromList, type Row } from "@/domain/rows";
+import { multipartFromRows, multipartRows } from "@/domain/multipart";
+import { listFromRows, rowsFromList, type Row } from "@/domain/rows";
 import {
   bodyKind,
   bodyText,
@@ -18,8 +18,14 @@ import { cn } from "@/lib/utils";
 import type { ScenarioTabProps } from "../types";
 
 const JSON_PLACEHOLDER = '{\n  "key": "{{value}}"\n}';
-/** A multipart value starting with this is a file path, relative to the project. */
-const FILE_PREFIX = "@";
+/** A multipart part is text, or a file whose value is a path relative to the project. */
+const PART_KINDS: RowKinds = {
+  options: [
+    { value: "text", label: "Text" },
+    { value: "file", label: "File" },
+  ],
+  fallback: "text",
+};
 
 function BodyKindPicker({ scenario, onChange }: ScenarioTabProps) {
   const current = bodyKind(scenario);
@@ -42,24 +48,6 @@ function BodyKindPicker({ scenario, onChange }: ScenarioTabProps) {
     </div>
   );
 }
-
-/** Multipart file parts are shown as `@path`, as in curl. */
-const multipartRows = (fields: MultipartField[]): Row[] =>
-  fields.map((field) => {
-    const value = Array.isArray(field.value) ? field.value.join(", ") : field.value;
-    return makeRow(field.name, field.type === "file" ? `${FILE_PREFIX}${value}` : value, !field.disabled);
-  });
-
-const multipartFromRows = (rows: Row[]): MultipartField[] =>
-  rows.map((row) => {
-    const isFile = row.value.startsWith(FILE_PREFIX);
-    const field: MultipartField = {
-      name: row.key,
-      type: isFile ? "file" : "text",
-      value: isFile ? row.value.slice(FILE_PREFIX.length) : row.value,
-    };
-    return row.enabled ? field : { ...field, disabled: true };
-  });
 
 function FieldsEditor({ scenario, onChange, kind }: ScenarioTabProps & { kind: "form-urlencoded" | "multipart-form" }) {
   const body = typedBody(scenario);
@@ -84,8 +72,9 @@ function FieldsEditor({ scenario, onChange, kind }: ScenarioTabProps & { kind: "
         rows={rows}
         toggles
         onChange={update}
-        valuePlaceholder={multipart ? "Value, or @path/to/file" : "Value"}
+        valuePlaceholder={multipart ? "Value, or a file path" : "Value"}
         valueColumn={{ templates: true }}
+        {...(multipart ? { kinds: PART_KINDS } : {})}
       />
     </div>
   );

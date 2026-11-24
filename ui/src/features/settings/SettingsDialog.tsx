@@ -1,9 +1,10 @@
 import type { ReactNode } from "react";
-import { Info, Palette } from "lucide-react";
+import { GitBranch, Info, Palette } from "lucide-react";
 import { Tabs } from "radix-ui";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { useUiStore } from "@/stores/uiStore";
 import { AboutTab } from "./AboutTab";
+import { GitTab } from "./GitTab";
 import { ThemeTab } from "./ThemeTab";
 
 /** A row in the settings nav: highlighted when active, no underline or side bar. */
@@ -27,13 +28,18 @@ export function SettingsDialog() {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="gap-0 p-0 sm:max-w-3xl">
         <DialogTitle className="sr-only">Settings</DialogTitle>
-        <DialogDescription className="sr-only">Theme and information about this build.</DialogDescription>
+        <DialogDescription className="sr-only">
+          Theme, commit author and information about this build.
+        </DialogDescription>
         <Tabs.Root orientation="vertical" defaultValue="theme" className="flex h-[min(520px,calc(100vh-4rem))]">
           <div className="flex w-44 shrink-0 flex-col gap-3 border-r bg-sidebar/60 p-3">
             <p className="px-2 pt-1 text-xs font-medium tracking-wide text-muted-foreground uppercase">Settings</p>
             <Tabs.List className="flex flex-col gap-0.5">
               <NavItem value="theme">
                 <Palette /> Theme
+              </NavItem>
+              <NavItem value="git">
+                <GitBranch /> Git
               </NavItem>
               <NavItem value="about">
                 <Info /> About
@@ -42,6 +48,9 @@ export function SettingsDialog() {
           </div>
           <Tabs.Content value="theme" className="min-h-0 flex-1 overflow-y-auto p-5 outline-none">
             <ThemeTab />
+          </Tabs.Content>
+          <Tabs.Content value="git" className="min-h-0 flex-1 overflow-y-auto p-5 outline-none">
+            <GitTab />
           </Tabs.Content>
           <Tabs.Content value="about" className="min-h-0 flex-1 overflow-y-auto p-5 outline-none">
             <AboutTab />

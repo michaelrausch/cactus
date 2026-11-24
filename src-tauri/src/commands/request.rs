@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use cactus_core::http::Response;
 use cactus_core::runner::{self, RunResult};
 use cactus_core::scenario::Scenario;
-use cactus_core::{Result, ScenarioPath};
+use cactus_core::{ProjectPath, Result};
 use tauri::{AppHandle, State};
 use tauri_specta::Event;
 
@@ -17,7 +17,7 @@ use crate::state::AppState;
 pub async fn send_request(
     state: State<'_, AppState>,
     project: PathBuf,
-    path: ScenarioPath,
+    path: ProjectPath,
     scenario: Scenario,
 ) -> Result<Option<Response>> {
     let send = runner::send_and_record(&state.client, &project, &path, &scenario, None);

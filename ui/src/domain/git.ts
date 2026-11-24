@@ -1,9 +1,9 @@
-import type { ChangeKind, DiffSide, FileStatus, GitStatus, ScenarioPath } from "@/api/client";
+import type { ChangeKind, DiffSide, FileStatus, GitStatus, ProjectPath } from "@/api/client";
 import { baseName, dirOf } from "./paths";
 
 /** A file's staged or unstaged changes, as shown in the diff pane. */
 export interface DiffSelection {
-  path: ScenarioPath;
+  path: ProjectPath;
   side: DiffSide;
 }
 
@@ -40,12 +40,12 @@ export const changeOn = (file: FileStatus, side: DiffSide): ChangeKind | null =>
 export const isUntracked = (file: FileStatus): boolean => file.unstaged === "untracked";
 
 /** Unstaging a rename has to put its old path back too. */
-export const unstagePaths = (file: FileStatus): ScenarioPath[] =>
+export const unstagePaths = (file: FileStatus): ProjectPath[] =>
   file.renamedFrom ? [file.path, file.renamedFrom] : [file.path];
 
 /** The change the sidebar shows per file: unstaged work first, as it is the newest. */
-export function changesByPath(status: GitStatus | null): Record<ScenarioPath, ChangeKind> {
-  const changes: Record<ScenarioPath, ChangeKind> = {};
+export function changesByPath(status: GitStatus | null): Record<ProjectPath, ChangeKind> {
+  const changes: Record<ProjectPath, ChangeKind> = {};
   for (const file of status?.files ?? []) {
     const kind = file.unstaged ?? file.staged;
     if (kind) changes[file.path] = kind;
@@ -78,7 +78,7 @@ export function nextSelection(status: GitStatus, selected: DiffSelection | null)
  * How a changed file is named in the list: a request by its title with its
  * path beside it, any other file by its name with its folder beside it.
  */
-export function changeLabel(path: ScenarioPath, titles: Record<string, string>): { name: string; detail: string } {
+export function changeLabel(path: ProjectPath, titles: Record<string, string>): { name: string; detail: string } {
   const title = titles[path];
   return title ? { name: title, detail: path } : { name: baseName(path), detail: dirOf(path) };
 }

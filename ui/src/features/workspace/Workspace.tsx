@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { usePanelRef } from "react-resizable-panels";
 import { discardChanges, editScenario } from "@/actions/scenario";
-import type { ScenarioPath } from "@/api/client";
+import type { ProjectPath } from "@/api/client";
 import { reloadFromDisk, saveScenario } from "@/actions/saving";
 import { Button } from "@/components/ui/button";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
@@ -129,7 +129,7 @@ function ConflictBanner({ path, conflict }: { path: string; conflict: Conflict }
  * The request editor. It alone subscribes to the scenario, so typing
  * re-renders the editor and not the response pane beside it.
  */
-function EditorPane({ path }: { path: ScenarioPath }) {
+function EditorPane({ path }: { path: ProjectPath }) {
   const scenario = useEditorStore((s) => s.scenario);
   const conflict = useEditorStore((s) => (s.path ? s.buffers[s.path]?.conflict : null));
   const editorVersion = useEditorStore((s) => s.editorVersion);
@@ -145,7 +145,7 @@ function EditorPane({ path }: { path: ScenarioPath }) {
 }
 
 /** Editor and response side by side. Mounted fresh after the welcome screen, so the pane starts in the right state. */
-function EditorLayout({ path }: { path: ScenarioPath }) {
+function EditorLayout({ path }: { path: ProjectPath }) {
   const responseVisible = useUiStore((s) => s.responseVisible);
   const { panelRef, animating, syncVisibility } = useCollapsiblePanel(responseVisible);
   return (

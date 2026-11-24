@@ -10,6 +10,39 @@ use super::response::{CaptureFailure, Check, Response};
 use crate::scenario::{Action, ActionPhase, Assertion, Scenario, SetVariable};
 use crate::text::plain_string;
 
+/// Every operator [`holds`] checks, as Bruno names them. The editor offers
+/// the same list (`ui/src/domain/http.ts`; `tests/ui_contract.rs` checks it).
+pub const ASSERTION_OPERATORS: [&str; 28] = [
+    "eq",
+    "neq",
+    "gt",
+    "gte",
+    "lt",
+    "lte",
+    "in",
+    "notIn",
+    "contains",
+    "notContains",
+    "startsWith",
+    "endsWith",
+    "matches",
+    "notMatches",
+    "length",
+    "isDefined",
+    "isUndefined",
+    "isNull",
+    "isNotNull",
+    "isEmpty",
+    "isNotEmpty",
+    "isString",
+    "isNumber",
+    "isBoolean",
+    "isArray",
+    "isJson",
+    "isTruthy",
+    "isFalsy",
+];
+
 /// Without a status assertion, statuses from here up count as failures.
 const FIRST_ERROR_STATUS: u16 = 400;
 
@@ -96,7 +129,7 @@ fn capture(expression: &str, response: &Response, body: Option<&Value>) -> Resul
 fn check(assertion: &Assertion, response: &Response, body: Option<&Value>) -> Check {
     let name = assertion.expression.trim().to_string();
     let operator = assertion.operator.trim();
-    let expected_text = assertion.value.as_deref().unwrap_or_default().trim();
+    let expected_text = assertion.value.as_ref().map_or("", |value| value.trim());
     let wanted = if expected_text.is_empty() { operator.to_string() } else { format!("{operator} {expected_text}") };
     let Some(subject) = Subject::parse(&name) else {
         return Check { name, ok: false, detail: "unsupported expression".into() };
@@ -104,13 +137,14 @@ fn check(assertion: &Assertion, response: &Response, body: Option<&Value>) -> Ch
     let actual = subject.select(response, body);
     let got = actual.as_ref().map_or_else(|| "nothing".into(), Value::to_string);
     match holds(operator, actual.as_ref(), expected_text) {
-        Some(ok) => Check { name, ok, detail: format!("expected {wanted}, got {got}") },
-        None => Check { name, ok: false, detail: format!("unsupported operator {operator:?}") },
+        Ok(ok) => Check { name, ok, detail: format!("expected {wanted}, got {got}") },
+        Err(problem) => Check { name, ok: false, detail: problem },
     }
 }
 
-/// Whether `actual operator expected` holds; `None` for unknown operators.
-fn holds(operator: &str, actual: Option<&Value>, expected: &str) -> Option<bool> {
+/// Whether `actual operator expected` holds, or why it can't be checked:
+/// an unknown operator or an invalid pattern.
+fn holds(operator: &str, actual: Option<&Value>, expected: &str) -> Result<bool, String> {
     let value = || parse_expected(expected);
     let number = |v: Option<&Value>| v.and_then(as_number);
     let compare = |test: fn(f64, f64) -> bool| match (number(actual), as_number(&value())) {
@@ -119,7 +153,7 @@ fn holds(operator: &str, actual: Option<&Value>, expected: &str) -> Option<bool>
     };
     let text = || actual.map_or_default(plain_string);
     let expected_text = || plain_string(&value());
-    Some(match operator {
+    Ok(match operator {
         "eq" => actual.is_some_and(|a| loosely_equal(a, &value())),
         "neq" => !actual.is_some_and(|a| loosely_equal(a, &value())),
         "gt" => compare(|a, e| a > e),
@@ -148,7 +182,7 @@ fn holds(operator: &str, actual: Option<&Value>, expected: &str) -> Option<bool>
         "isJson" => actual.is_some_and(|a| a.is_object() || a.is_array()),
         "isTruthy" => actual.is_some_and(truthy),
         "isFalsy" => !actual.is_some_and(truthy),
-        _ => return None,
+        _ => return Err(format!("unsupported operator {operator:?}")),
     })
 }
 
@@ -213,10 +247,10 @@ fn truthy(value: &Value) -> bool {
 }
 
 /// A regex, optionally written `/like this/`. An invalid one can't be checked.
-fn pattern(text: &str) -> Option<Regex> {
+fn pattern(text: &str) -> Result<Regex, String> {
     let text = text.trim();
     let source = text.strip_prefix('/').and_then(|t| t.strip_suffix('/')).unwrap_or(text);
-    Regex::new(source).ok()
+    Regex::new(source).map_err(|_| format!("invalid pattern {text:?}"))
 }
 
 #[cfg(test)]
@@ -243,7 +277,7 @@ mod tests {
     }
 
     fn assertion(expression: &str, operator: &str, value: &str) -> Assertion {
-        let value = (!value.is_empty()).then(|| value.to_string());
+        let value = (!value.is_empty()).then(|| value.into());
         Assertion { expression: expression.into(), operator: operator.into(), value, disabled: false }
     }
 
@@ -307,7 +341,15 @@ mod tests {
         assert!(ok("isDefined", "$.nil", "") && ok("isUndefined", "$.missing", "") && ok("isNull", "$.nil", ""));
         assert!(ok("isString", "$.s", "") && ok("isNumber", "$.n", "") && ok("isArray", "$.list", ""));
         assert!(ok("isJson", "$.obj", "") && ok("isTruthy", "$.n", "") && ok("isFalsy", "$.nil", ""));
-        assert_eq!(holds("matches", at("$.s"), "("), None);
+        assert_eq!(holds("matches", at("$.s"), "("), Err(r#"invalid pattern "(""#.into()));
+    }
+
+    #[test]
+    fn every_listed_operator_is_checked() {
+        for operator in ASSERTION_OPERATORS {
+            assert!(holds(operator, Some(&Value::from("x")), "x").is_ok(), "{operator}");
+        }
+        assert!(holds("frobs", None, "").is_err());
     }
 
     #[test]

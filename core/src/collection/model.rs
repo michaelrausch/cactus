@@ -7,6 +7,9 @@
 //! can't edit are kept as an `Other` JSON value so they survive a round trip
 //! through the UI.
 
+use std::fmt;
+use std::ops::Deref;
+
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 
@@ -21,33 +24,103 @@ pub(crate) fn is_false(value: &bool) -> bool {
     !*value
 }
 
-/// A string field that tolerates hand-written YAML such as `value: 8080` or
-/// `value: true`, which YAML reads as a number or a boolean.
-pub(crate) fn lenient_string<'de, D: Deserializer<'de>>(deserializer: D) -> Result<String, D::Error> {
-    Ok(plain_string(&Value::deserialize(deserializer)?))
+/// Of a list of variants (of a body, a value, a file), the one marked
+/// selected, or else the first.
+pub(crate) fn selected_or_first<T>(variants: &[T], is_selected: impl Fn(&T) -> bool) -> Option<&T> {
+    variants.iter().find(|variant| is_selected(variant)).or(variants.first())
 }
 
-pub(crate) fn lenient_optional_string<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<String>, D::Error> {
-    Ok(Option::<Value>::deserialize(deserializer)?.map(|value| plain_string(&value)))
+/// Whether a variant written as JSON has `selected: true`.
+pub(crate) fn is_selected_json(variant: &Value) -> bool {
+    variant["selected"] == Value::Bool(true)
+}
+
+/// A string field that tolerates hand-written YAML such as `value: 8080` or
+/// `value: true`, which YAML reads as a number or a boolean. It reads and
+/// writes as a plain string, and derefs to [`String`].
+#[derive(Debug, Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[serde(transparent)]
+#[cfg_attr(feature = "specta", derive(specta::Type), specta(transparent))]
+pub struct LenientString(pub String);
+
+impl LenientString {
+    /// For `skip_serializing_if`, which can't reach `str::is_empty` through `Deref`.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl<'de> Deserialize<'de> for LenientString {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        Ok(Self(plain_string(&Value::deserialize(deserializer)?)))
+    }
+}
+
+impl Deref for LenientString {
+    type Target = String;
+
+    fn deref(&self) -> &String {
+        &self.0
+    }
+}
+
+impl fmt::Display for LenientString {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl From<String> for LenientString {
+    fn from(text: String) -> Self {
+        Self(text)
+    }
+}
+
+impl From<&str> for LenientString {
+    fn from(text: &str) -> Self {
+        Self(text.to_string())
+    }
+}
+
+impl From<&String> for LenientString {
+    fn from(text: &String) -> Self {
+        Self(text.clone())
+    }
+}
+
+impl PartialEq<str> for LenientString {
+    fn eq(&self, other: &str) -> bool {
+        self.0 == other
+    }
+}
+
+impl PartialEq<&str> for LenientString {
+    fn eq(&self, other: &&str) -> bool {
+        self.0 == *other
+    }
+}
+
+impl PartialEq<String> for LenientString {
+    fn eq(&self, other: &String) -> bool {
+        self.0 == *other
+    }
 }
 
 /// `name: value` sent with a request; `disabled` ones stay in the file.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct Header {
-    #[serde(default, deserialize_with = "lenient_string")]
-    #[cfg_attr(feature = "specta", specta(type = String))]
-    pub name: String,
-    #[serde(default, deserialize_with = "lenient_string")]
-    #[cfg_attr(feature = "specta", specta(type = String))]
-    pub value: String,
+    #[serde(default)]
+    pub name: LenientString,
+    #[serde(default)]
+    pub value: LenientString,
     #[serde(default, skip_serializing_if = "is_false")]
     pub disabled: bool,
 }
 
 impl Header {
     pub fn new(name: impl Into<String>, value: impl Into<String>) -> Self {
-        Self { name: name.into(), value: value.into(), disabled: false }
+        Self { name: LenientString(name.into()), value: LenientString(value.into()), disabled: false }
     }
 }
 
@@ -73,26 +146,21 @@ pub enum ApiKeyPlacement {
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub enum AuthMode {
     Bearer {
-        #[serde(default, deserialize_with = "lenient_string")]
-        #[cfg_attr(feature = "specta", specta(type = String))]
-        token: String,
+        #[serde(default)]
+        token: LenientString,
     },
     Basic {
-        #[serde(default, deserialize_with = "lenient_string")]
-        #[cfg_attr(feature = "specta", specta(type = String))]
-        username: String,
-        #[serde(default, deserialize_with = "lenient_string")]
-        #[cfg_attr(feature = "specta", specta(type = String))]
-        password: String,
+        #[serde(default)]
+        username: LenientString,
+        #[serde(default)]
+        password: LenientString,
     },
     #[serde(rename = "apikey")]
     ApiKey {
-        #[serde(default, deserialize_with = "lenient_string")]
-        #[cfg_attr(feature = "specta", specta(type = String))]
-        key: String,
-        #[serde(default, deserialize_with = "lenient_string")]
-        #[cfg_attr(feature = "specta", specta(type = String))]
-        value: String,
+        #[serde(default)]
+        key: LenientString,
+        #[serde(default)]
+        value: LenientString,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         placement: Option<ApiKeyPlacement>,
     },
@@ -126,9 +194,8 @@ pub enum VariableValue {
     Typed {
         #[serde(rename = "type", default)]
         kind: String,
-        #[serde(default, deserialize_with = "lenient_string")]
-        #[cfg_attr(feature = "specta", specta(type = String))]
-        data: String,
+        #[serde(default)]
+        data: LenientString,
     },
     Other(#[cfg_attr(feature = "specta", specta(type = crate::specta_types::JsonValue))] Value),
 }
@@ -139,13 +206,10 @@ impl VariableValue {
     pub fn resolved(&self) -> String {
         match self {
             Self::Text(text) => text.clone(),
-            Self::Typed { data, .. } => data.clone(),
-            Self::Other(Value::Array(variants)) => {
-                let selected = variants.iter().find(|v| v["selected"] == Value::Bool(true)).or(variants.first());
-                selected
-                    .and_then(|v| serde_json::from_value::<Self>(v["value"].clone()).ok())
-                    .map_or_else(String::new, |value| value.resolved())
-            }
+            Self::Typed { data, .. } => data.to_string(),
+            Self::Other(Value::Array(variants)) => selected_or_first(variants, is_selected_json)
+                .and_then(|v| serde_json::from_value::<Self>(v["value"].clone()).ok())
+                .map_or_else(String::new, |value| value.resolved()),
             Self::Other(other) => plain_string(other),
         }
     }
@@ -156,9 +220,8 @@ impl VariableValue {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct Variable {
-    #[serde(default, deserialize_with = "lenient_string")]
-    #[cfg_attr(feature = "specta", specta(type = String))]
-    pub name: String,
+    #[serde(default)]
+    pub name: LenientString,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub value: Option<VariableValue>,
     #[serde(default, skip_serializing_if = "is_false")]
@@ -169,7 +232,7 @@ pub struct Variable {
 
 impl Variable {
     pub fn new(name: impl Into<String>, value: impl Into<String>) -> Self {
-        Self { name: name.into(), value: Some(VariableValue::Text(value.into())), ..Self::default() }
+        Self { name: LenientString(name.into()), value: Some(VariableValue::Text(value.into())), ..Self::default() }
     }
 
     /// Whether this variable takes part in substitution.
@@ -203,15 +266,15 @@ impl RequestDefaults {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct CollectionInfo {
-    #[serde(default, deserialize_with = "lenient_string")]
-    pub name: String,
+    #[serde(default)]
+    pub name: LenientString,
 }
 
 /// `opencollection.yml`: the collection root, stored unbundled.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct CollectionRoot {
-    #[serde(default = "spec_version", deserialize_with = "lenient_string")]
-    pub opencollection: String,
+    #[serde(default = "spec_version")]
+    pub opencollection: LenientString,
     #[serde(default)]
     pub info: CollectionInfo,
     #[serde(default, skip_serializing_if = "RequestDefaults::is_empty")]
@@ -220,7 +283,7 @@ pub struct CollectionRoot {
     pub bundled: Option<bool>,
 }
 
-fn spec_version() -> String {
+fn spec_version() -> LenientString {
     SPEC_VERSION.into()
 }
 
@@ -228,7 +291,7 @@ impl CollectionRoot {
     pub fn named(name: impl Into<String>) -> Self {
         Self {
             opencollection: spec_version(),
-            info: CollectionInfo { name: name.into() },
+            info: CollectionInfo { name: LenientString(name.into()) },
             request: RequestDefaults::default(),
             bundled: Some(false),
         }
@@ -243,8 +306,8 @@ pub enum FolderType {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct FolderInfo {
-    #[serde(default, deserialize_with = "lenient_string")]
-    pub name: String,
+    #[serde(default)]
+    pub name: LenientString,
     #[serde(rename = "type", default = "folder_type")]
     pub kind: FolderType,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -266,14 +329,14 @@ pub struct Folder {
 
 impl FolderInfo {
     fn unnamed() -> Self {
-        Self { name: String::new(), kind: FolderType::Folder, seq: None }
+        Self { name: LenientString::default(), kind: FolderType::Folder, seq: None }
     }
 }
 
 impl Folder {
     pub fn named(name: impl Into<String>, seq: f64) -> Self {
         Self {
-            info: FolderInfo { name: name.into(), kind: FolderType::Folder, seq: Some(seq) },
+            info: FolderInfo { name: LenientString(name.into()), kind: FolderType::Folder, seq: Some(seq) },
             request: RequestDefaults::default(),
         }
     }
@@ -282,8 +345,8 @@ impl Folder {
 /// `environments/<name>.yml`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct Environment {
-    #[serde(default, deserialize_with = "lenient_string")]
-    pub name: String,
+    #[serde(default)]
+    pub name: LenientString,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub variables: Vec<Variable>,
 }

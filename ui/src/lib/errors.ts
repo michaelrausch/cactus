@@ -15,3 +15,17 @@ export async function reportErrors<T>(work: () => Promise<T>, context?: string):
     return undefined;
   }
 }
+
+/**
+ * Run background `work` whose failure only costs a hint (highlighting, a diff
+ * preview): log it instead of interrupting the user. Resolves to `undefined`
+ * on failure. User-initiated work goes through {@link reportErrors} instead.
+ */
+export async function warnQuietly<T>(work: () => Promise<T>, context: string): Promise<T | undefined> {
+  try {
+    return await work();
+  } catch (error) {
+    console.warn(`${context}: ${errorMessage(error)}`);
+    return undefined;
+  }
+}

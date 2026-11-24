@@ -10,7 +10,7 @@ use cactus_core::env::{self, EnvFile};
 use cactus_core::scenario::{
     self, Action, Assertion, Body, MultipartField, PartKind, PartValue, SetVariable, TypedBody,
 };
-use cactus_core::{ScenarioPath, import};
+use cactus_core::{ProjectPath, import};
 use serde_json::{Value, json};
 
 const SCHEMA: &str = include_str!("fixtures/opencollection-v1.0.0.json");
@@ -162,7 +162,7 @@ fn everything_cactus_writes_is_valid() {
     for file in &files {
         assert_valid(p, file);
     }
-    let saved = scenario::load(p, &ScenarioPath::parse("users/admin/list-users.yml").unwrap()).unwrap();
+    let saved = scenario::load(p, &ProjectPath::parse("users/admin/list-users.yml").unwrap()).unwrap();
     assert_eq!(saved, {
         request.sync_query_params();
         request

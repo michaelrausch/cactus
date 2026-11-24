@@ -89,18 +89,19 @@ fn patch_mapping(mapping: &Mapping, old: &Map<String, Value>, new: &Map<String, 
         if old_value == Some(new_value) {
             continue;
         }
-        match mapping.get(key.as_str()) {
-            Some(YamlNode::Mapping(child)) if new_value.is_object() => {
+        match (mapping.get(key.as_str()), new_value) {
+            (Some(YamlNode::Mapping(child)), Value::Object(new_child)) => {
                 // A key the model didn't read (all its fields unknown) still
                 // holds content: patch it as if it were empty.
                 let empty = Map::new();
                 let old_child = old_value.and_then(Value::as_object).unwrap_or(&empty);
-                patch_mapping(&child, old_child, as_object(new_value))?;
+                patch_mapping(&child, old_child, new_child)?;
             }
-            Some(YamlNode::Sequence(child)) if new_value.is_array() && old_value.is_some_and(Value::is_array) => {
-                patch_sequence(&child, as_array(old_value.unwrap_or(&Value::Null)), as_array(new_value))?;
+            (Some(YamlNode::Sequence(child)), Value::Array(new_items)) if old_value.is_some_and(Value::is_array) => {
+                let old_items = old_value.and_then(Value::as_array).map_or(&[][..], Vec::as_slice);
+                patch_sequence(&child, old_items, new_items)?;
             }
-            existing => {
+            (existing, _) => {
                 let fresh = Fresh::new(new_value, existing.as_ref())?;
                 with_yaml!(fresh, |yaml| mapping.set_with_field_order(key.as_str(), yaml, field_order.iter().copied()));
             }
@@ -175,15 +176,6 @@ fn remove_key(mapping: &Mapping, key: &str) {
         detach_all(leading_comment_lines(entry.syntax()));
     }
     mapping.remove(key);
-}
-
-fn as_object(value: &Value) -> &Map<String, Value> {
-    static EMPTY: std::sync::OnceLock<Map<String, Value>> = std::sync::OnceLock::new();
-    value.as_object().unwrap_or_else(|| EMPTY.get_or_init(Map::new))
-}
-
-fn as_array(value: &Value) -> &[Value] {
-    value.as_array().map_or(&[], Vec::as_slice)
 }
 
 // ---------------------------------------------------------------------------
@@ -356,7 +348,7 @@ fn leading_comment_lines(entry: &SyntaxNode) -> Vec<SyntaxElement> {
     lines
 }
 
-fn detach_all(elements: Vec<SyntaxElement>) {
+fn detach_all(elements: impl IntoIterator<Item = SyntaxElement>) {
     for element in elements {
         match element {
             NodeOrToken::Node(node) => node.detach(),
@@ -397,12 +389,7 @@ fn keep_comments_with_next_item(sequence: &Sequence, index: usize) {
     if between.is_empty() {
         return;
     }
-    for element in &between {
-        match element {
-            NodeOrToken::Node(node) => node.detach(),
-            NodeOrToken::Token(token) => token.detach(),
-        }
-    }
+    detach_all(between.clone());
     let anchor = match next.prev_sibling_or_token() {
         Some(element) if element.kind() == SyntaxKind::INDENT => element.index(),
         _ => next.index(),

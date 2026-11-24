@@ -6,7 +6,7 @@ use git2::{Diff, DiffOptions, Patch};
 use serde::{Deserialize, Serialize};
 
 use super::repo::ProjectRepo;
-use crate::{Result, ScenarioPath};
+use crate::{ProjectPath, Result};
 
 /// Enough to review any request file; anything longer is cut off.
 const MAX_DIFF_LINES: usize = 2000;
@@ -62,7 +62,7 @@ pub enum DiffLineKind {
 }
 
 /// One side of `path`'s changes. Untracked files show as wholly added.
-pub fn diff(project: &Path, path: &ScenarioPath, side: DiffSide) -> Result<FileDiff> {
+pub fn diff(project: &Path, path: &ProjectPath, side: DiffSide) -> Result<FileDiff> {
     let repo = ProjectRepo::require(project)?;
     let mut options = DiffOptions::new();
     options
@@ -123,8 +123,8 @@ mod tests {
     use super::super::testing::{commit_all, init, write};
     use super::*;
 
-    fn path(rel: &str) -> ScenarioPath {
-        ScenarioPath::parse(rel).unwrap()
+    fn path(rel: &str) -> ProjectPath {
+        ProjectPath::parse(rel).unwrap()
     }
 
     fn lines(diff: &FileDiff) -> Vec<(DiffLineKind, &str)> {

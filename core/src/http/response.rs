@@ -20,11 +20,11 @@ pub struct Response {
     pub headers: Vec<(String, String)>,
     pub body: String,
     pub truncated: bool,
-    // Exposed to TypeScript as `number`: the values stay far below 2^53.
-    #[cfg_attr(feature = "specta", specta(type = u32))]
+    // A JS `number`, accepting precision loss: the values stay far below 2^53.
+    #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
     pub time_ms: u64,
-    // Exposed to TypeScript as `number`: the values stay far below 2^53.
-    #[cfg_attr(feature = "specta", specta(type = u32))]
+    // A JS `number`, accepting precision loss: the values stay far below 2^53.
+    #[cfg_attr(feature = "specta", specta(type = specta_typescript::Number))]
     pub size_bytes: usize,
     pub unresolved: Vec<String>,
     /// What cactus left out, e.g. scripts it can't run.

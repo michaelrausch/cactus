@@ -3,7 +3,7 @@
  * edits live in `editorStore` buffers, which are dirty until saved.
  */
 import { toast } from "sonner";
-import { backend, type Scenario, type ScenarioPath } from "@/api/client";
+import { backend, type Scenario, type ProjectPath } from "@/api/client";
 import { reportErrors } from "@/lib/errors";
 import { dirtyPaths, isDirty, sameScenario, useEditorStore } from "@/stores/editorStore";
 import { useProjectStore } from "@/stores/projectStore";
@@ -15,10 +15,18 @@ import { useProjectStore } from "@/stores/projectStore";
 const OWN_WRITE_WINDOW_MS = 1000;
 
 const lastWrittenAt = new Map<string, number>();
+/** Paths being written and read back; the buffer's baseline isn't settled yet. */
+const savesInFlight = new Set<string>();
 
-/** Whether we just wrote `path`, so a change event for it is our own echo. */
+/**
+ * Whether we just wrote `path`, so its change event is probably our own echo.
+ * Only a hint, for skipping work: an outside edit in the same second matches too.
+ */
 export const isOwnRecentWrite = (path: string): boolean =>
   Date.now() - (lastWrittenAt.get(path) ?? -Infinity) < OWN_WRITE_WINDOW_MS;
+
+/** Whether a save of `path` is under way. */
+export const isSaving = (path: string): boolean => savesInFlight.has(path);
 
 const buffers = () => useEditorStore.getState().buffers;
 const currentProject = (): string | null => useProjectStore.getState().project;
@@ -30,7 +38,7 @@ export const hasUnsavedChanges = (): boolean => dirtyPaths(buffers()).length > 0
  * changed on disk since it was loaded, the first attempt stops and marks a
  * conflict; saving again overwrites. Resolves to whether it is now saved.
  */
-export async function saveScenario(path: ScenarioPath | null = useEditorStore.getState().path): Promise<boolean> {
+export async function saveScenario(path: ProjectPath | null = useEditorStore.getState().path): Promise<boolean> {
   const project = currentProject();
   const buffer = path ? buffers()[path] : undefined;
   if (!project || !path || !buffer) return false;
@@ -46,17 +54,22 @@ export async function saveScenario(path: ScenarioPath | null = useEditorStore.ge
         return false;
       }
     }
-    lastWrittenAt.set(path, Date.now());
-    await backend.saveScenario(project, path, snapshot);
-    lastWrittenAt.set(path, Date.now());
-    // The backend normalises on save (query params are synced with the URL), so
-    // the file reads back slightly different from what was sent. Compare future
-    // changes against what is really on disk, or every save looks like a clash.
-    const written = await backend.loadScenario(project, path).catch(() => snapshot);
-    useEditorStore.getState().saved(path, snapshot, written);
+    savesInFlight.add(path);
+    try {
+      lastWrittenAt.set(path, Date.now());
+      await backend.saveScenario(project, path, snapshot);
+      lastWrittenAt.set(path, Date.now());
+      // The backend normalises on save (query params are synced with the URL), so
+      // the file reads back slightly different from what was sent. Compare future
+      // changes against what is really on disk, or every save looks like a clash.
+      const written = await backend.loadScenario(project, path).catch(() => snapshot);
+      useEditorStore.getState().saved(path, snapshot, written);
+    } finally {
+      savesInFlight.delete(path);
+    }
     useProjectStore.getState().entrySaved(path, snapshot);
     if (buffer.conflict === "deleted") {
-      useProjectStore.getState().setEntries(await backend.listScenarios(project));
+      useProjectStore.getState().entriesListed(await backend.listScenarios(project));
     }
     return true;
   }, "Save failed");
@@ -64,13 +77,13 @@ export async function saveScenario(path: ScenarioPath | null = useEditorStore.ge
 }
 
 /** Save every dirty buffer. Resolves to whether all of them went through. */
-export async function saveAll(paths: ScenarioPath[] = dirtyPaths(buffers())): Promise<boolean> {
+export async function saveAll(paths: ProjectPath[] = dirtyPaths(buffers())): Promise<boolean> {
   const results = await Promise.all(paths.map((path) => saveScenario(path)));
   return results.every(Boolean);
 }
 
 /** Throw away the buffer's edits and show what is on disk. */
-export async function reloadFromDisk(path: ScenarioPath): Promise<void> {
+export async function reloadFromDisk(path: ProjectPath): Promise<void> {
   const project = currentProject();
   if (!project) return;
   await reportErrors(async () => {
@@ -86,11 +99,11 @@ export async function reloadIfChangedOnDisk(changedPaths: string[]): Promise<voi
   const project = currentProject();
   if (!project) return;
   await Promise.all(
-    (changedPaths as ScenarioPath[]).filter((path) => buffers()[path]).map((path) => followDisk(project, path)),
+    (changedPaths as ProjectPath[]).filter((path) => buffers()[path]).map((path) => followDisk(project, path)),
   );
 }
 
-async function followDisk(project: string, path: ScenarioPath): Promise<void> {
+async function followDisk(project: string, path: ProjectPath): Promise<void> {
   let onDisk: Scenario;
   try {
     onDisk = await backend.loadScenario(project, path);

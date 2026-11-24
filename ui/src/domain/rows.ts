@@ -6,6 +6,14 @@ export interface Row {
   key: string;
   value: string;
   enabled: boolean;
+  /** A per-row choice for tables that offer one, e.g. a multipart part's `text` or `file`. */
+  kind?: string;
+  /**
+   * The item the row was made from, for tables whose items hold more than
+   * the row shows (a set-variable action's phase and scope). Kept through
+   * edits, so writing the row back keeps those parts.
+   */
+  origin?: unknown;
 }
 
 /** A `name`/`value` item of an OpenCollection list (headers, form fields, ...). */
@@ -28,7 +36,7 @@ export const filledRows = (rows: Row[]): Row[] => rows.filter(isFilled);
 export const rowsFingerprint = (rows: Row[]): string =>
   JSON.stringify(
     filledRows(rows)
-      .map((row) => [row.key, row.value, row.enabled])
+      .map((row) => [row.key, row.value, row.enabled, row.kind ?? ""])
       .toSorted(),
   );
 

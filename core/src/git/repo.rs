@@ -6,7 +6,7 @@ use std::path::Path;
 
 use git2::{Commit, ErrorCode, Repository, RepositoryState, Tree};
 
-use crate::{Error, Result, ScenarioPath};
+use crate::{Error, ProjectPath, Result};
 
 const SEPARATOR: char = '/';
 
@@ -44,13 +44,13 @@ impl ProjectRepo {
     }
 
     /// `path` relative to the work tree, as git names it.
-    pub fn repo_path(&self, path: &ScenarioPath) -> String {
+    pub fn repo_path(&self, path: &ProjectPath) -> String {
         format!("{}{path}", self.prefix)
     }
 
     /// The project-relative path of a work-tree path, if it is in the project.
-    pub fn project_path(&self, repo_path: &str) -> Option<ScenarioPath> {
-        ScenarioPath::parse(repo_path.strip_prefix(&self.prefix)?).ok()
+    pub fn project_path(&self, repo_path: &str) -> Option<ProjectPath> {
+        ProjectPath::parse(repo_path.strip_prefix(&self.prefix)?).ok()
     }
 
     /// Limits an operation to the project: nothing at the work-tree root,
@@ -135,7 +135,7 @@ mod tests {
         let (dir, _repo) = init();
         write(dir.path(), "api/collection/opencollection.yml", "");
         let repo = ProjectRepo::require(&dir.path().join("api").join("collection")).unwrap();
-        let path = ScenarioPath::parse("auth\\login.yml").unwrap();
+        let path = ProjectPath::parse("auth\\login.yml").unwrap();
         assert_eq!(repo.repo_path(&path), "api/collection/auth/login.yml");
         assert_eq!(repo.project_path("api/collection/auth/login.yml"), Some(path));
         assert_eq!(repo.project_path("api/other.yml"), None);
@@ -146,7 +146,7 @@ mod tests {
     fn project_at_the_root() {
         let (dir, _repo) = init();
         let repo = ProjectRepo::require(dir.path()).unwrap();
-        assert_eq!(repo.repo_path(&ScenarioPath::parse("a.yml").unwrap()), "a.yml");
+        assert_eq!(repo.repo_path(&ProjectPath::parse("a.yml").unwrap()), "a.yml");
         assert_eq!(repo.pathspec(), Vec::<String>::new());
         assert_eq!(repo.branch().as_deref(), Some("main"));
         assert!(repo.head_commit().unwrap().is_none());

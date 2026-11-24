@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
-use cactus_core::git::{self, BranchInfo, CommitSummary, DiffSide, FileDiff, GitStatus};
-use cactus_core::{Result, ScenarioPath};
+use cactus_core::git::{self, BranchInfo, CommitSummary, DiffSide, FileDiff, GitIdentity, GitStatus};
+use cactus_core::{ProjectPath, Result};
 
 /// `None` when the project isn't in a git repository.
 #[tauri::command(async)]
@@ -19,13 +19,13 @@ pub fn git_init(project: PathBuf) -> Result<()> {
 
 #[tauri::command(async)]
 #[specta::specta]
-pub fn git_stage(project: PathBuf, paths: Vec<ScenarioPath>) -> Result<()> {
+pub fn git_stage(project: PathBuf, paths: Vec<ProjectPath>) -> Result<()> {
     git::stage(&project, &paths)
 }
 
 #[tauri::command(async)]
 #[specta::specta]
-pub fn git_unstage(project: PathBuf, paths: Vec<ScenarioPath>) -> Result<()> {
+pub fn git_unstage(project: PathBuf, paths: Vec<ProjectPath>) -> Result<()> {
     git::unstage(&project, &paths)
 }
 
@@ -43,7 +43,7 @@ pub fn git_unstage_all(project: PathBuf) -> Result<()> {
 
 #[tauri::command(async)]
 #[specta::specta]
-pub fn git_discard(project: PathBuf, paths: Vec<ScenarioPath>) -> Result<()> {
+pub fn git_discard(project: PathBuf, paths: Vec<ProjectPath>) -> Result<()> {
     git::discard(&project, &paths)
 }
 
@@ -55,14 +55,23 @@ pub fn git_discard_all(project: PathBuf) -> Result<()> {
 
 #[tauri::command(async)]
 #[specta::specta]
-pub fn git_diff(project: PathBuf, path: ScenarioPath, side: DiffSide) -> Result<FileDiff> {
+pub fn git_diff(project: PathBuf, path: ProjectPath, side: DiffSide) -> Result<FileDiff> {
     git::diff(&project, &path, side)
 }
 
+/// `author` overrides git config's identity when both parts are filled in.
 #[tauri::command(async)]
 #[specta::specta]
-pub fn git_commit(project: PathBuf, message: String) -> Result<CommitSummary> {
-    git::commit(&project, &message)
+pub fn git_commit(project: PathBuf, message: String, author: Option<GitIdentity>) -> Result<CommitSummary> {
+    git::commit(&project, &message, author.as_ref())
+}
+
+/// The identity git config gives, for the project's repository if one is
+/// open; `None` when it isn't set.
+#[tauri::command(async)]
+#[specta::specta]
+pub fn git_configured_identity(project: Option<PathBuf>) -> Result<Option<GitIdentity>> {
+    git::configured_identity(project.as_deref())
 }
 
 #[tauri::command(async)]

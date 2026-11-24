@@ -5,6 +5,7 @@ import { SHORTCUTS, WELCOME_SHORTCUTS } from "@/app/shortcuts";
 import { ShortcutKeys } from "@/components/Kbd";
 import { Logo } from "@/components/Logo";
 import { useProjectStore } from "@/stores/projectStore";
+import { shortcutLabel } from "@/app/shortcuts";
 
 /** Shown when no scenario is open. */
 export function WelcomeScreen() {
@@ -14,7 +15,9 @@ export function WelcomeScreen() {
       <div className="flex flex-col items-center gap-4 text-center">
         <Logo className="size-12" />
         <p className="mt-2 text-sm text-muted-foreground">
-          {hasProject ? "Pick a request, or press Ctrl+N to make one." : "Requests as plain YAML files. Fast."}
+          {hasProject
+            ? `Pick a request, or press ${shortcutLabel("newScenario")} to make one.`
+            : "Requests as plain YAML files. Fast."}
         </p>
         {!hasProject && (
           <button

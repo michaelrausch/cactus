@@ -1,0 +1,33 @@
+[
+  {
+    "case": "enabled query params take the URL's pairs in order; path and disabled params stay put",
+    "url": "http://h/:id?a=1&b={{x}}#top",
+    "params": [
+      { "name": "id", "value": "7", "type": "path" },
+      { "name": "old", "value": "0", "type": "query" },
+      { "name": "off", "value": "1", "type": "query", "disabled": true }
+    ],
+    "expected": [
+      { "name": "id", "value": "7", "type": "path" },
+      { "name": "a", "value": "1", "type": "query" },
+      { "name": "off", "value": "1", "type": "query", "disabled": true },
+      { "name": "b", "value": "{{x}}", "type": "query" }
+    ]
+  },
+  {
+    "case": "a URL without a query drops the enabled query params",
+    "url": "http://h/",
+    "params": [{ "name": "a", "value": "1", "type": "query" }],
+    "expected": []
+  },
+  {
+    "case": "pairs without a value, and encoded values, are kept as written",
+    "url": "http://h/?flag&x=&q=a%20b",
+    "params": [],
+    "expected": [
+      { "name": "flag", "value": "", "type": "query" },
+      { "name": "x", "value": "", "type": "query" },
+      { "name": "q", "value": "a%20b", "type": "query" }
+    ]
+  }
+]

@@ -7,7 +7,7 @@ use serde::Serialize;
 
 use super::commit::CommitSummary;
 use super::repo::ProjectRepo;
-use crate::{Result, ScenarioPath};
+use crate::{ProjectPath, Result};
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -29,9 +29,9 @@ pub struct GitStatus {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct FileStatus {
-    pub path: ScenarioPath,
+    pub path: ProjectPath,
     /// The previous path of a staged rename, if it was in the project.
-    pub renamed_from: Option<ScenarioPath>,
+    pub renamed_from: Option<ProjectPath>,
     /// The change in the index, which the next commit records.
     pub staged: Option<ChangeKind>,
     /// The change in the work tree that isn't staged.
@@ -209,6 +209,6 @@ mod tests {
 
         let status = status(p).unwrap().unwrap();
         assert_eq!(kinds(&status), [("new.yml", Some(ChangeKind::Renamed), None)]);
-        assert_eq!(status.files[0].renamed_from.as_ref().map(ScenarioPath::as_str), Some("old.yml"));
+        assert_eq!(status.files[0].renamed_from.as_ref().map(ProjectPath::as_str), Some("old.yml"));
     }
 }

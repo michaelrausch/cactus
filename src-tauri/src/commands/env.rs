@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use cactus_core::env::{self, Env, EnvFile};
-use cactus_core::{Result, ScenarioPath, collection};
+use cactus_core::{ProjectPath, Result};
 
 #[tauri::command(async)]
 #[specta::specta]
@@ -46,11 +46,9 @@ pub fn delete_env(project: PathBuf, name: String) -> Result<()> {
 }
 
 /// The names of every variable a request at `path` can use with the active
-/// env, for highlighting and completing `{{name}}`. Values stay out of the UI.
+/// env, for highlighting and completing `{{name}}`.
 #[tauri::command(async)]
 #[specta::specta]
-pub fn variable_names(project: PathBuf, path: ScenarioPath) -> Result<Vec<String>> {
-    let inherited = collection::defaults_chain(&project, path.dir())?;
-    let vars = env::resolve_for_request(&project, None, &inherited, &[])?;
-    Ok(vars.into_keys().collect())
+pub fn variable_names(project: PathBuf, path: ProjectPath) -> Result<Vec<String>> {
+    env::names_in_scope(&project, path.dir())
 }

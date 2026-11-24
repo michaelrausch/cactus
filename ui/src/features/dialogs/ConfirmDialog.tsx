@@ -13,7 +13,7 @@ import { useUiStore } from "@/stores/uiStore";
 export function ConfirmDialog() {
   const confirm = useUiStore((s) => s.confirm);
   const close = useUiStore((s) => s.closeConfirm);
-  const destructive = confirm?.destructive ?? true;
+  const destructive = confirm?.destructive ?? false;
   const choose = (onConfirm: (() => Promise<void> | void) | undefined) => {
     close();
     void onConfirm?.();
@@ -31,7 +31,10 @@ export function ConfirmDialog() {
             Cancel
           </Button>
           {confirm?.alternative && (
-            <Button variant="destructive" onClick={() => choose(confirm.alternative?.onConfirm)}>
+            <Button
+              variant={confirm.alternative.destructive ? "destructive" : "outline"}
+              onClick={() => choose(confirm.alternative?.onConfirm)}
+            >
               {confirm.alternative.action}
             </Button>
           )}

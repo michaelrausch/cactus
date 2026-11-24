@@ -5,7 +5,6 @@ export type ThemeGroup = "default" | "variation" | "fun";
 export interface Theme {
   id: string;
   name: string;
-  description: string;
   group: ThemeGroup;
   scheme: "dark" | "light";
 }
@@ -14,32 +13,29 @@ export const THEMES = [
   {
     id: "cactus",
     name: "Cactus",
-    description: "Near-black, a green gradient, a pink flower.",
     group: "default",
     scheme: "dark",
   },
-  { id: "agave", name: "Agave", description: "Cool blue-teal.", group: "variation", scheme: "dark" },
+  { id: "agave", name: "Agave", group: "variation", scheme: "dark" },
   {
     id: "prickly-pear",
     name: "Prickly Pear",
-    description: "Plum and magenta, a yellow flower.",
     group: "variation",
     scheme: "dark",
   },
-  { id: "sage", name: "Sage", description: "Muted grey-green. Calm.", group: "variation", scheme: "dark" },
-  { id: "desert-day", name: "Desert Day", description: "Light, warm sand.", group: "variation", scheme: "light" },
-  { id: "synthwave", name: "Synthwave", description: "Neon pink and cyan over a grid.", group: "fun", scheme: "dark" },
-  { id: "phosphor", name: "Phosphor", description: "A green CRT terminal.", group: "fun", scheme: "dark" },
+  { id: "sage", name: "Sage", group: "variation", scheme: "dark" },
+  { id: "desert-day", name: "Desert Day", group: "variation", scheme: "light" },
+  { id: "synthwave", name: "Synthwave", group: "fun", scheme: "dark" },
+  { id: "phosphor", name: "Phosphor", group: "fun", scheme: "dark" },
   {
     id: "sunset-mesa",
     name: "Sunset Mesa",
-    description: "Dusk purple and a low orange sun.",
     group: "fun",
     scheme: "dark",
   },
-  { id: "bloom", name: "Bloom", description: "Pastels, and a lot of flower.", group: "fun", scheme: "dark" },
-  { id: "aqua", name: "Aqua", description: "Pinstripes and lickable blue gel.", group: "fun", scheme: "light" },
-  { id: "win95", name: "Windows 95", description: "Silver, navy and bevelled buttons.", group: "fun", scheme: "light" },
+  { id: "bloom", name: "Bloom", group: "fun", scheme: "dark" },
+  { id: "aqua", name: "Aqua", group: "fun", scheme: "light" },
+  { id: "win95", name: "Windows 95", group: "fun", scheme: "light" },
 ] as const satisfies readonly Theme[];
 
 export type ThemeEntry = (typeof THEMES)[number];

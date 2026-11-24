@@ -10,10 +10,9 @@ use std::time::Duration;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
-use crate::Result;
+use crate::layout::TEMP_FILE_SUFFIX;
+use crate::{Error, Result};
 
-/// Appended to a file name while it is being written; the watcher ignores it.
-const TEMP_SUFFIX: &str = ".tmp";
 /// On Windows a rename fails while another process (antivirus, the search
 /// indexer, an editor) briefly has the target open, so it is retried for up
 /// to about a second. Elsewhere the same error is a real permission problem.
@@ -25,7 +24,7 @@ pub fn read_json<T: DeserializeOwned + Default>(path: &Path) -> Result<T> {
     match fs::read(path) {
         Ok(bytes) => Ok(serde_json::from_slice(&bytes)?),
         Err(e) if e.kind() == ErrorKind::NotFound => Ok(T::default()),
-        Err(e) => Err(e.into()),
+        Err(e) => Err(Error::file(path)(e)),
     }
 }
 
@@ -48,13 +47,13 @@ pub fn write_json<T: Serialize>(path: &Path, value: &T) -> Result<()> {
 /// The temp file is removed if the write fails.
 pub fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
     let mut tmp: OsString = path.as_os_str().to_owned();
-    tmp.push(TEMP_SUFFIX);
+    tmp.push(TEMP_FILE_SUFFIX);
     let tmp = Path::new(&tmp);
     let written = fs::write(tmp, bytes).and_then(|()| rename_with_retry(tmp, path));
     if written.is_err() {
         let _ = fs::remove_file(tmp);
     }
-    Ok(written?)
+    written.map_err(Error::file(path))
 }
 
 fn rename_with_retry(from: &Path, to: &Path) -> io::Result<()> {
@@ -72,7 +71,7 @@ fn rename_with_retry(from: &Path, to: &Path) -> io::Result<()> {
 
 pub fn ensure_parent_dir(path: &Path) -> Result<()> {
     if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)?;
+        fs::create_dir_all(parent).map_err(Error::file(parent))?;
     }
     Ok(())
 }

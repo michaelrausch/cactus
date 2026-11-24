@@ -24,7 +24,7 @@ export type ShortcutId = keyof typeof SHORTCUTS;
 const SHORTCUT_IDS = Object.keys(SHORTCUTS) as ShortcutId[];
 
 /** Shown on the welcome screen. */
-export const WELCOME_SHORTCUTS: readonly ShortcutId[] = ["send", "switcher", "variables", "toggleResponse"];
+export const WELCOME_SHORTCUTS: readonly ShortcutId[] = ["send", "switcher", "variables", "newScenario"];
 
 const displayKey = (key: string): string => (key.length === 1 ? key.toUpperCase() : key);
 
@@ -39,3 +39,6 @@ export const withShortcut = (title: string, id: ShortcutId): string => `${title}
 
 export const shortcutForKey = (key: string): ShortcutId | undefined =>
   SHORTCUT_IDS.find((id) => SHORTCUTS[id].key.toLowerCase() === key.toLowerCase());
+
+/** Ctrl+Enter, the send keys, also submit a dialog's form (a commit in Changes). */
+export const SUBMIT_LABEL = shortcutLabel("send");

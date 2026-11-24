@@ -1,28 +1,28 @@
 import { useMemo } from "react";
 import { Field } from "@/components/Field";
 import { KeyValueTable } from "@/components/KeyValueTable";
-import { parseQuery, withQuery } from "@/domain/query";
 import { makeRow, recordFromRows } from "@/domain/rows";
-import { pathParams, withPathParamValues, withUrl } from "@/domain/scenario";
+import { pathParams, queryRows, withPathParamValues, withQueryRows } from "@/domain/scenario";
 import type { ScenarioTabProps } from "../types";
 
 export function ParamsTab({ scenario, onChange }: ScenarioTabProps) {
-  const query = useMemo(() => parseQuery(scenario.http.url), [scenario.http.url]);
+  const query = useMemo(() => queryRows(scenario), [scenario]);
   const path = useMemo(() => pathParams(scenario).map((param) => makeRow(param.name, param.value)), [scenario]);
   return (
     <div className="flex flex-col gap-4">
       <Field label="Query">
         <KeyValueTable
           rows={query}
+          toggles
           valueColumn={{ templates: true }}
-          onChange={(rows) => onChange(withUrl(scenario, withQuery(scenario.http.url, rows)))}
+          onChange={(rows) => onChange(withQueryRows(scenario, rows))}
         />
       </Field>
       {path.length > 0 && (
         <Field label="Path">
           <KeyValueTable
             rows={path}
-            keyPlaceholder="name"
+            fixed
             valueColumn={{ templates: true }}
             onChange={(rows) => onChange(withPathParamValues(scenario, recordFromRows(rows)))}
           />

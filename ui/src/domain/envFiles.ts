@@ -10,30 +10,26 @@ export const isEnvFile = (path: string): boolean => path === COLLECTION_FILE || 
 export interface EnvLayerInfo {
   label: string;
   path: string;
-  note: string;
 }
 
 const FIXED_LAYERS: Record<Exclude<EnvFile["kind"], "named">, EnvLayerInfo> = {
   base: {
     label: "Shared",
     path: COLLECTION_FILE,
-    note: "Committed. The collection's variables, which every environment starts from.",
   },
   secrets: {
     label: "Secrets",
     path: ".cactus/secrets.json",
-    note: "Never committed. Overrides the active environment: put tokens and passwords here.",
   },
   captured: {
     label: "Captured",
     path: ".cactus/captured.json",
-    note: "Written by Vars after each send. Highest precedence.",
   },
 };
 
 export function envLayerInfo(file: EnvFile): EnvLayerInfo {
   if (file.kind !== "named") return FIXED_LAYERS[file.kind];
-  return { label: file.name, path: `environments/${file.name}.yml`, note: "Committed. Overrides Shared when active." };
+  return { label: file.name, path: `environments/${file.name}.yml` };
 }
 
 export const envFileKey = (file: EnvFile): string => (file.kind === "named" ? `named:${file.name}` : file.kind);

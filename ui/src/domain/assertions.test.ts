@@ -55,6 +55,13 @@ describe("assertions", () => {
   });
 });
 
+const setVariable = (name: string, scope: string) => ({
+  type: "set-variable" as const,
+  phase: "after-response" as const,
+  selector: { expression: `res.body.${name}`, method: "jsonq" },
+  variable: { name, scope },
+});
+
 describe("vars", () => {
   it("keeps phase, scope and other actions", () => {
     const other = { type: "something-else" };
@@ -71,7 +78,8 @@ describe("vars", () => {
       scripts: [{ type: "tests", code: "x" }],
     });
     expect(varRows(s).map((r) => [r.key, r.value])).toEqual([["a", "res.body.a"]]);
-    const next = withVarRows(s, [makeRow("a2", "res.body.a2"), makeRow("b", "res.headers.etag", false)]);
+    const edited = varRows(s).map((row) => Object.assign(row, { key: "a2", value: "res.body.a2" }));
+    const next = withVarRows(s, [...edited, makeRow("b", "res.headers.etag", false)]);
     expect(next.runtime?.actions).toEqual([
       {
         type: "set-variable",
@@ -90,5 +98,11 @@ describe("vars", () => {
     ]);
     expect(next.runtime?.scripts).toEqual([{ type: "tests", code: "x" }]);
     expect(varCount(next)).toBe(1);
+  });
+
+  it("keeps each action's settings with its own row when an earlier row is removed", () => {
+    const s = scenario({ actions: [setVariable("a", "environment"), setVariable("b", "runtime")] });
+    const next = withVarRows(s, varRows(s).slice(1));
+    expect(next.runtime?.actions).toEqual([setVariable("b", "runtime")]);
   });
 });

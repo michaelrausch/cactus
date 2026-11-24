@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import type { Scenario, ScenarioPath } from "@/api/client";
+import type { Scenario, ProjectPath } from "@/api/client";
 import { dirtyPaths, isDirty, useEditorStore } from "./editorStore";
 
 const scenario = (name: string): Scenario =>
   ({ info: { name }, http: { method: "GET", url: "" } }) as unknown as Scenario;
-const a = "a.yml" as ScenarioPath;
-const b = "b.yml" as ScenarioPath;
+const a = "a.yml" as ProjectPath;
+const b = "b.yml" as ProjectPath;
 const store = () => useEditorStore.getState();
 
 describe("editorStore buffers", () => {

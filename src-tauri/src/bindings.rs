@@ -39,6 +39,7 @@ pub fn builder() -> Builder<tauri::Wry> {
             git::git_discard_all,
             git::git_diff,
             git::git_commit,
+            git::git_configured_identity,
             git::git_branches,
             git::git_create_branch,
             git::git_switch_branch,

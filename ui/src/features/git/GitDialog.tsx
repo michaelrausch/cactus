@@ -12,6 +12,7 @@ import { useUiStore } from "@/stores/uiStore";
 import { BranchMenu } from "./BranchMenu";
 import { ChangeList } from "./ChangeList";
 import { DiffView } from "./DiffView";
+import { SUBMIT_LABEL } from "@/app/shortcuts";
 
 /** Past this, a summary line gets cut off in `git log --oneline` and most UIs. */
 const SUMMARY_LIMIT = 72;
@@ -79,7 +80,7 @@ function CommitForm({ status }: { status: GitStatus }) {
       </div>
       <Button type="submit" size="sm" disabled={!canCommit}>
         {stagedCount > 0 ? `Commit ${plural(stagedCount, "file")}` : "Nothing staged"}
-        {canCommit && <span className="ml-1 text-2xs opacity-60">Ctrl+Enter</span>}
+        {canCommit && <span className="ml-1 text-2xs opacity-60">{SUBMIT_LABEL}</span>}
       </Button>
     </form>
   );
