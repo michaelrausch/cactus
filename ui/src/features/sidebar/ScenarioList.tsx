@@ -2,8 +2,11 @@ import { useMemo } from "react";
 import { Play, Plus } from "lucide-react";
 import { runFolder } from "@/actions/request";
 import { createScenarioIn } from "@/actions/scenario";
+import type { ChangeKind } from "@/api/client";
 import { groupByFolder, type FolderGroup } from "@/domain/entries";
+import { changesByPath } from "@/domain/git";
 import { useEditorStore } from "@/stores/editorStore";
+import { useGitStore } from "@/stores/gitStore";
 import { useProjectStore } from "@/stores/projectStore";
 import { useResponseStore } from "@/stores/responseStore";
 import { ScenarioListItem } from "./ScenarioListItem";
@@ -34,7 +37,7 @@ function FolderHeader({ dir }: { dir: string }) {
   );
 }
 
-function FolderSection({ group }: { group: FolderGroup }) {
+function FolderSection({ group, changes }: { group: FolderGroup; changes: Record<string, ChangeKind> }) {
   const selectedPath = useEditorStore((s) => s.path);
   const lastStatusByPath = useResponseStore((s) => s.lastStatusByPath);
   return (
@@ -46,6 +49,7 @@ function FolderSection({ group }: { group: FolderGroup }) {
           entry={entry}
           selected={entry.relPath === selectedPath}
           lastStatus={lastStatusByPath[entry.relPath]}
+          change={changes[entry.relPath]}
         />
       ))}
     </div>
@@ -56,11 +60,13 @@ export function ScenarioList({ filter }: { filter: string }) {
   const project = useProjectStore((s) => s.project);
   const entries = useProjectStore((s) => s.entries);
   const groups = useMemo(() => groupByFolder(entries, filter), [entries, filter]);
+  const gitStatus = useGitStore((s) => s.status);
+  const changes = useMemo(() => changesByPath(gitStatus), [gitStatus]);
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
+    <div key={project} className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
       {groups.map((group) => (
-        <FolderSection key={group.dir} group={group} />
+        <FolderSection key={group.dir} group={group} changes={changes} />
       ))}
       {project && entries.length === 0 && (
         <p className="px-2 py-4 text-sm text-muted-foreground">

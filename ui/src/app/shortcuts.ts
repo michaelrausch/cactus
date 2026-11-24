@@ -14,6 +14,7 @@ export const SHORTCUTS = {
   switcher: { key: "p", description: "jump to scenario" },
   duplicate: { key: "d", description: "duplicate" },
   variables: { key: "e", description: "variables" },
+  changes: { key: "g", description: "git changes" },
   toggleResponse: { key: "j", description: "toggle response" },
   settings: { key: ",", description: "settings" },
 } as const satisfies Record<string, ShortcutDefinition>;

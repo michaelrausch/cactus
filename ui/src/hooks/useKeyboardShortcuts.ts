@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { openChanges } from "@/actions/git";
 import { openProject } from "@/actions/project";
 import { sendCurrentScenario } from "@/actions/request";
 import { saveScenario } from "@/actions/saving";
@@ -12,7 +13,10 @@ const SHORTCUT_ACTIONS: Record<ShortcutId, () => void> = {
     const { path } = useEditorStore.getState();
     if (path) void saveScenario(path);
   },
-  send: () => void sendCurrentScenario(),
+  // Ctrl+Enter commits while the Changes dialog is open.
+  send: () => {
+    if (!useUiStore.getState().gitDialogOpen) void sendCurrentScenario();
+  },
   newScenario: () => createScenarioIn(""),
   openProject: () => void openProject(),
   switcher: () => useUiStore.getState().toggleSwitcher(),
@@ -21,6 +25,7 @@ const SHORTCUT_ACTIONS: Record<ShortcutId, () => void> = {
     if (path) void duplicateScenario(path);
   },
   variables: () => useUiStore.getState().setEnvDialogOpen(true),
+  changes: openChanges,
   toggleResponse: () => useUiStore.getState().toggleResponse(),
   settings: () => useUiStore.getState().setSettingsOpen(true),
 };

@@ -3,6 +3,7 @@
 #![allow(clippy::needless_pass_by_value)]
 
 pub mod env;
+pub mod git;
 pub mod import;
 pub mod project;
 pub mod request;

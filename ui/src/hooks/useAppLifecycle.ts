@@ -2,11 +2,13 @@ import { useEffect } from "react";
 import { backendEvents } from "@/api/client";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { handleFilesChanged } from "@/actions/fsSync";
+import { refreshGitStatus } from "@/actions/git";
 import { restoreLastProject } from "@/actions/project";
 import { hasUnsavedChanges, saveAll } from "@/actions/saving";
 import { refreshVariableNames } from "@/actions/variables";
 import { reportErrors } from "@/lib/errors";
 import { useEditorStore } from "@/stores/editorStore";
+import { useGitStore } from "@/stores/gitStore";
 import { useProjectStore } from "@/stores/projectStore";
 import { useUiStore } from "@/stores/uiStore";
 
@@ -16,6 +18,8 @@ const warnOnUnload = (event: BeforeUnloadEvent) => {
 };
 
 const closeWindow = () => void getCurrentWindow().destroy();
+
+const refreshOnFocus = () => void refreshGitStatus();
 
 /** Ask before a close that would lose unsaved edits. */
 function guardClose(event: { preventDefault: () => void }): void {
@@ -33,7 +37,7 @@ function guardClose(event: { preventDefault: () => void }): void {
   });
 }
 
-/** Restore the last project, ask before closing with unsaved edits, follow external file changes and keep variable names current. */
+/** Restore the last project, ask before closing with unsaved edits, follow external file changes and keep variable names and git status current. */
 export function useAppLifecycle(): void {
   useEffect(() => {
     void reportErrors(restoreLastProject);
@@ -45,7 +49,8 @@ export function useAppLifecycle(): void {
     };
   }, []);
 
-  // The variables in scope depend on the scenario's folder and the active env.
+  // The variables in scope depend on the scenario's folder and the active env;
+  // git status on the project.
   // Subscribed outside React so the app doesn't re-render on every change.
   useEffect(() => {
     const unsubscribeEditor = useEditorStore.subscribe((now, before) => {
@@ -53,6 +58,10 @@ export function useAppLifecycle(): void {
     });
     const unsubscribeProject = useProjectStore.subscribe((now, before) => {
       if (now.project !== before.project || now.activeEnv !== before.activeEnv) void refreshVariableNames();
+      if (now.project !== before.project) {
+        useGitStore.getState().reset();
+        void refreshGitStatus();
+      }
     });
     return () => {
       unsubscribeEditor();
@@ -63,5 +72,11 @@ export function useAppLifecycle(): void {
   useEffect(() => {
     const unlisten = backendEvents.fsChanged.listen((event) => void handleFilesChanged(event.payload));
     return () => void unlisten.then((stop) => stop());
+  }, []);
+
+  // `.git/` isn't watched, so catch commits and checkouts made elsewhere on return.
+  useEffect(() => {
+    window.addEventListener("focus", refreshOnFocus);
+    return () => window.removeEventListener("focus", refreshOnFocus);
   }, []);
 }

@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use cactus_core::scenario::{self, ScenarioEntry};
 use cactus_core::{Result, recent};
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Manager, State};
 
 use crate::state::AppState;
 use crate::watcher::ProjectWatcher;
@@ -13,7 +13,11 @@ use crate::watcher::ProjectWatcher;
 pub fn open_project(app: AppHandle, state: State<'_, AppState>, project: PathBuf) -> Result<Vec<ScenarioEntry>> {
     let entries = scenario::list(&project)?;
     recent::push(&state.recent_projects_file, &project.to_string_lossy())?;
-    watch(&app, &state, &project);
+    // Registering a watch per folder can be slow on big trees; the list needn't wait for it.
+    std::thread::spawn(move || {
+        let state = app.state::<AppState>();
+        watch(&app, &state, &project);
+    });
     Ok(entries)
 }
 

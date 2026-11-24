@@ -35,6 +35,29 @@ pub enum Error {
     NotAFolder(PathBuf),
     #[error("not a Postman collection or OpenAPI spec")]
     UnrecognizedImportFormat,
+    #[cfg(feature = "git")]
+    #[error("git: {}", .0.message())]
+    Git(#[from] git2::Error),
+    #[error("not a git repository")]
+    NotARepository,
+    #[error("set user.name and user.email in your git config to commit")]
+    GitIdentityMissing,
+    #[error("commit message is empty")]
+    EmptyCommitMessage,
+    #[error("nothing staged to commit")]
+    NothingToCommit,
+    #[error("finish the {0} in progress first")]
+    RepositoryBusy(String),
+    #[error("make a first commit before creating branches")]
+    NoCommitsYet,
+    #[error("invalid branch name: {0:?}")]
+    InvalidBranchName(String),
+    #[error("switching to {0} would overwrite uncommitted changes; commit or discard them first")]
+    CheckoutConflict(String),
+    #[error("{0} is checked out, so it can't be deleted")]
+    DeleteCurrentBranch(String),
+    #[error("{0} has commits that aren't on the current branch")]
+    BranchNotMerged(String),
 }
 
 /// The desktop UI receives errors as their display string.

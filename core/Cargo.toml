@@ -14,10 +14,15 @@ rowan = "0.16"
 regex = { version = "1", default-features = false, features = ["std", "unicode-perl"] }
 specta = { version = "=2.0.0-rc.28", features = ["derive", "serde_json"], optional = true }
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "gzip", "brotli", "http2", "multipart"] }
+# Local repository work only: without https/ssh there is no OpenSSL or libssh2
+# to build, and the vendored libgit2 builds the same on Linux and Windows.
+git2 = { version = "0.20", default-features = false, features = ["vendored-libgit2"], optional = true }
 
 [features]
 # Derive TypeScript-exportable types for the desktop app's generated bindings.
 specta = ["dep:specta"]
+# Stage, diff and commit in the project's git repository (desktop app only).
+git = ["dep:git2"]
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
