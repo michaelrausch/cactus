@@ -1,24 +1,22 @@
 import { useMemo } from "react";
 import { Hint } from "@/components/Field";
 import { KeyValueTable } from "@/components/KeyValueTable";
-import { recordFromRows, rowsFromRecord, type Row } from "@/domain/rows";
+import { listFromRows, rowsFromList } from "@/domain/rows";
 import type { ScenarioTabProps } from "../types";
 
 export function HeadersTab({ scenario, onChange }: ScenarioTabProps) {
-  const rows = useMemo(
-    () => [...rowsFromRecord(scenario.headers), ...rowsFromRecord(scenario.disabledHeaders, false)],
-    [scenario.headers, scenario.disabledHeaders],
-  );
-  const update = (next: Row[]) =>
-    onChange({
-      ...scenario,
-      headers: recordFromRows(next.filter((row) => row.enabled)),
-      disabledHeaders: recordFromRows(next.filter((row) => !row.enabled)),
-    });
+  const rows = useMemo(() => rowsFromList(scenario.http.headers), [scenario.http.headers]);
   return (
     <>
-      <KeyValueTable rows={rows} toggles onChange={update} />
-      <Hint>Unchecked headers stay in the file but aren't sent. An explicit Authorization header overrides Auth.</Hint>
+      <KeyValueTable
+        rows={rows}
+        toggles
+        onChange={(next) => onChange({ ...scenario, http: { ...scenario.http, headers: listFromRows(next) } })}
+      />
+      <Hint>
+        Unchecked headers stay in the file but aren&apos;t sent. Headers set on the collection or a folder are sent too;
+        one here with the same name wins. An explicit Authorization header overrides Auth.
+      </Hint>
     </>
   );
 }

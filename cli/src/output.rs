@@ -26,6 +26,7 @@ pub fn format_run_result(result: &RunResult) -> String {
         let mut lines = vec![format!("{mark} {:>3} {:>6}ms  {location}", response.status, response.time_ms)];
         lines.extend(failed_check_lines(response));
         lines.extend(unresolved_line(response));
+        lines.extend(warning_lines(response));
         return lines.join("\n");
     }
     let error = result.error.as_deref().unwrap_or_default();
@@ -46,6 +47,10 @@ fn unresolved_line(response: &Response) -> Option<String> {
     })
 }
 
+fn warning_lines(response: &Response) -> impl Iterator<Item = String> + '_ {
+    response.warnings.iter().map(|warning| format!("{DETAIL_INDENT}{}", paint(YELLOW, warning)))
+}
+
 pub fn format_run_summary(results: &[RunResult]) -> String {
     let passed = results.iter().filter(|r| r.ok).count();
     format!("\n{passed}/{} passed", results.len())
@@ -57,11 +62,11 @@ pub fn format_status_line(response: &Response) -> String {
 }
 
 pub fn format_import_summary(summary: &ImportSummary) -> String {
-    let imported = format!("imported {} scenarios from {}", summary.created.len(), summary.format.as_str());
+    let imported = format!("imported {} requests from {}", summary.created.len(), summary.format.as_str());
     if summary.env_vars.is_empty() {
         return imported;
     }
-    format!("{imported}\nadded to env.json: {}", summary.env_vars.join(", "))
+    format!("{imported}\nadded to opencollection.yml: {}", summary.env_vars.join(", "))
 }
 
 #[cfg(test)]
@@ -73,7 +78,7 @@ mod tests {
     #[test]
     fn error_result_line() {
         let result = RunResult {
-            rel_path: ScenarioPath::parse("a.json").unwrap(),
+            rel_path: ScenarioPath::parse("a.yml").unwrap(),
             title: "A".into(),
             ok: false,
             response: None,
@@ -81,7 +86,7 @@ mod tests {
         };
         assert_eq!(
             format_run_result(&result),
-            "\x1b[31m✗\x1b[0m   -        -  A  \x1b[2ma.json\x1b[0m\n      \x1b[31mboom\x1b[0m"
+            "\x1b[31m✗\x1b[0m   -        -  A  \x1b[2ma.yml\x1b[0m\n      \x1b[31mboom\x1b[0m"
         );
     }
 }

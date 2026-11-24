@@ -2,33 +2,35 @@ import { describe, expect, it } from "vitest";
 import type { HttpResponse } from "@/api/client";
 import { formatBytes, stableStringify, timeAgo } from "@/lib/format";
 import { methodColor, statusColor } from "@/theme/httpColors";
-import { envFileKey, envLayerInfo, envLayers, isRootEnvFile } from "./envFiles";
-import { baseName, dirOf, isWithinDir, withJsonExtension } from "./paths";
+import { envFileKey, envLayerInfo, envLayers, isEnvFile } from "./envFiles";
+import { baseName, dirOf, isWithinDir, withRequestExtension } from "./paths";
 import { displayBody, indentJsonText, parseBody } from "./responseBody";
 import { findMatches, matchCountLabel, stepMatch } from "./search";
 
 describe("paths", () => {
   it("splits and matches folders", () => {
-    expect(dirOf("a/b/c.json")).toBe("a/b");
-    expect(dirOf("c.json")).toBe("");
+    expect(dirOf("a/b/c.yml")).toBe("a/b");
+    expect(dirOf("c.yml")).toBe("");
     expect(baseName("C:\\work\\api")).toBe("api");
-    expect(isWithinDir("auth/login.json", "auth")).toBe(true);
-    expect(isWithinDir("authx/login.json", "auth")).toBe(false);
-    expect(isWithinDir("x.json", "")).toBe(true);
-    expect(withJsonExtension("a/b")).toBe("a/b.json");
+    expect(isWithinDir("auth/login.yml", "auth")).toBe(true);
+    expect(isWithinDir("authx/login.yml", "auth")).toBe(false);
+    expect(isWithinDir("x.yml", "")).toBe(true);
+    expect(withRequestExtension("a/b")).toBe("a/b.yml");
+    expect(withRequestExtension("a/b.yml")).toBe("a/b.yml");
   });
 });
 
 describe("envFiles", () => {
-  it("recognises root env files", () => {
-    expect(isRootEnvFile("env.json")).toBe(true);
-    expect(isRootEnvFile("env.dev.json")).toBe(true);
-    expect(isRootEnvFile("auth/env.json")).toBe(false);
+  it("recognises env files", () => {
+    expect(isEnvFile("opencollection.yml")).toBe(true);
+    expect(isEnvFile("environments/dev.yml")).toBe(true);
+    expect(isEnvFile("auth/opencollection.yml")).toBe(false);
+    expect(isEnvFile("environments/x/dev.yml")).toBe(false);
   });
 
   it("lists layers in precedence order", () => {
     expect(envLayers(["dev"]).map(envFileKey)).toEqual(["base", "named:dev", "secrets", "captured"]);
-    expect(envLayerInfo({ kind: "named", name: "dev" }).path).toBe("env.dev.json");
+    expect(envLayerInfo({ kind: "named", name: "dev" }).path).toBe("environments/dev.yml");
   });
 });
 

@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
 
-/// Headless runner for cactus projects, e.g. in CI.
+/// Headless runner for cactus projects (OpenCollection folders), e.g. in CI.
 #[derive(Debug, Parser)]
 #[command(name = "cactus-cli", version)]
 pub struct Cli {
@@ -12,7 +12,7 @@ pub struct Cli {
 
 #[derive(Debug, Subcommand)]
 pub enum Command {
-    /// Run every scenario in the project, or in one folder of it.
+    /// Run every request in the project, or in one folder of it, in order.
     Run {
         project: PathBuf,
         /// Folder inside the project; the whole project when omitted.
@@ -25,10 +25,10 @@ pub enum Command {
         #[arg(long)]
         json: bool,
     },
-    /// Send one scenario and print its response body.
+    /// Send one request and print its response body.
     Send {
         project: PathBuf,
-        /// Scenario path relative to the project, e.g. `auth/login.json`.
+        /// Request file relative to the project, e.g. `auth/login.yml`.
         scenario: String,
         #[arg(short, long, value_name = "NAME")]
         env: Option<String>,

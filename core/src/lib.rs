@@ -1,4 +1,5 @@
-//! cactus core: scenarios on disk, env layers, sending and checking requests.
+//! cactus core: OpenCollection requests on disk, env layers, sending and
+//! checking requests.
 //! Shared by the desktop app and the CLI; it knows nothing about either.
 
 mod clock;
@@ -10,6 +11,7 @@ mod state;
 mod storage;
 mod text;
 
+pub mod collection;
 pub mod env;
 pub mod history;
 pub mod http;

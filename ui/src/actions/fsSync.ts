@@ -1,4 +1,4 @@
-import { isRootEnvFile } from "@/domain/envFiles";
+import { isEnvFile } from "@/domain/envFiles";
 import { reportErrors } from "@/lib/errors";
 import { useProjectStore } from "@/stores/projectStore";
 import { refreshEntries, refreshEnvs } from "./project";
@@ -8,6 +8,6 @@ import { reloadIfChangedOnDisk } from "./scenario";
 export async function handleFilesChanged(paths: string[]): Promise<void> {
   if (!useProjectStore.getState().project) return;
   void reportErrors(refreshEntries);
-  if (paths.some(isRootEnvFile)) void reportErrors(refreshEnvs);
+  if (paths.some(isEnvFile)) void reportErrors(refreshEnvs);
   await reloadIfChangedOnDisk(paths);
 }

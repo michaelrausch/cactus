@@ -1,0 +1,21 @@
+info:
+  name: Form post
+  type: http
+  seq: 2
+http:
+  method: POST
+  url: "{{baseUrl}}/post"
+  body:
+    type: form-urlencoded
+    data:
+      - name: name
+        value: "{{user}}"
+      - name: lang
+        value: rust
+  auth: inherit
+runtime:
+  assertions:
+    - expression: res.body.form.lang
+      operator: eq
+      value: rust
+docs: URL-encoded form body.

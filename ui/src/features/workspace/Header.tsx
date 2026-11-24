@@ -29,7 +29,7 @@ function Breadcrumb({ project }: { project: string }) {
       {scenario && (
         <>
           <Separator />
-          <MethodBadge method={scenario.method} className="text-[11px]" />
+          <MethodBadge method={scenario.http.method} className="text-[11px]" />
           <span className="truncate font-medium">{displayTitle(scenario)}</span>
         </>
       )}

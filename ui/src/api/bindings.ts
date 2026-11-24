@@ -44,56 +44,155 @@ export const events = {
 };
 
 /* Types */
+export type Action = Action_Serialize | Action_Deserialize;
+
+export type ActionPhase = "before-request" | "after-response";
+
+export type ActionVariable = ActionVariable_Serialize | ActionVariable_Deserialize;
+
+export type ActionVariable_Deserialize = {
+	name?: string,
+	scope?: string,
+};
+
+export type ActionVariable_Serialize = {
+	name: string,
+	scope: string,
+};
+
+export type Action_Deserialize = SetVariable_Deserialize | JsonValue;
+
+export type Action_Serialize = SetVariable_Serialize | JsonValue;
+
+export type ApiKeyPlacement = "header" | "query";
+
+/**  A test run against each response, e.g. `res.status eq 200`. */
+export type Assertion = Assertion_Serialize | Assertion_Deserialize;
+
+/**  A test run against each response, e.g. `res.status eq 200`. */
+export type Assertion_Deserialize = {
+	expression?: string,
+	operator?: string,
+	value?: string | null,
+	disabled?: boolean,
+};
+
+/**  A test run against each response, e.g. `res.status eq 200`. */
+export type Assertion_Serialize = {
+	expression: string,
+	operator: string,
+	value?: string,
+	disabled?: boolean,
+};
+
+/**  `auth:` on a request, folder or collection. */
 export type Auth = Auth_Serialize | Auth_Deserialize;
 
-export type Auth_Deserialize = { type: "bearer"; token?: string } | { type: "basic"; username?: string; password?: string };
+/**  The auth modes cactus can send. */
+export type AuthMode = AuthMode_Serialize | AuthMode_Deserialize;
 
-export type Auth_Serialize = { type: "bearer"; token: string } | { type: "basic"; username: string; password: string };
+/**  The auth modes cactus can send. */
+export type AuthMode_Deserialize = { type: "bearer"; token?: string } | { type: "basic"; username?: string; password?: string } | { type: "apikey"; key?: string; value?: string; placement?: ApiKeyPlacement | null };
 
-export type BodyType = "none" | "json" | "text" | 
-/**  `body` is an object, sent as `application/x-www-form-urlencoded`. */
-"form" | 
-/**  `body` is an object; values starting with `@` are file paths. */
-"multipart";
+/**  The auth modes cactus can send. */
+export type AuthMode_Serialize = { type: "bearer"; token: string } | { type: "basic"; username: string; password: string } | { type: "apikey"; key: string; value: string; placement?: ApiKeyPlacement };
 
-/**  The outcome of one `expect` rule. */
+/**  `auth:` on a request, folder or collection. */
+export type Auth_Deserialize = Inherit | AuthMode_Deserialize | 
+/**  A mode cactus doesn't send (OAuth, AWS, digest, ...), kept as written. */
+JsonValue;
+
+/**  `auth:` on a request, folder or collection. */
+export type Auth_Serialize = Inherit | AuthMode_Serialize | 
+/**  A mode cactus doesn't send (OAuth, AWS, digest, ...), kept as written. */
+JsonValue;
+
+export type Body = Body_Serialize | Body_Deserialize;
+
+export type Body_Deserialize = TypedBody_Deserialize | 
+/**
+ *  Body variants or a shape cactus doesn't edit, kept as written. The
+ *  selected variant (or else the first) is what gets sent.
+ */
+JsonValue;
+
+export type Body_Serialize = TypedBody_Serialize | 
+/**
+ *  Body variants or a shape cactus doesn't edit, kept as written. The
+ *  selected variant (or else the first) is what gets sent.
+ */
+JsonValue;
+
+/**  The outcome of one assertion. */
 export type Check = {
 	name: string,
 	ok: boolean,
 	detail: string,
 };
 
-/**  One env layer file. Later layers override earlier ones; see [`resolve`]. */
+/**  One env layer. Later layers override earlier ones; see [`resolve`]. */
 export type EnvFile = 
-/**  `env.json`, shared and committed. */
+/**  The collection's variables in `opencollection.yml`, shared and committed. */
 { kind: "base" } | 
-/**  `env.<name>.json`, one of which is active. */
+/**  `environments/<name>.yml`, one of which is active. */
 { kind: "named"; name: string } | 
 /**  `.cactus/secrets.json`, never committed. */
 { kind: "secrets" } | 
-/**  `.cactus/captured.json`, written by `capture` rules. */
+/**  `.cactus/captured.json`, written by set-variable actions. */
 { kind: "captured" };
 
 export type Error = string;
 
-export type Expect = Expect_Serialize | Expect_Deserialize;
+export type FileVariant = FileVariant_Serialize | FileVariant_Deserialize;
 
-export type Expect_Deserialize = {
-	/**  A single status or a list of accepted statuses. */
-	status?: StatusExpect | null,
-	/**  `$.json.path` -> expected value. */
-	json?: { [key in string]: JsonValue },
+export type FileVariant_Deserialize = {
+	filePath?: string,
+	contentType?: string,
+	selected?: boolean,
 };
 
-export type Expect_Serialize = {
-	/**  A single status or a list of accepted statuses. */
-	status?: StatusExpect,
-	/**  `$.json.path` -> expected value. */
-	json?: { [key in string]: JsonValue },
+export type FileVariant_Serialize = {
+	filePath: string,
+	contentType: string,
+	selected: boolean,
+};
+
+/**  `name=value` of a form body. */
+export type FormField = FormField_Serialize | FormField_Deserialize;
+
+/**  `name=value` of a form body. */
+export type FormField_Deserialize = {
+	name?: string,
+	value?: string,
+	disabled?: boolean,
+};
+
+/**  `name=value` of a form body. */
+export type FormField_Serialize = {
+	name: string,
+	value: string,
+	disabled?: boolean,
 };
 
 /**  Project-relative paths of files that changed on disk. */
 export type FsChanged = string[];
+
+/**  `name: value` sent with a request; `disabled` ones stay in the file. */
+export type Header = Header_Serialize | Header_Deserialize;
+
+/**  `name: value` sent with a request; `disabled` ones stay in the file. */
+export type Header_Deserialize = {
+	name?: string,
+	value?: string,
+	disabled?: boolean,
+};
+
+/**  `name: value` sent with a request; `disabled` ones stay in the file. */
+export type Header_Serialize = {
+	name: string,
+	value: string,
+	disabled?: boolean,
+};
 
 export type HistoryEntry = HistoryEntry_Serialize | HistoryEntry_Deserialize;
 
@@ -109,16 +208,106 @@ export type HistoryEntry_Serialize = {
 	response: Response_Serialize,
 };
 
+export type Http = Http_Serialize | Http_Deserialize;
+
+export type Http_Deserialize = {
+	method?: string,
+	url?: string,
+	headers?: Header_Deserialize[],
+	/**
+	 *  Query params mirror the URL, which is what cactus edits and sends;
+	 *  path params fill `:name` segments of it.
+	 */
+	params?: Param_Deserialize[],
+	body?: Body_Deserialize | null,
+	/**  `None` sends no auth; `inherit` takes the folder's or collection's. */
+	auth?: Auth_Deserialize | null,
+};
+
+export type Http_Serialize = {
+	method: string,
+	url: string,
+	headers?: Header_Serialize[],
+	/**
+	 *  Query params mirror the URL, which is what cactus edits and sends;
+	 *  path params fill `:name` segments of it.
+	 */
+	params?: Param_Serialize[],
+	body?: Body_Serialize,
+	/**  `None` sends no auth; `inherit` takes the folder's or collection's. */
+	auth?: Auth_Serialize,
+};
+
 export type ImportFormat = "postman" | "openapi";
 
 export type ImportSummary = {
 	format: ImportFormat,
 	created: ScenarioPath[],
-	/**  Variables added to `env.json`; existing keys are never overwritten. */
+	/**  Variables added to the collection; existing ones are never overwritten. */
 	envVars: string[],
 };
 
+/**  The literal `inherit`: take the setting from the folder or collection. */
+export type Inherit = "inherit";
+
 export type JsonValue = null | boolean | number | null | string | JsonValue[] | { [key in string]: JsonValue };
+
+export type MultipartField = MultipartField_Serialize | MultipartField_Deserialize;
+
+export type MultipartField_Deserialize = {
+	name?: string,
+	type?: PartKind,
+	value?: PartValue,
+	disabled?: boolean,
+};
+
+export type MultipartField_Serialize = {
+	name: string,
+	type: PartKind,
+	value: PartValue,
+	disabled?: boolean,
+};
+
+export type Param = Param_Serialize | Param_Deserialize;
+
+export type ParamKind = "query" | "path";
+
+export type Param_Deserialize = {
+	name?: string,
+	value?: string,
+	type: ParamKind,
+	disabled?: boolean,
+};
+
+export type Param_Serialize = {
+	name: string,
+	value: string,
+	type: ParamKind,
+	disabled?: boolean,
+};
+
+export type PartKind = "text" | "file";
+
+/**  A file part's value is a path relative to the project, or several. */
+export type PartValue = string | string[];
+
+export type RequestInfo = RequestInfo_Serialize | RequestInfo_Deserialize;
+
+export type RequestInfo_Deserialize = {
+	name?: string,
+	type?: RequestType,
+	/**  Position among its siblings; Bruno lists and runs requests by it. */
+	seq?: number | null,
+};
+
+export type RequestInfo_Serialize = {
+	name: string,
+	type: RequestType,
+	/**  Position among its siblings; Bruno lists and runs requests by it. */
+	seq?: number | null,
+};
+
+export type RequestType = "http";
 
 export type Response = Response_Serialize | Response_Deserialize;
 
@@ -134,6 +323,8 @@ export type Response_Deserialize = {
 	timeMs: number,
 	sizeBytes: number,
 	unresolved: string[],
+	/**  What cactus left out, e.g. scripts it can't run. */
+	warnings?: string[],
 	captured?: { [key in string]: string },
 	checks?: Check[],
 };
@@ -150,6 +341,8 @@ export type Response_Serialize = {
 	timeMs: number,
 	sizeBytes: number,
 	unresolved: string[],
+	/**  What cactus left out, e.g. scripts it can't run. */
+	warnings: string[],
 	captured: { [key in string]: string },
 	checks: Check[],
 };
@@ -181,7 +374,22 @@ export type RunResult_Serialize = {
 	error: string | null,
 };
 
-/**  One request, stored as a JSON file in the project. */
+export type Runtime = Runtime_Serialize | Runtime_Deserialize;
+
+export type Runtime_Deserialize = {
+	variables?: Variable_Deserialize[],
+	scripts?: Script_Deserialize[],
+	assertions?: Assertion_Deserialize[],
+	actions?: Action_Deserialize[],
+};
+
+export type Runtime_Serialize = {
+	variables?: Variable_Serialize[],
+	scripts?: Script_Serialize[],
+	assertions?: Assertion_Serialize[],
+	actions?: Action_Serialize[],
+};
+
 export type Scenario = Scenario_Serialize | Scenario_Deserialize;
 
 /**  Just enough of a scenario to render the sidebar. */
@@ -192,48 +400,138 @@ export type ScenarioEntry = {
 };
 
 /**
- *  A scenario's location relative to the project root, using `/` separators.
+ *  A request file's location relative to the project root, using `/` separators.
  *  It can never point outside the project, so it is safe to join onto it.
  */
 export type ScenarioPath = string;
 
-/**  One request, stored as a JSON file in the project. */
 export type Scenario_Deserialize = {
-	title?: string,
-	description?: string,
-	method?: string,
-	url?: string,
-	headers?: { [key in string]: string },
-	/**  Kept in the file but not sent. */
-	disabledHeaders?: { [key in string]: string },
-	auth?: Auth_Deserialize | null,
-	/**  How to interpret `body`; inferred from its JSON type when absent. */
-	bodyType?: BodyType | null,
-	body?: JsonValue,
-	/**  Env var name -> `$.json.path` or `header:Name`, saved after each send. */
-	capture?: { [key in string]: string },
-	expect?: Expect_Deserialize | null,
+	info?: RequestInfo_Deserialize,
+	http?: Http_Deserialize,
+	runtime?: Runtime_Deserialize,
+	settings?: Settings_Deserialize,
+	docs?: string,
 };
 
-/**  One request, stored as a JSON file in the project. */
 export type Scenario_Serialize = {
-	title: string,
-	description: string,
-	method: string,
-	url: string,
-	headers: { [key in string]: string },
-	/**  Kept in the file but not sent. */
-	disabledHeaders?: { [key in string]: string },
-	auth?: Auth_Serialize,
-	/**  How to interpret `body`; inferred from its JSON type when absent. */
-	bodyType?: BodyType,
-	body: JsonValue,
-	/**  Env var name -> `$.json.path` or `header:Name`, saved after each send. */
-	capture?: { [key in string]: string },
-	expect?: Expect_Serialize,
+	info: RequestInfo_Serialize,
+	http: Http_Serialize,
+	runtime?: Runtime_Serialize,
+	settings?: Settings_Serialize,
+	docs?: string,
 };
 
-export type StatusExpect = number | number[];
+/**  JavaScript run around the request. Kept, but cactus has no engine to run it. */
+export type Script = Script_Serialize | Script_Deserialize;
+
+/**  JavaScript run around the request. Kept, but cactus has no engine to run it. */
+export type Script_Deserialize = {
+	type?: string,
+	code?: string,
+};
+
+/**  JavaScript run around the request. Kept, but cactus has no engine to run it. */
+export type Script_Serialize = {
+	type: string,
+	code: string,
+};
+
+export type Selector = Selector_Serialize | Selector_Deserialize;
+
+export type Selector_Deserialize = {
+	expression?: string,
+	method?: string,
+};
+
+export type Selector_Serialize = {
+	expression: string,
+	method: string,
+};
+
+/**  Save a value from the response as a variable for later requests. */
+export type SetVariable = SetVariable_Serialize | SetVariable_Deserialize;
+
+export type SetVariableType = "set-variable";
+
+/**  Save a value from the response as a variable for later requests. */
+export type SetVariable_Deserialize = {
+	type: SetVariableType,
+	phase?: ActionPhase | null,
+	selector: Selector_Deserialize,
+	variable: ActionVariable_Deserialize,
+	disabled?: boolean,
+};
+
+/**  Save a value from the response as a variable for later requests. */
+export type SetVariable_Serialize = {
+	type: SetVariableType,
+	phase?: ActionPhase,
+	selector: Selector_Serialize,
+	variable: ActionVariable_Serialize,
+	disabled?: boolean,
+};
+
+export type Settings = Settings_Serialize | Settings_Deserialize;
+
+export type Settings_Deserialize = {
+	timeout?: Timeout | null,
+};
+
+export type Settings_Serialize = {
+	timeout?: Timeout,
+};
+
+export type Timeout = number | Inherit;
+
+/**  The body kinds cactus sends. */
+export type TypedBody = TypedBody_Serialize | TypedBody_Deserialize;
+
+/**  The body kinds cactus sends. */
+export type TypedBody_Deserialize = 
+/**  JSON text, sent as written after `{{var}}` substitution. */
+{ type: "json"; data?: string } | { type: "text"; data?: string } | { type: "xml"; data?: string } | { type: "sparql"; data?: string } | { type: "form-urlencoded"; data?: FormField_Deserialize[] } | { type: "multipart-form"; data?: MultipartField_Deserialize[] } | { type: "file"; data?: FileVariant_Deserialize[] };
+
+/**  The body kinds cactus sends. */
+export type TypedBody_Serialize = 
+/**  JSON text, sent as written after `{{var}}` substitution. */
+{ type: "json"; data: string } | { type: "text"; data: string } | { type: "xml"; data: string } | { type: "sparql"; data: string } | { type: "form-urlencoded"; data: FormField_Serialize[] } | { type: "multipart-form"; data: MultipartField_Serialize[] } | { type: "file"; data: FileVariant_Serialize[] };
+
+/**
+ *  A variable in a collection, folder, environment or request. A `secret`
+ *  one has no value in the file: it comes from `.cactus/secrets.json`.
+ */
+export type Variable = Variable_Serialize | Variable_Deserialize;
+
+/**  A variable's value: a string, `{type, data}`, or variants cactus keeps as written. */
+export type VariableValue = VariableValue_Serialize | VariableValue_Deserialize;
+
+/**  A variable's value: a string, `{type, data}`, or variants cactus keeps as written. */
+export type VariableValue_Deserialize = string | { type?: string; data?: string } | JsonValue;
+
+/**  A variable's value: a string, `{type, data}`, or variants cactus keeps as written. */
+export type VariableValue_Serialize = string | { type: string; data: string } | JsonValue;
+
+/**
+ *  A variable in a collection, folder, environment or request. A `secret`
+ *  one has no value in the file: it comes from `.cactus/secrets.json`.
+ */
+export type Variable_Deserialize = {
+	name?: string,
+	value?: VariableValue_Deserialize | null,
+	secret?: boolean,
+	disabled?: boolean,
+};
+
+/**
+ *  A variable in a collection, folder, environment or request. A `secret`
+ *  one has no value in the file: it comes from `.cactus/secrets.json`.
+ */
+export type Variable_Serialize = {
+	name: string,
+	value?: VariableValue_Serialize,
+	secret?: boolean,
+	disabled?: boolean,
+};
 
 /* Tauri Specta runtime */
 type EventEmit<T> = [T] extends [null] ? () => Promise<void> : (payload: T) => Promise<void>;

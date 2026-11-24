@@ -8,6 +8,13 @@ export interface Row {
   enabled: boolean;
 }
 
+/** A `name`/`value` item of an OpenCollection list (headers, form fields, ...). */
+export interface NamedValue {
+  name: string;
+  value: string;
+  disabled?: boolean;
+}
+
 let lastRowId = 0;
 
 export const makeRow = (key = "", value = "", enabled = true): Row => ({ id: ++lastRowId, key, value, enabled });
@@ -30,3 +37,12 @@ export const rowsFromRecord = (record: Record<string, string> | undefined, enabl
 
 export const recordFromRows = (rows: Row[]): Record<string, string> =>
   Object.fromEntries(rows.map((row) => [row.key, row.value]));
+
+export const rowsFromList = (items: readonly NamedValue[] | undefined): Row[] =>
+  (items ?? []).map((item) => makeRow(item.name, item.value, !item.disabled));
+
+/** `disabled` is written only when set, so files stay minimal. */
+export const listFromRows = (rows: Row[]): NamedValue[] =>
+  rows.map((row) =>
+    row.enabled ? { name: row.key, value: row.value } : { name: row.key, value: row.value, disabled: true },
+  );

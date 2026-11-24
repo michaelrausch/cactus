@@ -1,64 +1,94 @@
 import { describe, expect, it } from "vitest";
 import type { Scenario } from "@/api/client";
-import { bodyToEditorText, inferBodyType, parseLooseJson, switchBodyType, withAuth } from "./scenario";
+import {
+  authKind,
+  bodyKind,
+  bodyText,
+  displayTitle,
+  jsonProblem,
+  pathParamNames,
+  switchBodyKind,
+  withAuth,
+  withBody,
+  withPathParamValues,
+  withUrl,
+} from "./scenario";
 
-const scenario = (patch: Partial<Scenario> = {}): Scenario => ({
-  title: "",
-  description: "",
-  method: "GET",
-  url: "",
-  headers: {},
-  body: null,
-  ...patch,
+const scenario = (http: Partial<Scenario["http"]> = {}): Scenario => ({
+  info: { name: "", type: "http" },
+  http: { method: "GET", url: "", ...http },
 });
 
 describe("scenario", () => {
-  it("infers the body type like the backend", () => {
-    expect(inferBodyType(scenario())).toBe("none");
-    expect(inferBodyType(scenario({ body: "x" }))).toBe("text");
-    expect(inferBodyType(scenario({ body: { a: 1 } }))).toBe("json");
-    expect(inferBodyType(scenario({ body: { a: "1" }, bodyType: "form" }))).toBe("form");
+  it("titles untitled requests", () => {
+    expect(displayTitle(scenario())).toBe("Untitled");
   });
 
-  it("renders bodies for the editor", () => {
-    expect(bodyToEditorText(null)).toBe("");
-    expect(bodyToEditorText("raw")).toBe("raw");
-    expect(bodyToEditorText({ a: 1 })).toBe('{\n  "a": 1\n}');
+  it("reads body kinds", () => {
+    expect(bodyKind(scenario())).toBe("none");
+    expect(bodyKind(scenario({ body: { type: "json", data: "{}" } }))).toBe("json");
+    expect(bodyKind(scenario({ body: { type: "file", data: [] } }))).toBe("other");
+    expect(bodyKind(scenario({ body: [{ title: "A", body: { type: "text", data: "" } }] }))).toBe("other");
   });
 
-  it("parses loosely", () => {
-    expect(parseLooseJson("true")).toBe(true);
-    expect(parseLooseJson("not json")).toBe("not json");
+  describe("switchBodyKind", () => {
+    const form = scenario({
+      body: {
+        type: "form-urlencoded",
+        data: [
+          { name: "a", value: "1" },
+          { name: "b", value: "2", disabled: true },
+        ],
+      },
+    });
+
+    it("none drops the body", () => {
+      expect("body" in switchBodyKind(form, "none").http).toBe(false);
+    });
+
+    it("text kinds keep the text", () => {
+      const json = withBody(scenario(), { type: "json", data: '{"x": {{n}}}' });
+      expect(switchBodyKind(json, "text").http.body).toEqual({ type: "text", data: '{"x": {{n}}}' });
+      expect(bodyText(switchBodyKind(form, "xml"))).toBe("");
+    });
+
+    it("fields carry over between form kinds", () => {
+      const multipart = switchBodyKind(form, "multipart-form");
+      expect(multipart.http.body).toEqual({
+        type: "multipart-form",
+        data: [
+          { name: "a", value: "1", type: "text" },
+          { name: "b", value: "2", disabled: true, type: "text" },
+        ],
+      });
+      expect(switchBodyKind(multipart, "form-urlencoded").http.body).toEqual(form.http.body);
+    });
   });
 
-  describe("switchBodyType", () => {
-    const form = scenario({ bodyType: "form", body: { a: "1", n: 2 } });
-
-    it("none drops the body and the explicit type", () => {
-      const next = switchBodyType(form, "none", "");
-      expect(next.body).toBeNull();
-      expect("bodyType" in next).toBe(false);
-    });
-
-    it("text keeps the editor text", () => {
-      expect(switchBodyType(form, "text", "hello")).toMatchObject({ bodyType: "text", body: "hello" });
-    });
-
-    it("json parses the editor text, or starts an object", () => {
-      expect(switchBodyType(form, "json", '{"x":1}').body).toEqual({ x: 1 });
-      expect(switchBodyType(form, "json", "not json").body).toEqual({});
-      expect(switchBodyType(form, "json", "").body).toBeNull();
-    });
-
-    it("form keeps only string fields", () => {
-      expect(switchBodyType(form, "multipart", "").body).toEqual({ a: "1" });
-      expect(switchBodyType(scenario({ body: "raw" }), "form", "raw").body).toEqual({});
-    });
+  it("checks JSON but allows placeholders", () => {
+    expect(jsonProblem('{"n": {{num}}, "s": "{{s}}"}')).toBeNull();
+    expect(jsonProblem("")).toBeNull();
+    expect(jsonProblem("{nope")).not.toBeNull();
   });
 
-  it("removes auth instead of storing null", () => {
+  it("sets and removes auth", () => {
+    expect(authKind(scenario({ auth: "inherit" }))).toBe("inherit");
     const withBearer = withAuth(scenario(), { type: "bearer", token: "t" });
-    expect(withBearer.auth).toEqual({ type: "bearer", token: "t" });
-    expect("auth" in withAuth(withBearer, null)).toBe(false);
+    expect(authKind(withBearer)).toBe("bearer");
+    expect("auth" in withAuth(withBearer, undefined).http).toBe(false);
+    expect(authKind(scenario({ auth: { type: "oauth2", flow: "implicit" } }))).toBe("other");
+  });
+
+  it("keeps path params in step with the URL", () => {
+    expect(pathParamNames("{{base}}/users/:id/posts/:postId?x=:no")).toEqual(["id", "postId"]);
+    const first = withUrl(scenario(), "/users/:id");
+    expect(first.http.params).toEqual([{ name: "id", value: "", type: "path" }]);
+    const filled = withPathParamValues(first, { id: "7" });
+    const renamed = withUrl(filled, "/users/:id/posts/:post");
+    expect(renamed.http.params).toEqual([
+      { name: "id", value: "7", type: "path" },
+      { name: "post", value: "", type: "path" },
+    ]);
+    expect("params" in withUrl(renamed, "/users").http).toBe(false);
   });
 });

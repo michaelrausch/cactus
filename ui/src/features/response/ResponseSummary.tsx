@@ -3,7 +3,7 @@ import type { HttpResponse } from "@/api/client";
 import { StatusCode } from "@/components/StatusCode";
 import { formatBytes, timeAgo } from "@/lib/format";
 
-/** Status, timing and size line, plus unresolved/captured variable chips. */
+/** Status, timing and size line, plus warning, unresolved and captured variable chips. */
 export function ResponseSummary({ response, historyAt }: { response: HttpResponse; historyAt: number | null }) {
   const captured = Object.entries(response.captured);
   return (
@@ -22,8 +22,13 @@ export function ResponseSummary({ response, historyAt }: { response: HttpRespons
           </span>
         )}
       </div>
-      {(response.unresolved.length > 0 || captured.length > 0) && (
+      {(response.warnings.length > 0 || response.unresolved.length > 0 || captured.length > 0) && (
         <div className="flex flex-wrap gap-1.5 text-[11px]">
+          {response.warnings.map((warning) => (
+            <span key={warning} className="rounded-full bg-amber-400/10 px-2 py-0.5 text-amber-300">
+              {warning}
+            </span>
+          ))}
           {response.unresolved.map((name) => (
             <span
               key={name}

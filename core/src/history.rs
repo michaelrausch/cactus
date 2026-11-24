@@ -1,4 +1,4 @@
-//! Recent responses per scenario, in `.cactus/history/`.
+//! Recent responses per request, in `.cactus/history/`.
 
 use std::fs;
 use std::path::Path;
@@ -81,7 +81,8 @@ mod tests {
                 time_ms: 0,
                 size_bytes: body.len(),
                 unresolved: Vec::new(),
-                captured: Default::default(),
+                warnings: Vec::new(),
+                captured: std::collections::BTreeMap::default(),
                 checks: Vec::new(),
             },
         }
@@ -90,7 +91,7 @@ mod tests {
     #[test]
     fn newest_entry_keeps_full_body() {
         let dir = tempfile::tempdir().unwrap();
-        let path = ScenarioPath::parse("a.json").unwrap();
+        let path = ScenarioPath::parse("a.yml").unwrap();
         let big = "x".repeat(MAX_HISTORY_BODY_BYTES + 10);
 
         push(dir.path(), &path, entry(1, &big)).unwrap();
