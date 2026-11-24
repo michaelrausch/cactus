@@ -1,4 +1,6 @@
 import { useEffect } from "react";
+import { toggleCrittersView } from "@/actions/critters";
+import { runOpenFlow, saveOpenFlow } from "@/actions/flows";
 import { openChanges } from "@/actions/git";
 import { openProject } from "@/actions/project";
 import { sendCurrentScenario } from "@/actions/request";
@@ -9,12 +11,24 @@ import { useEditorStore } from "@/stores/editorStore";
 import { hasResponseContent, useResponseStore } from "@/stores/responseStore";
 import { useUiStore } from "@/stores/uiStore";
 
+/** Marks the flow editor, where Ctrl+S saves the flow and Ctrl+Enter runs it. */
+export const FLOW_EDITOR_ATTRIBUTE = "data-flow-editor";
+
+const inFlowEditor = (): boolean => Boolean(document.activeElement?.closest(`[${FLOW_EDITOR_ATTRIBUTE}]`));
+
 const SHORTCUT_ACTIONS: Record<ShortcutId, () => void> = {
   save: () => {
+    if (inFlowEditor()) {
+      void saveOpenFlow();
+      return;
+    }
     const { path } = useEditorStore.getState();
     if (path) void saveScenario(path);
   },
-  send: () => void sendCurrentScenario(),
+  send: () => {
+    if (inFlowEditor()) runOpenFlow();
+    else void sendCurrentScenario();
+  },
   newScenario: () => createScenarioIn(""),
   openProject: () => void openProject(),
   switcher: () => useUiStore.getState().toggleSwitcher(),
@@ -28,6 +42,7 @@ const SHORTCUT_ACTIONS: Record<ShortcutId, () => void> = {
     if (hasResponseContent(useResponseStore.getState())) useUiStore.getState().toggleResponse();
   },
   settings: () => useUiStore.getState().setSettingsOpen(true),
+  critters: toggleCrittersView,
 };
 
 /** Radix marks every open dialog, the switcher included, with `role="dialog"`. */

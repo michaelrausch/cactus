@@ -24,7 +24,12 @@ export interface ConfirmRequest extends ConfirmChoice {
   alternative?: ConfirmChoice;
 }
 
+/** What fills the area right of the sidebar. */
+export type MainView = "editor" | "critters";
+
 interface UiState {
+  view: MainView;
+  newCritterOpen: boolean;
   prompt: PromptRequest | null;
   confirm: ConfirmRequest | null;
   envDialogOpen: boolean;
@@ -33,6 +38,8 @@ interface UiState {
   switcherOpen: boolean;
   responseVisible: boolean;
 
+  setView: (view: MainView) => void;
+  setNewCritterOpen: (open: boolean) => void;
   askPrompt: (prompt: PromptRequest) => void;
   askConfirm: (confirm: ConfirmRequest) => void;
   closePrompt: () => void;
@@ -47,6 +54,8 @@ interface UiState {
 }
 
 export const useUiStore = create<UiState>()((set) => ({
+  view: "editor",
+  newCritterOpen: false,
   prompt: null,
   confirm: null,
   envDialogOpen: false,
@@ -55,6 +64,8 @@ export const useUiStore = create<UiState>()((set) => ({
   switcherOpen: false,
   responseVisible: true,
 
+  setView: (view) => set({ view }),
+  setNewCritterOpen: (newCritterOpen) => set({ newCritterOpen }),
   askPrompt: (prompt) => set({ prompt }),
   askConfirm: (confirm) => set({ confirm }),
   closePrompt: () => set({ prompt: null }),

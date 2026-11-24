@@ -26,7 +26,7 @@ specta = ["dep:specta", "dep:specta-typescript"]
 git = ["dep:git2"]
 
 [dev-dependencies]
-tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "io-util"] }
 tempfile = "3"
 jsonschema = { version = "0.63", default-features = false }
 

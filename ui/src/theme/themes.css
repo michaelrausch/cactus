@@ -219,6 +219,257 @@
   --shadow: oklch(0.3 0.04 60);
 }
 
+/* salt flat: cool, crisp near-white with a teal-to-indigo gradient. */
+[data-theme="salt-flat"] {
+  color-scheme: light;
+
+  --background: oklch(0.98 0.004 230);
+  --foreground: oklch(0.24 0.02 250);
+  --card: oklch(0.995 0.002 230);
+  --card-foreground: oklch(0.24 0.02 250);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.24 0.02 250);
+  --primary: oklch(0.28 0.03 250);
+  --primary-foreground: oklch(0.98 0.005 230);
+  --secondary: oklch(0.945 0.008 235);
+  --secondary-foreground: oklch(0.24 0.02 250);
+  --muted: oklch(0.95 0.007 235);
+  --muted-foreground: oklch(0.5 0.025 250);
+  --accent: oklch(0.925 0.012 235);
+  --accent-foreground: oklch(0.24 0.02 250);
+  --destructive: oklch(0.577 0.245 27.3);
+  --border: oklch(0.3 0.03 250 / 12%);
+  --input: oklch(0.3 0.03 250 / 16%);
+  --ring: oklch(0.6 0.12 210 / 60%);
+  --sidebar: oklch(0.955 0.008 235);
+  --sidebar-foreground: oklch(0.24 0.02 250);
+  --sidebar-primary: oklch(0.5 0.1 215);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.91 0.014 235);
+  --sidebar-accent-foreground: oklch(0.24 0.02 250);
+  --sidebar-border: oklch(0.3 0.03 250 / 9%);
+  --sidebar-ring: oklch(0.6 0.1 215);
+
+  --brand-1: #0d9488;
+  --brand-2: #0e7490;
+  --brand-3: #4338ca;
+  --brand-foreground: #ffffff;
+  --flower: #e11d48;
+  --glow-1: #22d3ee;
+  --glow-2: #818cf8;
+  --glow-intensity: 0.7;
+
+  --success: oklch(0.52 0.12 160);
+  --warning: oklch(0.56 0.14 65);
+  --danger: oklch(0.55 0.21 22);
+  --info: oklch(0.5 0.14 250);
+  --method-patch: oklch(0.52 0.2 295);
+  --syntax-key: oklch(0.47 0.13 250);
+  --syntax-string: oklch(0.5 0.11 165);
+  --syntax-number: oklch(0.55 0.14 55);
+  --syntax-literal: oklch(0.5 0.19 305);
+
+  --template-resolved: oklch(0.45 0.09 200);
+  --captured: oklch(0.45 0.09 200);
+  --shadow: oklch(0.3 0.03 250);
+}
+
+/* adobe: sun-baked clay walls, terracotta accents, a teal cactus for the flower. */
+[data-theme="adobe"] {
+  color-scheme: light;
+
+  --background: oklch(0.96 0.02 55);
+  --foreground: oklch(0.27 0.04 40);
+  --card: oklch(0.98 0.013 60);
+  --card-foreground: oklch(0.27 0.04 40);
+  --popover: oklch(0.985 0.01 60);
+  --popover-foreground: oklch(0.27 0.04 40);
+  --primary: oklch(0.32 0.05 40);
+  --primary-foreground: oklch(0.97 0.015 60);
+  --secondary: oklch(0.915 0.03 50);
+  --secondary-foreground: oklch(0.27 0.04 40);
+  --muted: oklch(0.925 0.028 50);
+  --muted-foreground: oklch(0.5 0.045 40);
+  --accent: oklch(0.9 0.038 48);
+  --accent-foreground: oklch(0.27 0.04 40);
+  --destructive: oklch(0.55 0.22 22);
+  --border: oklch(0.35 0.06 40 / 15%);
+  --input: oklch(0.35 0.06 40 / 19%);
+  --ring: oklch(0.6 0.16 45 / 60%);
+  --sidebar: oklch(0.93 0.03 50);
+  --sidebar-foreground: oklch(0.27 0.04 40);
+  --sidebar-primary: oklch(0.55 0.16 42);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.885 0.04 48);
+  --sidebar-accent-foreground: oklch(0.27 0.04 40);
+  --sidebar-border: oklch(0.35 0.06 40 / 11%);
+  --sidebar-ring: oklch(0.6 0.14 45);
+
+  --brand-1: #ea580c;
+  --brand-2: #c2410c;
+  --brand-3: #9f1239;
+  --brand-foreground: #ffffff;
+  --flower: #0f766e;
+  --glow-1: #fb923c;
+  --glow-2: #f43f5e;
+  --glow-intensity: 0.8;
+
+  /* Pull danger toward crimson and warning toward gold, away from the terracotta brand. */
+  --success: oklch(0.5 0.12 160);
+  --warning: oklch(0.58 0.13 85);
+  --danger: oklch(0.52 0.21 15);
+  --info: oklch(0.5 0.12 240);
+  --method-patch: oklch(0.5 0.19 300);
+  --syntax-key: oklch(0.47 0.12 240);
+  --syntax-string: oklch(0.5 0.11 160);
+  --syntax-number: oklch(0.53 0.15 45);
+  --syntax-literal: oklch(0.48 0.18 330);
+
+  --template-resolved: oklch(0.45 0.09 190);
+  --captured: oklch(0.45 0.09 190);
+  --shadow: oklch(0.35 0.06 40);
+}
+
+/* ---------- Colorful: same layout, the saturation turned up. ---------- */
+
+/* oasis: deep lagoon greens, turquoise water and a gold sun. */
+[data-theme="oasis"] {
+  --background: oklch(0.15 0.03 185);
+  --card: oklch(0.185 0.036 185);
+  --popover: oklch(0.2 0.04 185);
+  --secondary: oklch(0.24 0.045 185);
+  --muted: oklch(0.23 0.04 185);
+  --muted-foreground: oklch(0.73 0.05 180);
+  --accent: oklch(0.26 0.05 185);
+  --border: oklch(0.85 0.1 180 / 11%);
+  --input: oklch(0.85 0.1 180 / 14%);
+  --ring: oklch(0.8 0.14 180 / 60%);
+  --sidebar: oklch(0.13 0.028 185);
+  --sidebar-accent: oklch(0.21 0.045 185);
+  --sidebar-border: oklch(0.85 0.1 180 / 8%);
+
+  --brand-1: #fde047;
+  --brand-2: #2dd4bf;
+  --brand-3: #0891b2;
+  --brand-foreground: oklch(0.16 0.03 185);
+  --flower: #fb7185;
+  --glow-1: #2dd4bf;
+  --glow-2: #facc15;
+  --glow-intensity: 1.4;
+
+  --app-backdrop: radial-gradient(ellipse 70% 40% at 20% 110%, oklch(0.75 0.13 180 / 14%), transparent 70%);
+
+  --success: oklch(0.82 0.17 150);
+  --warning: oklch(0.87 0.16 90);
+  --danger: oklch(0.71 0.2 18);
+  --info: oklch(0.79 0.12 225);
+  --syntax-key: oklch(0.83 0.11 205);
+  --syntax-string: oklch(0.86 0.15 160);
+  --syntax-number: oklch(0.89 0.15 95);
+  --syntax-literal: oklch(0.8 0.13 340);
+}
+
+/* jacaranda: violet canopy, fuchsia blossoms, a lime flower for contrast. */
+[data-theme="jacaranda"] {
+  --background: oklch(0.15 0.04 290);
+  --card: oklch(0.185 0.048 290);
+  --popover: oklch(0.2 0.052 290);
+  --secondary: oklch(0.245 0.058 290);
+  --muted: oklch(0.23 0.052 290);
+  --muted-foreground: oklch(0.74 0.06 295);
+  --accent: oklch(0.265 0.065 292);
+  --border: oklch(0.8 0.12 300 / 12%);
+  --input: oklch(0.8 0.12 300 / 15%);
+  --ring: oklch(0.75 0.17 300 / 60%);
+  --sidebar: oklch(0.13 0.036 290);
+  --sidebar-accent: oklch(0.21 0.055 290);
+  --sidebar-border: oklch(0.8 0.12 300 / 9%);
+
+  --brand-1: #f0abfc;
+  --brand-2: #a78bfa;
+  --brand-3: #6366f1;
+  --brand-foreground: oklch(0.17 0.05 290);
+  --flower: #a3e635;
+  --glow-1: #8b5cf6;
+  --glow-2: #d946ef;
+  --glow-intensity: 1.5;
+
+  --app-backdrop:
+    radial-gradient(45% 35% at 90% 105%, oklch(0.7 0.2 320 / 12%), transparent),
+    radial-gradient(40% 30% at 10% 105%, oklch(0.65 0.18 285 / 12%), transparent);
+
+  --success: oklch(0.82 0.16 160);
+  --warning: oklch(0.86 0.15 88);
+  --danger: oklch(0.71 0.2 20);
+  --info: oklch(0.8 0.12 225);
+  /* PATCH and literals would vanish into the violet brand: push them to magenta. */
+  --method-patch: oklch(0.76 0.18 340);
+  --syntax-key: oklch(0.83 0.1 260);
+  --syntax-string: oklch(0.86 0.14 155);
+  --syntax-number: oklch(0.88 0.14 85);
+  --syntax-literal: oklch(0.8 0.15 335);
+}
+
+/* citrus: a bright light theme. Lemon peel, orange and grapefruit. */
+[data-theme="citrus"] {
+  color-scheme: light;
+
+  --background: oklch(0.985 0.03 100);
+  --foreground: oklch(0.26 0.04 60);
+  --card: oklch(0.995 0.015 100);
+  --card-foreground: oklch(0.26 0.04 60);
+  --popover: oklch(1 0.008 100);
+  --popover-foreground: oklch(0.26 0.04 60);
+  --primary: oklch(0.3 0.05 55);
+  --primary-foreground: oklch(0.99 0.02 100);
+  --secondary: oklch(0.95 0.055 95);
+  --secondary-foreground: oklch(0.26 0.04 60);
+  --muted: oklch(0.955 0.045 95);
+  --muted-foreground: oklch(0.5 0.06 60);
+  --accent: oklch(0.93 0.07 90);
+  --accent-foreground: oklch(0.26 0.04 60);
+  --destructive: oklch(0.56 0.22 22);
+  --border: oklch(0.45 0.1 70 / 18%);
+  --input: oklch(0.45 0.1 70 / 22%);
+  --ring: oklch(0.68 0.18 50 / 60%);
+  --sidebar: oklch(0.95 0.07 100);
+  --sidebar-foreground: oklch(0.26 0.04 60);
+  --sidebar-primary: oklch(0.62 0.19 45);
+  --sidebar-primary-foreground: oklch(0.2 0.03 60);
+  --sidebar-accent: oklch(0.91 0.09 95);
+  --sidebar-accent-foreground: oklch(0.26 0.04 60);
+  --sidebar-border: oklch(0.45 0.1 70 / 13%);
+  --sidebar-ring: oklch(0.68 0.16 50);
+
+  --brand-1: #84cc16;
+  --brand-2: #f97316;
+  --brand-3: #f43f5e;
+  /* Dark: white on orange is only ~2.8:1. */
+  --brand-foreground: oklch(0.2 0.03 60);
+  --flower: #16a34a;
+  --glow-1: #facc15;
+  --glow-2: #fb7185;
+  --glow-intensity: 1.1;
+
+  --app-backdrop:
+    radial-gradient(50% 40% at 100% 0%, oklch(0.9 0.16 100 / 35%), transparent),
+    radial-gradient(45% 40% at 0% 100%, oklch(0.82 0.13 30 / 18%), transparent);
+
+  --success: oklch(0.5 0.13 150);
+  --warning: oklch(0.57 0.14 70);
+  --danger: oklch(0.54 0.22 20);
+  --info: oklch(0.5 0.14 245);
+  --method-patch: oklch(0.52 0.21 300);
+  --syntax-key: oklch(0.47 0.14 245);
+  --syntax-string: oklch(0.5 0.13 145);
+  --syntax-number: oklch(0.56 0.17 45);
+  --syntax-literal: oklch(0.5 0.2 340);
+
+  --template-resolved: oklch(0.45 0.09 190);
+  --captured: oklch(0.45 0.09 190);
+  --shadow: oklch(0.4 0.08 60);
+}
+
 /* ---------- Fun. Still only tokens: no theme-specific code in components. ---------- */
 
 /* synthwave: deep indigo, hot pink to cyan, and a neon grid on the horizon. */
@@ -478,21 +729,22 @@
   --border: #808080;
   --input: #808080;
   --ring: oklch(0 0 0 / 70%);
-  --sidebar: #ffffff;
-  --sidebar-foreground: #000000;
+  /* The teal desktop. What sits on it gets a brighter palette, in Extras. */
+  --sidebar: #008080;
+  --sidebar-foreground: #ffffff;
   --sidebar-primary: #000080;
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: #dcdcdc;
   --sidebar-accent-foreground: #000000;
-  --sidebar-border: #808080;
-  --sidebar-ring: #000000;
+  --sidebar-border: #004040;
+  --sidebar-ring: #ffffff;
 
   --radius: 0rem;
   --app-font: "Microsoft Sans Serif", "MS Sans Serif", Tahoma, "Segoe UI", Geneva, Verdana, sans-serif;
 
-  --brand-1: #008080;
-  --brand-2: #000080;
-  --brand-3: #1084d0;
+  --brand-1: #00a8a8;
+  --brand-2: #008080;
+  --brand-3: #000080;
   --brand-foreground: #ffffff;
   --flower: #ff0000;
   --glow-intensity: 0;
@@ -513,10 +765,181 @@
 }
 
 /*
+ * ocean drive: 1986, Miami, after dark. Night-ocean teal, hot pink and sunset
+ * orange, and a striped retro sun sinking in the corner (the stripes are cut
+ * in the background colour, so they only show over the sun).
+ */
+[data-theme="ocean-drive"] {
+  --background: oklch(0.16 0.045 255);
+  --foreground: oklch(0.96 0.02 340);
+  --card: oklch(0.195 0.05 258);
+  --card-foreground: oklch(0.96 0.02 340);
+  --popover: oklch(0.215 0.055 260);
+  --popover-foreground: oklch(0.96 0.02 340);
+  --secondary: oklch(0.255 0.06 262);
+  --muted: oklch(0.24 0.055 260);
+  --muted-foreground: oklch(0.76 0.06 320);
+  --accent: oklch(0.28 0.07 270);
+  --border: oklch(0.8 0.14 190 / 15%);
+  --input: oklch(0.8 0.14 190 / 19%);
+  --ring: oklch(0.72 0.22 355 / 70%);
+  --sidebar: oklch(0.135 0.04 252);
+  --sidebar-accent: oklch(0.21 0.055 258);
+  --sidebar-border: oklch(0.8 0.14 190 / 11%);
+
+  --radius: 0.75rem;
+
+  --brand-1: #ffb86b;
+  --brand-2: #ff4fa3;
+  --brand-3: #2de2e6;
+  --brand-foreground: oklch(0.16 0.045 255);
+  --flower: #2de2e6;
+  --glow-1: #ff4fa3;
+  --glow-2: #2de2e6;
+  --glow-intensity: 1.8;
+
+  --app-backdrop:
+    linear-gradient(to bottom, var(--background) 50%, transparent 100%),
+    repeating-linear-gradient(to bottom, transparent 0 14px, var(--background) 14px 18px),
+    radial-gradient(circle at 82% 105%, oklch(0.85 0.15 70 / 38%) 0, oklch(0.7 0.24 355 / 30%) 18%, transparent 30%),
+    linear-gradient(to top, oklch(0.6 0.12 195 / 14%), transparent 25%);
+
+  --success: oklch(0.84 0.17 170);
+  --warning: oklch(0.86 0.15 75);
+  --danger: oklch(0.68 0.23 22);
+  --info: oklch(0.82 0.12 210);
+  --method-patch: oklch(0.76 0.18 305);
+  --syntax-key: oklch(0.85 0.12 200);
+  --syntax-string: oklch(0.8 0.18 355);
+  --syntax-number: oklch(0.86 0.14 65);
+  --syntax-literal: oklch(0.8 0.14 300);
+}
+
+/* blueprint: white linework on drafting blue, a red pencil for the flower. */
+[data-theme="blueprint"] {
+  --background: oklch(0.33 0.1 258);
+  --foreground: oklch(0.97 0.012 240);
+  --card: oklch(0.295 0.1 258);
+  --card-foreground: oklch(0.97 0.012 240);
+  --popover: oklch(0.31 0.1 258);
+  --popover-foreground: oklch(0.97 0.012 240);
+  --primary: oklch(0.97 0.012 240);
+  --primary-foreground: oklch(0.3 0.1 258);
+  --secondary: oklch(0.38 0.1 257);
+  --muted: oklch(0.37 0.095 257);
+  --muted-foreground: oklch(0.83 0.05 245);
+  --accent: oklch(0.4 0.1 256);
+  --border: oklch(1 0 0 / 28%);
+  --input: oklch(1 0 0 / 32%);
+  --ring: oklch(1 0 0 / 70%);
+  --sidebar: oklch(0.27 0.095 258);
+  --sidebar-accent: oklch(0.34 0.1 257);
+  --sidebar-border: oklch(1 0 0 / 22%);
+
+  --radius: 0rem;
+  --app-font: "DIN Alternate", Bahnschrift, "Barlow", "Roboto Condensed", "Arial Narrow", sans-serif;
+
+  --brand-1: #ffffff;
+  --brand-2: #e0f2fe;
+  --brand-3: #7dd3fc;
+  --brand-foreground: oklch(0.3 0.1 258);
+  --flower: #f87171;
+  --glow-1: #bae6fd;
+  --glow-2: #ffffff;
+  --glow-intensity: 0.4;
+
+  --app-backdrop:
+    repeating-linear-gradient(90deg, oklch(1 0 0 / 9%) 0 1px, transparent 1px 100px),
+    repeating-linear-gradient(0deg, oklch(1 0 0 / 9%) 0 1px, transparent 1px 100px),
+    repeating-linear-gradient(90deg, oklch(1 0 0 / 4%) 0 1px, transparent 1px 20px),
+    repeating-linear-gradient(0deg, oklch(1 0 0 / 4%) 0 1px, transparent 1px 20px);
+
+  /* On mid-blue, blue info would vanish: everything is lighter and cyan-shifted. */
+  --success: oklch(0.87 0.16 155);
+  --warning: oklch(0.9 0.15 95);
+  --danger: oklch(0.76 0.17 22);
+  --info: oklch(0.9 0.09 200);
+  --method-patch: oklch(0.85 0.12 320);
+  --syntax-key: oklch(0.92 0.06 220);
+  --syntax-string: oklch(0.89 0.14 155);
+  --syntax-number: oklch(0.91 0.13 95);
+  --syntax-literal: oklch(0.86 0.11 330);
+
+  --template-resolved: oklch(0.92 0.09 190);
+  --captured: oklch(0.92 0.1 190);
+  --shadow: oklch(0.15 0.08 260);
+}
+
+/* bubblegum: pink, round and soft. Berry text so it stays readable. */
+[data-theme="bubblegum"] {
+  color-scheme: light;
+
+  --background: oklch(0.965 0.025 350);
+  --foreground: oklch(0.3 0.08 345);
+  --card: oklch(0.985 0.012 350);
+  --card-foreground: oklch(0.3 0.08 345);
+  --popover: oklch(0.99 0.01 350);
+  --popover-foreground: oklch(0.3 0.08 345);
+  --primary: oklch(0.38 0.12 345);
+  --primary-foreground: oklch(0.98 0.015 350);
+  --secondary: oklch(0.93 0.04 345);
+  --secondary-foreground: oklch(0.3 0.08 345);
+  --muted: oklch(0.935 0.035 345);
+  --muted-foreground: oklch(0.52 0.08 345);
+  --accent: oklch(0.91 0.05 340);
+  --accent-foreground: oklch(0.3 0.08 345);
+  --destructive: oklch(0.55 0.21 28);
+  --border: oklch(0.5 0.15 345 / 18%);
+  --input: oklch(0.5 0.15 345 / 22%);
+  --ring: oklch(0.65 0.2 350 / 60%);
+  --sidebar: oklch(0.94 0.04 340);
+  --sidebar-foreground: oklch(0.3 0.08 345);
+  --sidebar-primary: oklch(0.58 0.2 350);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.9 0.055 340);
+  --sidebar-accent-foreground: oklch(0.3 0.08 345);
+  --sidebar-border: oklch(0.5 0.15 345 / 13%);
+  --sidebar-ring: oklch(0.65 0.18 350);
+
+  --radius: 1rem;
+  --app-font: ui-rounded, "SF Pro Rounded", Nunito, Quicksand, "Varela Round", sans-serif;
+
+  --brand-1: #f9a8d4;
+  --brand-2: #db2777;
+  --brand-3: #9333ea;
+  --brand-foreground: #ffffff;
+  --flower: #38bdf8;
+  --glow-1: #f472b6;
+  --glow-2: #c084fc;
+  --glow-intensity: 1.2;
+
+  --app-backdrop:
+    radial-gradient(30% 25% at 8% 92%, oklch(0.85 0.1 350 / 35%), transparent),
+    radial-gradient(25% 22% at 92% 85%, oklch(0.85 0.09 300 / 30%), transparent),
+    radial-gradient(20% 18% at 70% 100%, oklch(0.88 0.08 220 / 30%), transparent);
+
+  /* Danger leans orange-red so it never reads as brand pink. */
+  --success: oklch(0.52 0.13 160);
+  --warning: oklch(0.57 0.14 65);
+  --danger: oklch(0.55 0.21 30);
+  --info: oklch(0.5 0.14 245);
+  --method-patch: oklch(0.5 0.2 300);
+  --syntax-key: oklch(0.48 0.14 260);
+  --syntax-string: oklch(0.5 0.12 160);
+  --syntax-number: oklch(0.55 0.15 55);
+  --syntax-literal: oklch(0.5 0.21 340);
+
+  --template-resolved: oklch(0.45 0.09 200);
+  --captured: oklch(0.45 0.09 200);
+  --shadow: oklch(0.45 0.12 345);
+}
+
+/*
  * ---------- Extras ----------
  * The one place a theme reaches past tokens: bevels need box-shadows on the
  * shared shadcn components (matched by their `data-slot`), nothing app-specific.
- * Keep this section small.
+ * The exceptions match by structure, never by component: `.bg-sidebar` (the
+ * win95 desktop) and bordered boxes holding an input (win95 fields).
  */
 [data-theme="win95"] [data-slot="button"]:not([data-variant="ghost"], [data-variant="link"]),
 [data-theme="win95"] [data-slot="dialog-content"],
@@ -528,19 +951,195 @@
     inset -2px -2px #808080,
     inset 2px 2px #dfdfdf;
 }
+/*
+ * Sunken white fields. A field is either a standalone control, or the
+ * bordered box that holds borderless (`border-0`) or plain inputs: the URL
+ * bar, a key/value table, a search box. Controls embedded in such a box stay
+ * flat, so there is one bevel per field.
+ */
 [data-theme="win95"] [data-slot="button"]:not([data-variant="ghost"], [data-variant="link"]):active,
-[data-theme="win95"] [data-slot="input"],
-[data-theme="win95"] [data-slot="textarea"],
-[data-theme="win95"] [data-slot="select-trigger"] {
+[data-theme="win95"] :is([data-slot="input"], [data-slot="textarea"], [data-slot="select-trigger"]):not(.border-0),
+[data-theme="win95"]
+  div.border:is(
+    :has(> input:not(.border, [type="checkbox"], [type="radio"])),
+    :has(> * > input:not(.border, [type="checkbox"], [type="radio"])),
+    :has(> * > * > input:not(.border, [type="checkbox"], [type="radio"]))
+  ),
+[data-theme="win95"] .bg-sidebar div:has(> input) {
   box-shadow:
     inset -1px -1px #ffffff,
     inset 1px 1px #0a0a0a,
     inset -2px -2px #dfdfdf,
     inset 2px 2px #808080;
 }
+[data-theme="win95"] :is([data-slot="input"], [data-slot="textarea"], [data-slot="select-trigger"]):not(.border-0),
+[data-theme="win95"]
+  div.border:is(
+    :has(> input:not(.border, [type="checkbox"], [type="radio"])),
+    :has(> * > input:not(.border, [type="checkbox"], [type="radio"])),
+    :has(> * > * > input:not(.border, [type="checkbox"], [type="radio"]))
+  ) {
+  border-color: transparent;
+  background: #ffffff;
+}
+/* Controls inside a field are flat and see-through. */
+[data-theme="win95"] :is([data-slot="input"], [data-slot="select-trigger"]).border-0 {
+  background: transparent;
+  box-shadow: none;
+}
+/* The sidebar's search box is a white field on the desktop, with dark text. */
+[data-theme="win95"] .bg-sidebar div:has(> input) {
+  --foreground: #000000;
+  --muted-foreground: #474747;
+  background: #ffffff;
+}
 [data-theme="win95"] ::selection {
   background: #000080;
   color: #ffffff;
+}
+/*
+ * Anything on the teal desktop (`bg-sidebar`): white text, a navy selection,
+ * and the bright half of the 16-colour palette so badges still read on teal.
+ * `--method-*` are set too: they resolve `var(--success)` etc. at the root.
+ */
+[data-theme="win95"] .bg-sidebar {
+  --foreground: #ffffff;
+  --muted-foreground: #e0ffff;
+  --border: #004040;
+  --ring: #ffffff;
+  --sidebar-accent: #000080;
+  --brand-1: #ffff00;
+  --brand-2: #ffffff;
+  --brand-3: #00ffff;
+  --success: #00ff00;
+  --warning: #ffff00;
+  --danger: #ffb4b4;
+  --info: #00ffff;
+  --method-get: #00ff00;
+  --method-post: #ffff00;
+  --method-put: #00ffff;
+  --method-patch: #ffb4ff;
+  --method-delete: #ffb4b4;
+  color: var(--foreground);
+}
+/* No anti-aliasing: crisp, jaggy 1995 text. */
+[data-theme="win95"] body {
+  -webkit-font-smoothing: none;
+}
+/* Dialogs get a navy title bar, with the title in it and a bevelled close box. */
+[data-theme="win95"] [data-slot="dialog-content"] {
+  padding-top: 2.25rem;
+}
+[data-theme="win95"] [data-slot="dialog-content"]::before {
+  content: "";
+  position: absolute;
+  inset: 3px 3px auto;
+  height: 20px;
+  background: linear-gradient(to right, #000080, #1084d0);
+}
+[data-theme="win95"] [data-slot="dialog-content"] [data-slot="dialog-title"]:not(.sr-only) {
+  position: absolute;
+  top: 3px;
+  left: 8px;
+  right: 30px;
+  z-index: 1;
+  overflow: hidden;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 20px;
+  white-space: nowrap;
+}
+[data-theme="win95"] [data-slot="dialog-content"] > button.absolute:last-child {
+  top: 6px;
+  right: 6px;
+  z-index: 1;
+  width: 16px;
+  height: 14px;
+  min-width: 0;
+  padding: 0;
+  background: #c0c0c0;
+  color: #000000;
+  box-shadow:
+    inset -1px -1px #0a0a0a,
+    inset 1px 1px #ffffff,
+    inset -2px -2px #808080,
+    inset 2px 2px #dfdfdf;
+}
+[data-theme="win95"] [data-slot="dialog-content"] > button.absolute:last-child svg {
+  width: 9px;
+  height: 9px;
+  stroke-width: 3.5;
+}
+/* Highlighted menu, list and palette items: navy bar, white text. */
+[data-theme="win95"]
+  :is(
+    [data-slot="dropdown-menu-item"]:focus,
+    [data-slot="dropdown-menu-sub-trigger"]:focus,
+    [data-slot="select-item"][data-highlighted],
+    [data-slot="command-item"][data-selected="true"]
+  ),
+[data-theme="win95"]
+  :is(
+    [data-slot="dropdown-menu-item"]:focus,
+    [data-slot="dropdown-menu-sub-trigger"]:focus,
+    [data-slot="select-item"][data-highlighted],
+    [data-slot="command-item"][data-selected="true"]
+  )
+  * {
+  background-color: #000080;
+  color: #ffffff;
+}
+/* Etched separators. */
+[data-theme="win95"]
+  :is([data-slot="dropdown-menu-separator"], [data-slot="select-separator"], [data-slot="command-separator"]) {
+  background: #808080;
+  box-shadow: 0 1px #ffffff;
+}
+/* The active tab is raised out of the strip. */
+[data-theme="win95"] [data-slot="tabs-list"][data-variant="default"] [data-slot="tabs-trigger"][data-state="active"] {
+  background: #c0c0c0;
+  box-shadow:
+    inset -1px -1px #0a0a0a,
+    inset 1px 1px #ffffff,
+    inset -2px -2px #808080,
+    inset 2px 2px #dfdfdf;
+}
+/* The dotted focus rectangle. */
+[data-theme="win95"] :is([data-slot="button"], [data-slot="tabs-trigger"]):focus-visible {
+  outline: 1px dotted #000000;
+  outline-offset: -4px;
+}
+/* Pale yellow tooltips with a hairline border, no arrow. */
+[data-theme="win95"] [data-slot="tooltip-content"] {
+  background: #ffffe1;
+  color: #000000;
+  border: 1px solid #000000;
+  box-shadow: none;
+}
+[data-theme="win95"] [data-slot="tooltip-content"] > svg:last-child {
+  display: none;
+}
+/* Chunky bevelled scrollbars on a dithered track. */
+[data-theme="win95"] ::-webkit-scrollbar {
+  width: 16px;
+  height: 16px;
+}
+[data-theme="win95"] ::-webkit-scrollbar-track {
+  background: repeating-conic-gradient(#c0c0c0 0 25%, #ffffff 0 50%) 0 0 / 2px 2px;
+}
+[data-theme="win95"] ::-webkit-scrollbar-thumb {
+  background: #c0c0c0;
+  border: none;
+  border-radius: 0;
+  box-shadow:
+    inset -1px -1px #0a0a0a,
+    inset 1px 1px #ffffff,
+    inset -2px -2px #808080,
+    inset 2px 2px #dfdfdf;
+}
+[data-theme="win95"] ::-webkit-scrollbar-corner {
+  background: #c0c0c0;
 }
 
 /* aqua: gel buttons, a blue gel scrollbar thumb, and the Mac highlight. */

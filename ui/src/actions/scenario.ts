@@ -18,6 +18,8 @@ export function editScenario(scenario: Scenario): void {
 export async function selectScenario(path: ProjectPath): Promise<void> {
   const project = currentProject();
   if (!project) return;
+  // Picking a request leaves the Critters view.
+  useUiStore.getState().setView("editor");
   if (isDirty(useEditorStore.getState().buffers[path])) {
     useEditorStore.getState().shown(path);
     const history = await reportErrors(() => backend.loadHistory(project, path), path);

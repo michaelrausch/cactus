@@ -1,7 +1,6 @@
-import { Copy, GitBranch, PanelRight, Play, Save, TriangleAlert } from "lucide-react";
+import { GitBranch, PanelRight, Play, Save, TriangleAlert } from "lucide-react";
 import { openChanges } from "@/actions/git";
 import { runFolder } from "@/actions/request";
-import { duplicateScenario } from "@/actions/scenario";
 import { saveScenario } from "@/actions/saving";
 import { withShortcut } from "@/app/shortcuts";
 import { IconButton } from "@/components/IconButton";
@@ -113,20 +112,37 @@ function ScenarioActions() {
       <IconButton label={`Run ${dir ? `${dir}/` : "all"}`} onClick={() => void runFolder(dir)}>
         <Play />
       </IconButton>
-      <IconButton label={withShortcut("Duplicate", "duplicate")} onClick={() => void duplicateScenario(path)}>
-        <Copy />
-      </IconButton>
     </>
+  );
+}
+
+function CrittersBreadcrumb({ project }: { project: string }) {
+  return (
+    <div className="flex min-w-0 flex-1 items-center gap-2 text-sm">
+      <span className="truncate text-muted-foreground">{baseName(project)}</span>
+      <Separator />
+      <span className="truncate font-medium">Critters</span>
+      <span className="text-xs text-muted-foreground">Esc to go back</span>
+    </div>
   );
 }
 
 export function Header() {
   const project = useProjectStore((s) => s.project);
   const responseVisible = useUiStore((s) => s.responseVisible);
+  const inCritters = useUiStore((s) => s.view === "critters");
   const hasResponse = useResponseStore(hasResponseContent);
   return (
     <header className="relative flex h-12 shrink-0 items-center gap-2 px-4">
-      {project && (
+      {project && inCritters && (
+        <>
+          <CrittersBreadcrumb project={project} />
+          <div className="ml-auto flex items-center gap-1">
+            <GitChip />
+          </div>
+        </>
+      )}
+      {project && !inCritters && (
         <>
           <Breadcrumb project={project} />
           <div className="ml-auto flex items-center gap-1">

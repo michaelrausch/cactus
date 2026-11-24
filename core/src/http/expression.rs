@@ -3,10 +3,13 @@
 //! `res.headers['content-type']`, `res.responseTime`. An expression without
 //! `res.` (`data.token`, `$.data.token`) reads the body.
 
+use std::collections::BTreeMap;
+
 use serde_json::Value;
 
 use super::response::Response;
 use crate::jsonpath;
+use crate::text::plain_string;
 
 const RES: &str = "res";
 
@@ -64,6 +67,28 @@ impl Subject {
     }
 }
 
+/// Whether `expression` reads the response status, as status assertions do.
+pub(crate) fn is_status_expression(expression: &str) -> bool {
+    Subject::parse(expression) == Some(Subject::Status)
+}
+
+/// The value each expression selects from `response`, as plain text, or
+/// `None` when it selects nothing. The body is parsed once; a truncated or
+/// non-JSON body gives `None` for body paths.
+pub fn select_values(response: &Response, expressions: &[String]) -> BTreeMap<String, Option<String>> {
+    let subjects: Vec<_> = expressions.iter().map(|e| (e, Subject::parse(e))).collect();
+    let reads_body = subjects.iter().any(|(_, s)| s.as_ref().is_some_and(Subject::reads_body));
+    let body =
+        (reads_body && !response.truncated).then(|| serde_json::from_str::<Value>(&response.body).ok()).flatten();
+    subjects
+        .into_iter()
+        .map(|(expression, subject)| {
+            let value = subject.and_then(|s| s.select(response, body.as_ref())).map(|v| plain_string(&v));
+            (expression.clone(), value)
+        })
+        .collect()
+}
+
 /// `""` → `$`, `.a[0]` → `$.a[0]`, `['a b']` → `$["a b"]`.
 fn body_path(rest: &str) -> Option<String> {
     if rest.is_empty() || rest.starts_with(['.', '[']) { Some(format!("${}", normalise_quotes(rest))) } else { None }
@@ -103,5 +128,24 @@ mod tests {
         assert_eq!(Subject::parse("res.bodyx"), None);
         assert_eq!(Subject::parse("res.cookies"), None);
         assert_eq!(Subject::parse(""), None);
+    }
+
+    #[test]
+    fn selects_watched_values() {
+        let mut response: Response = serde_json::from_value(serde_json::json!({
+            "method": "GET", "url": "", "status": 200, "statusText": "OK", "headers": [["etag", "x1"]],
+            "body": r#"{"version": "1.4.2", "n": 3}"#, "truncated": false, "timeMs": 5, "sizeBytes": 0, "unresolved": []
+        }))
+        .unwrap();
+        let expressions: Vec<String> =
+            ["res.body.version", "res.body.n", "res.status", "res.headers.etag", "res.body.gone", "res.cookies"]
+                .map(String::from)
+                .into();
+        let values = select_values(&response, &expressions);
+        let got: Vec<_> = expressions.iter().map(|e| values[e].as_deref()).collect();
+        assert_eq!(got, [Some("1.4.2"), Some("3"), Some("200"), Some("x1"), None, None]);
+        response.truncated = true;
+        assert_eq!(select_values(&response, &expressions)["res.body.version"], None);
+        assert!(is_status_expression(" res.status") && !is_status_expression("res.body.status"));
     }
 }

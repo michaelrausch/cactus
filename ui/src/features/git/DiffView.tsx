@@ -3,7 +3,6 @@ import { GitMarker } from "@/components/GitMarker";
 import { changeOn } from "@/domain/git";
 import { cn } from "@/lib/utils";
 import { useGitStore } from "@/stores/gitStore";
-import { FileActions } from "./ChangeList";
 
 const LINE_STYLES: Record<DiffLine["kind"], { prefix: string; className: string }> = {
   context: { prefix: " ", className: "" },
@@ -50,9 +49,6 @@ export function DiffView() {
         <span className="min-w-0 truncate font-medium">{selected.path}</span>
         <span className="shrink-0 text-xs text-muted-foreground">
           {selected.side === "staged" ? "staged" : "not staged"}
-        </span>
-        <span className="ml-auto flex shrink-0 items-center">
-          <FileActions file={file} side={selected.side} />
         </span>
       </div>
       <div className="min-h-0 flex-1 overflow-auto py-2 font-mono text-xs leading-5">

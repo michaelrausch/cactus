@@ -6,7 +6,10 @@ import * as __TAURI_EVENT from "@tauri-apps/api/event";
 
 /** Commands */
 export const commands = {
-	/**  List the project's scenarios, remember it as recent and start watching it. */
+	/**
+	 *  List the project's scenarios, remember it as recent, start its enabled
+	 *  schedules and start watching it.
+	 */
 	openProject: (project: string, options?: InvokeOptions) => __TAURI_INVOKE<ScenarioEntry[]>("open_project", { project }, options),
 	/**  Re-list, and re-watch so folders created since opening are covered. */
 	listScenarios: (project: string, options?: InvokeOptions) => __TAURI_INVOKE<ScenarioEntry[]>("list_scenarios", { project }, options),
@@ -26,10 +29,77 @@ export const commands = {
 	renameEnv: (project: string, from: string, to: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("rename_env", { project, from, to }, options),
 	deleteEnv: (project: string, name: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("delete_env", { project, name }, options),
 	/**
-	 *  The names of every variable a request at `path` can use with the active
-	 *  env, for highlighting and completing `{{name}}`.
+	 *  Every variable a request at `path` can use as the active env and
+	 *  critter, and where its value comes from, for highlighting, completing
+	 *  and explaining `{{name}}`.
 	 */
-	variableNames: (project: string, path: ProjectPath, options?: InvokeOptions) => __TAURI_INVOKE<string[]>("variable_names", { project, path }, options),
+	variableSources: (project: string, path: ProjectPath, options?: InvokeOptions) => __TAURI_INVOKE<{ [key in string]: VarSource }>("variable_sources", { project, path }, options),
+	/**
+	 *  Where each variable comes from in the active env with no critter, at
+	 *  the project root: what a critter's own variables override.
+	 */
+	baseVariableSources: (project: string, options?: InvokeOptions) => __TAURI_INVOKE<{ [key in string]: VarSource }>("base_variable_sources", { project }, options),
+	listCritters: (project: string, options?: InvokeOptions) => __TAURI_INVOKE<CritterSummary_Serialize[]>("list_critters", { project }, options),
+	loadCritter: (project: string, id: string, options?: InvokeOptions) => __TAURI_INVOKE<Critter_Serialize>("load_critter", { project, id }, options),
+	saveCritter: (project: string, id: string, critter: Critter_Deserialize, options?: InvokeOptions) => __TAURI_INVOKE<null>("save_critter", { project, id, critter }, options),
+	createCritter: (project: string, id: string, critter: Critter_Deserialize, options?: InvokeOptions) => __TAURI_INVOKE<null>("create_critter", { project, id, critter }, options),
+	/**  Rename a critter; its enabled schedules follow. */
+	renameCritter: (project: string, from: string, to: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("rename_critter", { project, from, to }, options),
+	duplicateCritter: (project: string, from: string, to: string, name: string, species: Species, options?: InvokeOptions) => __TAURI_INVOKE<null>("duplicate_critter", { project, from, to, name, species }, options),
+	deleteCritter: (project: string, id: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("delete_critter", { project, id }, options),
+	activeCritter: (project: string, options?: InvokeOptions) => __TAURI_INVOKE<string | null>("active_critter", { project }, options),
+	setActiveCritter: (project: string, id: string | null, options?: InvokeOptions) => __TAURI_INVOKE<null>("set_active_critter", { project, id }, options),
+	loadContext: (project: string, id: string, options?: InvokeOptions) => __TAURI_INVOKE<{ [key in string]: ContextEntry }>("load_context", { project, id }, options),
+	/**  Put back entries [`clear_context`] removed (Undo). */
+	restoreContext: (project: string, id: string, entries: { [key in string]: ContextEntry }, options?: InvokeOptions) => __TAURI_INVOKE<null>("restore_context", { project, id, entries }, options),
+	/**
+	 *  Remove the named entries (all when `names` is `None`) and return them,
+	 *  so the UI can offer Undo.
+	 */
+	clearContext: (project: string, id: string, names: string[] | null, options?: InvokeOptions) => __TAURI_INVOKE<{ [key in string]: ContextEntry }>("clear_context", { project, id, names }, options),
+	listFlows: (project: string, critter: string, options?: InvokeOptions) => __TAURI_INVOKE<FlowSummary_Serialize[]>("list_flows", { project, critter }, options),
+	loadFlow: (project: string, critter: string, flow: string, options?: InvokeOptions) => __TAURI_INVOKE<Flow_Serialize>("load_flow", { project, critter, flow }, options),
+	/**
+	 *  Save by editing the flow file in place. A changed trigger takes effect
+	 *  at once.
+	 */
+	saveFlow: (project: string, critter: string, flow: string, definition: Flow_Deserialize, options?: InvokeOptions) => __TAURI_INVOKE<null>("save_flow", { project, critter, flow, definition }, options),
+	createFlow: (project: string, critter: string, flow: string, definition: Flow_Deserialize, options?: InvokeOptions) => __TAURI_INVOKE<null>("create_flow", { project, critter, flow, definition }, options),
+	renameFlow: (project: string, critter: string, from: string, to: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("rename_flow", { project, critter, from, to }, options),
+	deleteFlow: (project: string, critter: string, flow: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("delete_flow", { project, critter, flow }, options),
+	loadFlowText: (project: string, critter: string, flow: string, options?: InvokeOptions) => __TAURI_INVOKE<string>("load_flow_text", { project, critter, flow }, options),
+	/**  Write the YAML editor's text as typed; text that isn't a valid flow is refused. */
+	saveFlowText: (project: string, critter: string, flow: string, text: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("save_flow_text", { project, critter, flow, text }, options),
+	parseFlow: (text: string, options?: InvokeOptions) => __TAURI_INVOKE<FlowParse_Serialize>("parse_flow", { text }, options),
+	/**  `definition` as YAML, to show unsaved visual edits in the YAML editor. */
+	flowToYaml: (definition: Flow_Deserialize, options?: InvokeOptions) => __TAURI_INVOKE<string>("flow_to_yaml", { definition }, options),
+	/**
+	 *  Where each variable a flow step can use comes from, as `critter` in the
+	 *  active env at the project root: what a flow's steps see before `with`.
+	 */
+	flowVariableSources: (project: string, critter: string, options?: InvokeOptions) => __TAURI_INVOKE<{ [key in string]: VarSource }>("flow_variable_sources", { project, critter }, options),
+	/**
+	 *  Run a flow, emitting [`FlowProgress`] per step. `env` overrides the
+	 *  active one. Resolves to `None` when cancelled.
+	 */
+	runFlow: (project: string, critter: string, flow: string, env: string | null, options?: InvokeOptions) => __TAURI_INVOKE<FlowRun_Serialize | null>("run_flow", { project, critter, flow, env }, options),
+	/**
+	 *  Send the request as edited as no critter and as each critter,
+	 *  emitting [`MatrixProgress`] per row. Resolves to `None` when cancelled.
+	 */
+	runMatrix: (project: string, path: ProjectPath, scenario: Scenario_Deserialize, options?: InvokeOptions) => __TAURI_INVOKE<MatrixCell_Serialize[] | null>("run_matrix", { project, path, scenario }, options),
+	/**  Turn a flow's schedule on or off on this machine. */
+	setScheduleEnabled: (project: string, critter: string, flow: string, enabled: boolean, options?: InvokeOptions) => __TAURI_INVOKE<null>("set_schedule_enabled", { project, critter, flow, enabled }, options),
+	/**  Pause or resume every schedule; nothing runs while paused. */
+	setSchedulesPaused: (paused: boolean, options?: InvokeOptions) => __TAURI_INVOKE<void>("set_schedules_paused", { paused }, options),
+	scheduleStates: (project: string, options?: InvokeOptions) => __TAURI_INVOKE<ScheduleStates_Serialize>("schedule_states", { project }, options),
+	/**  The flow's recent runs, oldest first. */
+	loadRunLog: (project: string, critter: string, flow: string, options?: InvokeOptions) => __TAURI_INVOKE<RunRecord_Serialize[]>("load_run_log", { project, critter, flow }, options),
+	/**
+	 *  Run a scheduled flow once now, outside its timer, the same way the timer
+	 *  does: recorded, compared and alerted on.
+	 */
+	runScheduledNow: (project: string, critter: string, flow: string, options?: InvokeOptions) => __TAURI_INVOKE<RunRecord_Serialize>("run_scheduled_now", { project, critter, flow }, options),
 	/**  `None` when the project isn't in a git repository. */
 	gitStatus: (project: string, options?: InvokeOptions) => __TAURI_INVOKE<GitStatus_Serialize | null>("git_status", { project }, options),
 	/**  Make the project folder a git repository. */
@@ -55,8 +125,8 @@ export const commands = {
 	gitDeleteBranch: (project: string, name: string, force: boolean, options?: InvokeOptions) => __TAURI_INVOKE<null>("git_delete_branch", { project, name, force }, options),
 	importFile: (project: string, file: string, options?: InvokeOptions) => __TAURI_INVOKE<ImportSummary>("import_file", { project, file }, options),
 	/**
-	 *  Send the scenario as edited (it may not be saved yet). Resolves to
-	 *  `None` when cancelled.
+	 *  Send the scenario as edited (it may not be saved yet), as the active
+	 *  env and critter. Resolves to `None` when cancelled.
 	 */
 	sendRequest: (project: string, path: ProjectPath, scenario: Scenario_Deserialize, options?: InvokeOptions) => __TAURI_INVOKE<Response_Serialize | null>("send_request", { project, path, scenario }, options),
 	/**
@@ -69,8 +139,13 @@ export const commands = {
 
 /** Events */
 export const events = {
+	contextChanged: makeEvent<ContextChanged, ContextChanged>("context-changed"),
+	flowProgress: makeEvent<FlowProgress_Serialize, FlowProgress_Deserialize>("flow-progress"),
 	fsChanged: makeEvent<FsChanged, FsChanged>("fs-changed"),
+	matrixProgress: makeEvent<MatrixProgress_Serialize, MatrixProgress_Deserialize>("matrix-progress"),
+	monitorAlert: makeEvent<MonitorAlert_Serialize, MonitorAlert_Deserialize>("monitor-alert"),
 	runProgress: makeEvent<RunProgress_Serialize, RunProgress_Deserialize>("run-progress"),
+	scheduledRunFinished: makeEvent<ScheduledRunFinished_Serialize, ScheduledRunFinished_Deserialize>("scheduled-run-finished"),
 };
 
 /* Types */
@@ -93,6 +168,39 @@ export type ActionVariable_Serialize = {
 export type Action_Deserialize = SetVariable_Deserialize | JsonValue;
 
 export type Action_Serialize = SetVariable_Serialize | JsonValue;
+
+export type AlertEvent = AlertEvent_Serialize | AlertEvent_Deserialize;
+
+export type AlertEvent_Deserialize = 
+/**  The flow started failing. `step` is `None` when it couldn't start. */
+{ kind: "failing"; step?: number | null; request?: string | null; reason: string } | { kind: "recovered" } | 
+/**  A watched value differs from the previous run's. */
+{ kind: "changed"; step: number; expression: string; before?: string | null; after?: string | null };
+
+export type AlertEvent_Serialize = 
+/**  The flow started failing. `step` is `None` when it couldn't start. */
+{ kind: "failing"; step: number | null; request: string | null; reason: string } | { kind: "recovered" } | 
+/**  A watched value differs from the previous run's. */
+{ kind: "changed"; step: number; expression: string; before: string | null; after: string | null };
+
+export type AlertOn = 
+/**  Starting to fail, and recovering. */
+"failure" | 
+/**  A watched value differing from the previous run. */
+"change";
+
+/**  Which changes of state alert. */
+export type AlertRule = AlertRule_Serialize | AlertRule_Deserialize;
+
+/**  Which changes of state alert. */
+export type AlertRule_Deserialize = {
+	on?: AlertOn[],
+};
+
+/**  Which changes of state alert. */
+export type AlertRule_Serialize = {
+	on: AlertOn[],
+};
 
 export type ApiKeyPlacement = "header" | "query";
 
@@ -198,6 +306,83 @@ export type CommitSummary = {
 	at: number,
 };
 
+/**
+ *  A critter's captured context may have changed. Writes to `.cactus/` are
+ *  invisible to the watcher, so the UI needs this to stay current.
+ */
+export type ContextChanged = {
+	critter: string,
+};
+
+/**  A captured value in `.cactus/critters/<id>/context.json`. */
+export type ContextEntry = {
+	value: string,
+	/**  The request that captured it, or `"edited"`. */
+	from: string,
+	/**  Unix epoch millis. */
+	at: number,
+};
+
+/**  `critters/<id>/critter.yml`. */
+export type Critter = Critter_Serialize | Critter_Deserialize;
+
+/**  What the UI lists for a critter, in one call. */
+export type CritterSummary = CritterSummary_Serialize | CritterSummary_Deserialize;
+
+/**  What the UI lists for a critter, in one call. */
+export type CritterSummary_Deserialize = {
+	id: string,
+	name: string,
+	species: Species,
+	notes: string,
+	login?: string | null,
+	flows: FlowSummary_Deserialize[],
+	missingSecrets: string[],
+	/**  Why `critter.yml` couldn't be read; the rest is then defaults. */
+	error?: string | null,
+};
+
+/**  What the UI lists for a critter, in one call. */
+export type CritterSummary_Serialize = {
+	id: string,
+	name: string,
+	species: Species,
+	notes: string,
+	login: string | null,
+	flows: FlowSummary_Serialize[],
+	missingSecrets: string[],
+	/**  Why `critter.yml` couldn't be read; the rest is then defaults. */
+	error: string | null,
+};
+
+/**  `critters/<id>/critter.yml`. */
+export type Critter_Deserialize = {
+	name?: LenientString,
+	species?: Species,
+	notes?: LenientString,
+	/**  The flow that logs this critter in again after a 401. */
+	login?: LenientString | null,
+	/**
+	 *  Same shape as an environment's variables; `secret: true` values live
+	 *  in `.cactus/critters/<id>/secrets.json`.
+	 */
+	variables?: Variable_Deserialize[],
+};
+
+/**  `critters/<id>/critter.yml`. */
+export type Critter_Serialize = {
+	name: LenientString,
+	species: Species,
+	notes?: LenientString,
+	/**  The flow that logs this critter in again after a 401. */
+	login?: LenientString,
+	/**
+	 *  Same shape as an environment's variables; `secret: true` values live
+	 *  in `.cactus/critters/<id>/secrets.json`.
+	 */
+	variables?: Variable_Serialize[],
+};
+
 export type DiffHunk = DiffHunk_Serialize | DiffHunk_Deserialize;
 
 export type DiffHunk_Deserialize = {
@@ -238,7 +423,7 @@ export type DiffSide =
 /**  Index → work tree: what isn't staged yet. */
 "unstaged";
 
-/**  One env layer. Later layers override earlier ones; see [`resolve`]. */
+/**  One env layer. Later layers override earlier ones; see [`resolve_for_request`]. */
 export type EnvFile = 
 /**  The collection's variables in `opencollection.yml`, shared and committed. */
 { kind: "base" } | 
@@ -247,7 +432,13 @@ export type EnvFile =
 /**  `.cactus/secrets.json`, never committed. */
 { kind: "secrets" } | 
 /**  `.cactus/captured.json`, written by set-variable actions. */
-{ kind: "captured" };
+{ kind: "captured" } | 
+/**  The variables in `critters/<id>/critter.yml`. */
+{ kind: "critter"; name: string } | 
+/**  `.cactus/critters/<id>/secrets.json`. */
+{ kind: "critterSecrets"; name: string } | 
+/**  The values of `.cactus/critters/<id>/context.json`. */
+{ kind: "critterContext"; name: string };
 
 export type Error = string;
 
@@ -303,6 +494,183 @@ export type FileVariant_Serialize = {
 	filePath: string,
 	contentType: string,
 	selected: boolean,
+};
+
+/**  `critters/<id>/flows/<flow>.yml`: requests run in order as the critter. */
+export type Flow = Flow_Serialize | Flow_Deserialize;
+
+/**
+ *  The outcome of parsing flow text as it is typed. Invalid YAML while
+ *  typing is normal, so it is a value, not an error.
+ */
+export type FlowParse = FlowParse_Serialize | FlowParse_Deserialize;
+
+/**
+ *  The outcome of parsing flow text as it is typed. Invalid YAML while
+ *  typing is normal, so it is a value, not an error.
+ */
+export type FlowParse_Deserialize = { kind: "ok"; flow: Flow_Deserialize } | { kind: "invalid"; message: string; line?: number | null; column?: number | null };
+
+/**
+ *  The outcome of parsing flow text as it is typed. Invalid YAML while
+ *  typing is normal, so it is a value, not an error.
+ */
+export type FlowParse_Serialize = { kind: "ok"; flow: Flow_Serialize } | { kind: "invalid"; message: string; line: number | null; column: number | null };
+
+/**  One step of an interactive flow run finished. */
+export type FlowProgress = FlowProgress_Serialize | FlowProgress_Deserialize;
+
+/**  One step of an interactive flow run finished. */
+export type FlowProgress_Deserialize = {
+	critter: string,
+	flow: string,
+	step: FlowStepResult_Deserialize,
+};
+
+/**  One step of an interactive flow run finished. */
+export type FlowProgress_Serialize = {
+	critter: string,
+	flow: string,
+	step: FlowStepResult_Serialize,
+};
+
+export type FlowRun = FlowRun_Serialize | FlowRun_Deserialize;
+
+export type FlowRun_Deserialize = {
+	/**  Unix epoch millis when the run started. */
+	at: number,
+	env?: string | null,
+	ok: boolean,
+	elapsedMs: number,
+	steps: FlowStepResult_Deserialize[],
+};
+
+export type FlowRun_Serialize = {
+	/**  Unix epoch millis when the run started. */
+	at: number,
+	env: string | null,
+	ok: boolean,
+	elapsedMs: number,
+	steps: FlowStepResult_Serialize[],
+};
+
+/**  One request of a flow and what the flow adds to it. */
+export type FlowStep = FlowStep_Serialize | FlowStep_Deserialize;
+
+/**
+ *  The outcome of one step. Every step of a run gets one, so the UI and the
+ *  run log can line them up with the flow.
+ */
+export type FlowStepResult = FlowStepResult_Serialize | FlowStepResult_Deserialize;
+
+/**
+ *  The outcome of one step. Every step of a run gets one, so the UI and the
+ *  run log can line them up with the flow.
+ */
+export type FlowStepResult_Deserialize = {
+	index: number,
+	/**  The step's `request`, as written. */
+	request: string,
+	title: string,
+	ok: boolean,
+	/**  Not run because an earlier step failed. */
+	skipped: boolean,
+	response?: Response_Deserialize | null,
+	error?: string | null,
+	/**  The values of the step's `watch` expressions. */
+	watched: { [key in string]: string | null },
+};
+
+/**
+ *  The outcome of one step. Every step of a run gets one, so the UI and the
+ *  run log can line them up with the flow.
+ */
+export type FlowStepResult_Serialize = {
+	index: number,
+	/**  The step's `request`, as written. */
+	request: string,
+	title: string,
+	ok: boolean,
+	/**  Not run because an earlier step failed. */
+	skipped: boolean,
+	response: Response_Serialize | null,
+	error: string | null,
+	/**  The values of the step's `watch` expressions. */
+	watched: { [key in string]: string | null },
+};
+
+/**  One request of a flow and what the flow adds to it. */
+export type FlowStep_Deserialize = {
+	/**
+	 *  Project-relative request file. Checked when the step runs, so a bad
+	 *  path is a step error rather than a flow that won't load.
+	 */
+	request?: LenientString,
+	/**  Variables for this step only, with the highest precedence. */
+	with?: { [key in string]: LenientString },
+	/**  `name: res.* expression`, saved to the critter's context. */
+	capture?: { [key in string]: LenientString },
+	/**  Replaces the request's own status assertions. */
+	expect?: number | null,
+	/**  Extra checks, after the request's own. */
+	assert?: Assertion_Deserialize[],
+	/**  Expressions whose values are compared with the previous run's. */
+	watch?: LenientString[],
+};
+
+/**  One request of a flow and what the flow adds to it. */
+export type FlowStep_Serialize = {
+	/**
+	 *  Project-relative request file. Checked when the step runs, so a bad
+	 *  path is a step error rather than a flow that won't load.
+	 */
+	request: LenientString,
+	/**  Variables for this step only, with the highest precedence. */
+	with?: { [key in string]: LenientString },
+	/**  `name: res.* expression`, saved to the critter's context. */
+	capture?: { [key in string]: LenientString },
+	/**  Replaces the request's own status assertions. */
+	expect?: number,
+	/**  Extra checks, after the request's own. */
+	assert?: Assertion_Serialize[],
+	/**  Expressions whose values are compared with the previous run's. */
+	watch?: LenientString[],
+};
+
+export type FlowSummary = FlowSummary_Serialize | FlowSummary_Deserialize;
+
+export type FlowSummary_Deserialize = {
+	id: string,
+	name: string,
+	steps: number,
+	trigger?: Trigger_Deserialize | null,
+	/**  Why the flow file couldn't be read. */
+	error?: string | null,
+};
+
+export type FlowSummary_Serialize = {
+	id: string,
+	name: string,
+	steps: number,
+	trigger: Trigger_Serialize | null,
+	/**  Why the flow file couldn't be read. */
+	error: string | null,
+};
+
+/**  `critters/<id>/flows/<flow>.yml`: requests run in order as the critter. */
+export type Flow_Deserialize = {
+	name?: LenientString,
+	trigger?: Trigger_Deserialize | null,
+	alert?: AlertRule_Deserialize | null,
+	steps?: FlowStep_Deserialize[],
+};
+
+/**  `critters/<id>/flows/<flow>.yml`: requests run in order as the critter. */
+export type Flow_Serialize = {
+	name: LenientString,
+	trigger?: Trigger_Serialize,
+	alert?: AlertRule_Serialize,
+	steps: FlowStep_Serialize[],
 };
 
 /**  `name=value` of a form body. */
@@ -432,6 +800,9 @@ export type ImportSummary = {
 /**  The literal `inherit`: take the setting from the folder or collection. */
 export type Inherit = "inherit";
 
+/**  A schedule interval in seconds, written `30s`, `5m` or `1h`. */
+export type Interval = string;
+
 export type JsonValue = null | boolean | number | null | string | JsonValue[] | { [key in string]: JsonValue };
 
 /**
@@ -440,6 +811,56 @@ export type JsonValue = null | boolean | number | null | string | JsonValue[] | 
  *  writes as a plain string, and derefs to [`String`].
  */
 export type LenientString = string;
+
+export type MatrixCell = MatrixCell_Serialize | MatrixCell_Deserialize;
+
+export type MatrixCell_Deserialize = {
+	/**  `None` is the row with no critter. */
+	critter?: string | null,
+	response?: Response_Deserialize | null,
+	error?: string | null,
+	/**  Why the critter wasn't sent as, e.g. missing secrets. */
+	skipped?: string | null,
+};
+
+export type MatrixCell_Serialize = {
+	/**  `None` is the row with no critter. */
+	critter: string | null,
+	response: Response_Serialize | null,
+	error: string | null,
+	/**  Why the critter wasn't sent as, e.g. missing secrets. */
+	skipped: string | null,
+};
+
+/**  One row of a matrix run finished. */
+export type MatrixProgress = MatrixProgress_Serialize | MatrixProgress_Deserialize;
+
+/**  One row of a matrix run finished. */
+export type MatrixProgress_Deserialize = MatrixCell_Deserialize;
+
+/**  One row of a matrix run finished. */
+export type MatrixProgress_Serialize = MatrixCell_Serialize;
+
+/**  A scheduled flow started failing, recovered, or a watched value changed. */
+export type MonitorAlert = MonitorAlert_Serialize | MonitorAlert_Deserialize;
+
+/**  A scheduled flow started failing, recovered, or a watched value changed. */
+export type MonitorAlert_Deserialize = {
+	critter: string,
+	flow: string,
+	event: AlertEvent_Deserialize,
+	/**  Unix epoch millis. */
+	at: number,
+};
+
+/**  A scheduled flow started failing, recovered, or a watched value changed. */
+export type MonitorAlert_Serialize = {
+	critter: string,
+	flow: string,
+	event: AlertEvent_Serialize,
+	/**  Unix epoch millis. */
+	at: number,
+};
 
 export type MultipartField = MultipartField_Serialize | MultipartField_Deserialize;
 
@@ -494,6 +915,8 @@ export type RequestInfo_Deserialize = {
 	type?: RequestType,
 	/**  Position among its siblings; Bruno lists and runs requests by it. */
 	seq?: number | null,
+	/**  OpenCollection tags; `auth` marks a request that logs in. */
+	tags?: LenientString[],
 };
 
 export type RequestInfo_Serialize = {
@@ -501,6 +924,8 @@ export type RequestInfo_Serialize = {
 	type: RequestType,
 	/**  Position among its siblings; Bruno lists and runs requests by it. */
 	seq?: number | null,
+	/**  OpenCollection tags; `auth` marks a request that logs in. */
+	tags?: LenientString[],
 };
 
 export type RequestType = "http";
@@ -525,6 +950,10 @@ export type Response_Deserialize = {
 	/**  Set-variable actions that found nothing to save. */
 	captureFailures?: CaptureFailure[],
 	checks?: Check[],
+	/**  The critter it was sent as. */
+	critter?: string | null,
+	/**  Whether it was sent again after the critter logged in again on a 401. */
+	relogged?: boolean,
 };
 
 export type Response_Serialize = {
@@ -545,6 +974,10 @@ export type Response_Serialize = {
 	/**  Set-variable actions that found nothing to save. */
 	captureFailures: CaptureFailure[],
 	checks: Check[],
+	/**  The critter it was sent as. */
+	critter: string | null,
+	/**  Whether it was sent again after the critter logged in again on a 401. */
+	relogged: boolean,
 };
 
 /**  One scenario of a folder run finished. */
@@ -555,6 +988,33 @@ export type RunProgress_Deserialize = RunResult_Deserialize;
 
 /**  One scenario of a folder run finished. */
 export type RunProgress_Serialize = RunResult_Serialize;
+
+/**  One run, without bodies, so the log stays small. */
+export type RunRecord = RunRecord_Serialize | RunRecord_Deserialize;
+
+/**  One run, without bodies, so the log stays small. */
+export type RunRecord_Deserialize = {
+	/**  Unix epoch millis. */
+	at: number,
+	env?: string | null,
+	ok: boolean,
+	elapsedMs: number,
+	steps: StepRecord_Deserialize[],
+	/**  Why the run couldn't start, e.g. the flow file no longer parses. */
+	error?: string | null,
+};
+
+/**  One run, without bodies, so the log stays small. */
+export type RunRecord_Serialize = {
+	/**  Unix epoch millis. */
+	at: number,
+	env: string | null,
+	ok: boolean,
+	elapsedMs: number,
+	steps: StepRecord_Serialize[],
+	/**  Why the run couldn't start, e.g. the flow file no longer parses. */
+	error?: string,
+};
 
 export type RunResult = RunResult_Serialize | RunResult_Deserialize;
 
@@ -597,6 +1057,8 @@ export type ScenarioEntry = {
 	relPath: ProjectPath,
 	title: string,
 	method: string,
+	/**  `info.tags`; `auth` marks a request that logs in. */
+	tags: string[],
 };
 
 export type Scenario_Deserialize = {
@@ -613,6 +1075,66 @@ export type Scenario_Serialize = {
 	runtime?: Runtime_Serialize,
 	settings?: Settings_Serialize,
 	docs?: LenientString,
+};
+
+export type ScheduleState = ScheduleState_Serialize | ScheduleState_Deserialize;
+
+export type ScheduleState_Deserialize = {
+	critter: string,
+	flow: string,
+	/**  `None` when the flow has no trigger or can't be read. */
+	every?: Interval | null,
+	env?: string | null,
+	/**  Unix epoch millis of the next run; `None` when nothing is running. */
+	nextAt?: number | null,
+	/**  The most recent run. */
+	last?: RunRecord_Deserialize | null,
+};
+
+export type ScheduleState_Serialize = {
+	critter: string,
+	flow: string,
+	/**  `None` when the flow has no trigger or can't be read. */
+	every: Interval | null,
+	env: string | null,
+	/**  Unix epoch millis of the next run; `None` when nothing is running. */
+	nextAt: number | null,
+	/**  The most recent run. */
+	last: RunRecord_Serialize | null,
+};
+
+/**  Every schedule enabled on this machine, for the Scheduled list. */
+export type ScheduleStates = ScheduleStates_Serialize | ScheduleStates_Deserialize;
+
+/**  Every schedule enabled on this machine, for the Scheduled list. */
+export type ScheduleStates_Deserialize = {
+	/**  Whether every schedule is paused. */
+	paused: boolean,
+	schedules: ScheduleState_Deserialize[],
+};
+
+/**  Every schedule enabled on this machine, for the Scheduled list. */
+export type ScheduleStates_Serialize = {
+	/**  Whether every schedule is paused. */
+	paused: boolean,
+	schedules: ScheduleState_Serialize[],
+};
+
+/**  A scheduled flow ran (on its timer or through "Run now"). */
+export type ScheduledRunFinished = ScheduledRunFinished_Serialize | ScheduledRunFinished_Deserialize;
+
+/**  A scheduled flow ran (on its timer or through "Run now"). */
+export type ScheduledRunFinished_Deserialize = {
+	critter: string,
+	flow: string,
+	record: RunRecord_Deserialize,
+};
+
+/**  A scheduled flow ran (on its timer or through "Run now"). */
+export type ScheduledRunFinished_Serialize = {
+	critter: string,
+	flow: string,
+	record: RunRecord_Serialize,
 };
 
 /**  JavaScript run around the request. Kept, but cactus has no engine to run it. */
@@ -675,7 +1197,49 @@ export type Settings_Serialize = {
 	timeout?: Timeout,
 };
 
+/**  What the critter looks like. An unknown species reads as the default. */
+export type Species = "roadrunner" | "tortoise" | "gecko" | "elf-owl" | "armadillo" | "scorpion" | "jackalope" | "tumbleweed";
+
+export type StepRecord = StepRecord_Serialize | StepRecord_Deserialize;
+
+export type StepRecord_Deserialize = {
+	request: string,
+	ok: boolean,
+	skipped: boolean,
+	status?: number | null,
+	failedChecks: Check[],
+	error?: string | null,
+	watched: { [key in string]: string | null },
+};
+
+export type StepRecord_Serialize = {
+	request: string,
+	ok: boolean,
+	skipped: boolean,
+	status: number | null,
+	failedChecks: Check[],
+	error: string | null,
+	watched: { [key in string]: string | null },
+};
+
 export type Timeout = number | Inherit;
+
+/**  When a flow runs on its own. */
+export type Trigger = Trigger_Serialize | Trigger_Deserialize;
+
+/**  When a flow runs on its own. */
+export type Trigger_Deserialize = {
+	every: Interval,
+	/**  The env to run in; the active one when not set. */
+	env?: string | null,
+};
+
+/**  When a flow runs on its own. */
+export type Trigger_Serialize = {
+	every: Interval,
+	/**  The env to run in; the active one when not set. */
+	env?: string,
+};
 
 /**  The body kinds cactus sends. */
 export type TypedBody = TypedBody_Serialize | TypedBody_Deserialize;
@@ -689,6 +1253,9 @@ export type TypedBody_Deserialize =
 export type TypedBody_Serialize = 
 /**  JSON text, sent as written after `{{var}}` substitution. */
 { type: "json"; data: LenientString } | { type: "text"; data: LenientString } | { type: "xml"; data: LenientString } | { type: "sparql"; data: LenientString } | { type: "form-urlencoded"; data: FormField_Serialize[] } | { type: "multipart-form"; data: MultipartField_Serialize[] } | { type: "file"; data: FileVariant_Serialize[] };
+
+/**  Where a variable's value comes from: the highest layer that sets it. */
+export type VarSource = { kind: "collection" } | { kind: "environment"; name: string } | { kind: "folder"; dir: string } | { kind: "request" } | { kind: "secret" } | { kind: "captured" } | { kind: "critter" } | { kind: "critterSecret" } | { kind: "critterContext"; from: string; at: number } | { kind: "step" };
 
 /**
  *  A variable in a collection, folder, environment or request. A `secret`

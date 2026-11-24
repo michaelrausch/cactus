@@ -30,6 +30,8 @@ pub struct ScenarioEntry {
     pub rel_path: ProjectPath,
     pub title: String,
     pub method: String,
+    /// `info.tags`; `auth` marks a request that logs in.
+    pub tags: Vec<String>,
 }
 
 /// The fields of a request file the listing reads.
@@ -47,6 +49,8 @@ struct HeaderInfo {
     name: LenientString,
     #[serde(default)]
     seq: Option<f64>,
+    #[serde(default)]
+    tags: Vec<LenientString>,
 }
 
 #[derive(Deserialize)]
@@ -174,8 +178,10 @@ fn read_entry(project: &Path, entry: &DirEntry) -> Option<(ScenarioEntry, Option
         return None;
     }
     let header = ScenarioHeader::read(entry.path());
+    let seq = header.info.seq;
     let title = if header.info.name.is_empty() { fallback_title(&rel_path) } else { header.info.name.0 };
-    Some((ScenarioEntry { rel_path, title, method: header.http.method.0 }, header.info.seq))
+    let tags = header.info.tags.into_iter().map(|tag| tag.0).collect();
+    Some((ScenarioEntry { rel_path, title, method: header.http.method.0, tags }, seq))
 }
 
 fn fallback_title(path: &ProjectPath) -> String {
@@ -200,7 +206,7 @@ mod tests {
         fs::write(p.join(".cactus/x.yml"), "").unwrap();
         fs::write(p.join("auth/folder.yml"), "info: {name: Auth, type: folder, seq: 2}").unwrap();
         fs::write(p.join("first.yml"), "info: {name: First, seq: 1}").unwrap();
-        fs::write(p.join("auth/login.yml"), "info: {name: Login, seq: 2}\nhttp: {method: POST}").unwrap();
+        fs::write(p.join("auth/login.yml"), "info: {name: Login, seq: 2, tags: [auth]}\nhttp: {method: POST}").unwrap();
         fs::write(p.join("auth/me.yml"), "info: {name: Me, seq: 1}").unwrap();
         fs::write(p.join("broken.yml"), "info: [nope").unwrap();
         fs::write(p.join("notes.json"), "{}").unwrap();
@@ -208,6 +214,7 @@ mod tests {
         let rels: Vec<_> = entries.iter().map(|e| e.rel_path.as_str()).collect();
         assert_eq!(rels, ["first.yml", "auth/me.yml", "auth/login.yml", "broken.yml"]);
         assert_eq!(entries[2].method, "POST");
+        assert_eq!((entries[2].tags.as_slice(), entries[1].tags.len()), (&["auth".to_string()][..], 0));
         assert_eq!(entries[1].method, "GET");
         assert_eq!(entries[3].title, "broken");
         assert_eq!(entries[3].method, UNPARSEABLE_METHOD);

@@ -1,9 +1,10 @@
 import { useContext, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { firstOf, placeholderSuggester, type Suggester, type Suggestion } from "@/domain/suggestions";
+import { describePlaceholders } from "@/domain/template";
 import { cn } from "@/lib/utils";
 import { highlight, type Syntax } from "./highlight";
-import { KnownNamesContext } from "./knownNames";
+import { KnownNamesContext, VariableDetailsContext } from "./knownNames";
 
 interface TemplateFieldProps {
   value: string;
@@ -54,11 +55,14 @@ export function TemplateField({
   "aria-label": ariaLabel,
 }: TemplateFieldProps) {
   const known = useContext(KnownNamesContext);
+  const details = useContext(VariableDetailsContext);
   const knownSet = useMemo(() => (known ? new Set(known) : null), [known]);
   const suggester = useMemo(
-    () => firstOf(templates ? placeholderSuggester(known ?? []) : undefined, suggest),
-    [templates, known, suggest],
+    () => firstOf(templates ? placeholderSuggester(known ?? [], details) : undefined, suggest),
+    [templates, known, details, suggest],
   );
+  /** The coloured spans sit under the input, so the field itself says where its placeholders come from. */
+  const sourcesTitle = templates ? describePlaceholders(value, details) : "";
 
   const inputRef = useRef<HTMLInputElement & HTMLTextAreaElement>(null);
   const overlayRef = useRef<HTMLSpanElement>(null);
@@ -163,6 +167,7 @@ export function TemplateField({
     value,
     placeholder,
     spellCheck: false,
+    title: sourcesTitle || undefined,
     "aria-label": ariaLabel,
     role: "combobox",
     "aria-autocomplete": "list" as const,

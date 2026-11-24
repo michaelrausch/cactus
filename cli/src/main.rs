@@ -2,6 +2,7 @@
 
 mod args;
 mod commands;
+mod junit;
 mod outcome;
 mod output;
 

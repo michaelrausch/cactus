@@ -47,6 +47,18 @@ pub struct RequestInfo {
     /// Position among its siblings; Bruno lists and runs requests by it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub seq: Option<f64>,
+    /// OpenCollection tags; `auth` marks a request that logs in.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tags: Vec<LenientString>,
+}
+
+/// The tag that marks a request as one that logs in.
+pub const AUTH_TAG: &str = "auth";
+
+impl RequestInfo {
+    pub fn is_auth(&self) -> bool {
+        self.tags.iter().any(|tag| tag == AUTH_TAG)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

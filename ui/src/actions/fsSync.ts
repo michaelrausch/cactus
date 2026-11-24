@@ -1,7 +1,11 @@
+import { isCritterPath } from "@/domain/critterId";
 import { isEnvFile } from "@/domain/envFiles";
 import { reportErrors } from "@/lib/errors";
 import { useProjectStore } from "@/stores/projectStore";
+import { refreshCritters } from "./critters";
+import { flowFilesChanged } from "./flows";
 import { refreshGitStatus } from "./git";
+import { refreshSchedules } from "./monitors";
 import { refreshEntries, refreshEnvs } from "./project";
 import { refreshVariableNames } from "./variables";
 import { isOwnRecentWrite, isSaving, reloadIfChangedOnDisk } from "./saving";
@@ -25,6 +29,11 @@ export async function handleFilesChanged(changed: string[]): Promise<void> {
   if (external.length === 0) return;
   void reportErrors(refreshEntries);
   if (external.some(isEnvFile)) void reportErrors(refreshEnvs);
+  if (external.some(isCritterPath)) {
+    void reportErrors(refreshCritters);
+    void refreshSchedules();
+  }
+  void reportErrors(() => flowFilesChanged(external));
   // Folder and collection files carry variables too, so any change may matter.
   void refreshVariableNames();
 }

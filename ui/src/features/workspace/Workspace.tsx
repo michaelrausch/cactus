@@ -5,6 +5,7 @@ import type { ProjectPath } from "@/api/client";
 import { reloadFromDisk, saveScenario } from "@/actions/saving";
 import { Button } from "@/components/ui/button";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
+import { CrittersView } from "@/features/critters/CrittersView";
 import { RequestEditor } from "@/features/editor/RequestEditor";
 import { ResponsePanel } from "@/features/response/ResponsePanel";
 import { useEditorStore, type Conflict } from "@/stores/editorStore";
@@ -162,6 +163,8 @@ function EditorLayout({ path }: { path: ProjectPath }) {
 function EditorArea() {
   const path = useEditorStore((s) => s.path);
   const hasScenario = useEditorStore((s) => s.scenario !== null);
+  const view = useUiStore((s) => s.view);
+  if (view === "critters") return <CrittersView />;
   if (!path || !hasScenario) return <WelcomeScreen />;
   return <EditorLayout path={path} />;
 }

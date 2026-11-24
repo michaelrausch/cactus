@@ -1,6 +1,69 @@
 # Critters: personas, flows and scheduled checks
 
-Status: plan. Nothing here is built yet.
+Status: phases 1–9 built (sprites reviewable with `npm run dev`, then
+`/#sprites`). Phases 10–12 not started.
+
+### Where the build differs from this plan
+
+Found while re-validating against the code (commit `1c32f12`):
+
+- **`resolve_for_request(project, scope: &Scope, dir, request_variables) -> RequestScope`**:
+  the code had already moved to taking `dir` and returning `{ inherited, vars }`.
+  `names_in_scope` is gone; `variable_sources` replaced it as planned.
+- **Run logs live at `.cactus/critters/<id>/runs/<flow>.json`**, not
+  `.cactus/runs/<id>__<flow>.json`. Ids may contain `_`, so `a_` + `_b` and
+  `a` + `__b` would collide; history no longer uses `__` either. Renaming or
+  deleting a critter now takes its logs along for free.
+- **`LenientString`, not `lenient_string`**: the code uses a newtype. `with`
+  and `capture` values are `LenientString` too, so `count: 5` reads.
+- **`EnvFile` serialises `camelCase`** (`critterSecrets`); the existing
+  variants are unchanged.
+- **`FlowStepResult` doesn't wrap `RunResult`**: `RunResult.rel_path` is a
+  validated `ProjectPath`, which can't hold a step's bad `request:`. It has
+  `request`, `title`, `ok`, `skipped`, `response`, `error`, `watched`.
+- **Re-login without recursion** uses a `StepSender` trait: flows send through
+  `Relogin` (`send_as`), the login flow through `Plain` (`send_and_record`).
+- **`RunRecord.error`** records a run that couldn't start, and
+  `AlertEvent::Failing { step, request }` are `Option`s for that case.
+- **Unknown species read as `roadrunner`** rather than failing the file.
+- **`state` stays private to core**: schedules go through
+  `critter::enabled_schedules` and `critter::set_schedule_enabled`.
+- **Sprites** are one drawing per species plus the rows that change
+  mid-stride; blink, pass and fail frames are derived by swapping the eye pixel.
+- **The matrix** sends through `send_as`, so a critter can log in again there too.
+- **Phase 6** adds a plain critter list and header (with Act as) to the
+  Critters view, so Ctrl+B is useful before phase 7. The `tryAsEveryone`
+  shortcut (Ctrl+Shift+Enter, and Shift support in `SHORTCUTS`) waits for the
+  matrix in phase 11. `monitorStore` arrives early: the picker's failing dot
+  and pause toggle need schedule states.
+- **Phase 7**: "overrides staging" needs where a variable comes from without
+  the critter, so there's a `base_variable_sources` command; the tags show as
+  one line under the variables rather than in each table row.
+  `EnvLayerEditor` gained an `inline` mode (its dialog chrome can't render
+  outside a dialog). Right-click opens the row's ⋯ menu, as there's no
+  context-menu primitive. Rename in that menu renames the folder (id); the
+  display name is renamed by clicking it in the header. The Flows tab is a
+  plain list with Run until phase 9's builder. `updateCritter` takes an
+  updater, since `exactOptionalPropertyTypes` can't express removing `login`.
+- **Phase 8**: `{{name}}` sources can't be per-placeholder hover tooltips: the
+  coloured spans sit under the input with `pointer-events: none`. Instead
+  each name's source shows beside it in the completion list, and the field's
+  tooltip lists the source of every placeholder in it. They reach
+  `TemplateField` through a `VariableDetailsContext` beside
+  `KnownNamesContext`. Captured-value ages are as of when the sources were
+  last loaded (they reload on every capture). **The editor's accent line
+  (§7.7) was built and then removed at the user's request**; the Send
+  button's sprite and the response chip show who you're sending as.
+- **Phase 9**: two commands were added. `flow_to_yaml` renders unsaved
+  visual edits for the YAML editor (there was no way to emit a flow), and
+  `flow_variable_sources(critter)` gives "Uses" the flow's own critter's
+  scope rather than the active critter's (at the project root, so folder
+  variables aren't counted). The editor replaces the flow list in the Flows
+  tab (← back) rather than sitting beside it, as the critter list already
+  takes the left. `JsonTree` gained `onPick` for "pick from last response",
+  and `IconButton` a `disabled` state. Ctrl+S and Ctrl+Enter act on the flow
+  while focus is inside the flow editor (`data-flow-editor`). The last-run dot
+  in the flow list shows scheduled runs only until phase 10's run log view.
 
 A **critter** is a persona in a project: a name, a pixel-art species and its
 own variables. Sending as a critter layers its variables over the environment

@@ -1,0 +1,184 @@
+import { create } from "zustand";
+import type { Flow, FlowRun, FlowStepResult, Scenario, VarSource } from "@/api/client";
+import { flowFingerprint } from "@/domain/flowEdit";
+
+/** Undo history kept per open flow. */
+const MAX_UNDO = 100;
+
+export interface OpenFlow {
+  critter: string;
+  flow: string;
+}
+
+export type FlowMode = "visual" | "yaml";
+
+export interface ParseProblem {
+  message: string;
+  line: number | null;
+  column: number | null;
+}
+
+export interface FlowRunState {
+  running: boolean;
+  /** One per step: its last result, or null while queued or never run. */
+  results: (FlowStepResult | null)[];
+  /** The step running now. */
+  current: number | null;
+  /** The finished run, for the summary line. */
+  last: FlowRun | null;
+  /** The flow was edited after this run, so the results may no longer match it. */
+  stale: boolean;
+}
+
+const NO_RUN: FlowRunState = { running: false, results: [], current: null, last: null, stale: false };
+
+interface FlowState {
+  open: OpenFlow | null;
+  /** The flow as edited; in YAML mode, the text's last successful parse. */
+  model: Flow | null;
+  savedFingerprint: string;
+  /** The YAML editor's text. */
+  text: string;
+  savedText: string;
+  mode: FlowMode;
+  /** Why `text` doesn't parse, while it doesn't. */
+  parseProblem: ParseProblem | null;
+  undo: Flow[];
+  redo: Flow[];
+  /** The step shown in the inspector. */
+  selected: number | null;
+  /** Each step's request by path; null when it doesn't exist or doesn't parse. */
+  requests: Record<string, Scenario | null>;
+  /** What the flow's critter sees before any step runs. */
+  scope: Record<string, VarSource>;
+  run: FlowRunState;
+  /** The file changed on disk while there were unsaved edits. */
+  conflict: boolean;
+
+  opened: (open: OpenFlow, model: Flow, text: string, scope: Record<string, VarSource>) => void;
+  closed: () => void;
+  /** A visual edit: undoable, and it makes the last run's results stale. */
+  edited: (model: Flow) => void;
+  undone: () => void;
+  redone: () => void;
+  textEdited: (text: string) => void;
+  textParsed: (model: Flow | null, problem: ParseProblem | null) => void;
+  modeChanged: (mode: FlowMode, text?: string) => void;
+  saved: (model: Flow, text: string) => void;
+  select: (index: number | null) => void;
+  requestsLoaded: (requests: Record<string, Scenario | null>) => void;
+  runStarted: (steps: number) => void;
+  stepFinished: (result: FlowStepResult) => void;
+  runFinished: (run: FlowRun | null) => void;
+  conflicted: () => void;
+}
+
+const clampSelection = (selected: number | null, model: Flow): number | null =>
+  selected === null || model.steps.length === 0 ? null : Math.min(selected, model.steps.length - 1);
+
+export const useFlowStore = create<FlowState>()((set) => ({
+  open: null,
+  model: null,
+  savedFingerprint: "",
+  text: "",
+  savedText: "",
+  mode: "visual",
+  parseProblem: null,
+  undo: [],
+  redo: [],
+  selected: null,
+  requests: {},
+  scope: {},
+  run: NO_RUN,
+  conflict: false,
+
+  opened: (open, model, text, scope) =>
+    set((state) => ({
+      open,
+      model,
+      savedFingerprint: flowFingerprint(model),
+      text,
+      savedText: text,
+      parseProblem: null,
+      undo: [],
+      redo: [],
+      selected: model.steps.length > 0 ? 0 : null,
+      scope,
+      run: NO_RUN,
+      conflict: false,
+      // Keep the mode and loaded requests when the same flow reloads.
+      mode: state.open?.critter === open.critter && state.open.flow === open.flow ? state.mode : "visual",
+    })),
+  closed: () => set({ open: null, model: null, undo: [], redo: [], selected: null, run: NO_RUN, conflict: false }),
+  edited: (model) =>
+    set((state) => ({
+      model,
+      undo: state.model ? [...state.undo, state.model].slice(-MAX_UNDO) : state.undo,
+      redo: [],
+      selected: clampSelection(state.selected, model),
+      run: state.run.results.length > 0 ? { ...state.run, stale: true } : state.run,
+    })),
+  undone: () =>
+    set((state) => {
+      const previous = state.undo.at(-1);
+      if (!previous || !state.model) return {};
+      return {
+        model: previous,
+        undo: state.undo.slice(0, -1),
+        redo: [...state.redo, state.model],
+        selected: clampSelection(state.selected, previous),
+      };
+    }),
+  redone: () =>
+    set((state) => {
+      const next = state.redo.at(-1);
+      if (!next || !state.model) return {};
+      return {
+        model: next,
+        redo: state.redo.slice(0, -1),
+        undo: [...state.undo, state.model],
+        selected: clampSelection(state.selected, next),
+      };
+    }),
+  textEdited: (text) => set({ text }),
+  textParsed: (model, parseProblem) =>
+    set((state) =>
+      model ? { model, parseProblem: null, selected: clampSelection(state.selected, model) } : { parseProblem },
+    ),
+  modeChanged: (mode, text) => set((state) => ({ mode, text: text ?? state.text, parseProblem: null })),
+  saved: (model, text) =>
+    set({
+      model,
+      savedFingerprint: flowFingerprint(model),
+      text,
+      savedText: text,
+      parseProblem: null,
+      conflict: false,
+    }),
+  select: (selected) => set({ selected }),
+  requestsLoaded: (requests) => set((state) => ({ requests: { ...state.requests, ...requests } })),
+  runStarted: (steps) =>
+    set({
+      run: { running: true, results: Array.from({ length: steps }, () => null), current: 0, last: null, stale: false },
+    }),
+  stepFinished: (result) =>
+    set((state) => {
+      const results = [...state.run.results];
+      results[result.index] = result;
+      return { run: { ...state.run, results, current: result.skipped ? null : result.index + 1 } };
+    }),
+  runFinished: (last) =>
+    set((state) => ({
+      run: last
+        ? { running: false, results: last.steps, current: null, last, stale: false }
+        : { ...state.run, running: false, current: null },
+    })),
+  conflicted: () => set({ conflict: true }),
+}));
+
+/** Whether there are edits that aren't saved, in whichever mode is showing. */
+export const selectFlowDirty = (state: FlowState): boolean => {
+  if (!state.model) return false;
+  if (state.mode === "yaml") return state.text !== state.savedText;
+  return flowFingerprint(state.model) !== state.savedFingerprint;
+};

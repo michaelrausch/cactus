@@ -3,10 +3,11 @@
 mod bindings;
 mod commands;
 mod events;
+mod scheduler;
 mod state;
 mod watcher;
 
-use tauri::Manager;
+use tauri::{Manager, RunEvent};
 
 use crate::state::AppState;
 
@@ -21,6 +22,7 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_notification::init())
         .invoke_handler(bindings.invoke_handler())
         .setup(move |app| {
             bindings.mount_events(app);
@@ -28,6 +30,11 @@ pub fn run() {
             app.manage(AppState::new(recent_projects_file));
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running cactus");
+        .build(tauri::generate_context!())
+        .expect("error while building cactus")
+        .run(|app, event| {
+            if let RunEvent::Exit = event {
+                app.state::<AppState>().scheduler.stop();
+            }
+        });
 }

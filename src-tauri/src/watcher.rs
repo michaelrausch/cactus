@@ -3,14 +3,15 @@
 use std::path::Path;
 use std::time::Duration;
 
-use cactus_core::layout::TEMP_FILE_SUFFIX;
+use cactus_core::layout::{self, TEMP_FILE_SUFFIX};
 use cactus_core::scenario;
 use notify_debouncer_mini::notify::{RecommendedWatcher, RecursiveMode, Watcher};
 use notify_debouncer_mini::{DebounceEventResult, Debouncer, new_debouncer};
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 use tauri_specta::Event;
 
 use crate::events::FsChanged;
+use crate::state::AppState;
 
 const WATCH_DEBOUNCE: Duration = Duration::from_millis(150);
 
@@ -28,6 +29,9 @@ impl ProjectWatcher {
         let mut debouncer = new_debouncer(WATCH_DEBOUNCE, move |result: DebounceEventResult| {
             let Ok(events) = result else { return };
             let changed = changed_relative_paths(&root, events.iter().map(|e| e.path.as_path()));
+            if touches_critters(&changed) {
+                app.state::<AppState>().scheduler.reload(&app, &root);
+            }
             if !changed.is_empty() {
                 let _ = FsChanged(changed).emit(&app);
             }
@@ -54,6 +58,11 @@ fn watch_project(watcher: &mut dyn Watcher, project: &Path) {
     for dir in scenario::walk(project).filter(|e| e.file_type().is_dir()) {
         let _ = watcher.watch(dir.path(), RecursiveMode::NonRecursive);
     }
+}
+
+/// Whether a change may have added, removed or edited a flow's schedule.
+fn touches_critters(changed: &[String]) -> bool {
+    changed.iter().any(|path| layout::critter_from_path(path).is_some())
 }
 
 /// Sorted, deduplicated project-relative paths, minus atomic-write temp files
@@ -88,5 +97,15 @@ mod tests {
         ];
         let changed = changed_relative_paths(root, paths.iter().map(Path::new));
         assert_eq!(changed, ["a.json", "b.json"]);
+    }
+
+    #[test]
+    fn critter_files_are_reported_and_reload_schedules() {
+        let root = Path::new("/p");
+        let paths = ["/p/critters/bob/flows/health.yml", "/p/.cactus/critters/bob/context.json", "/p/auth/login.yml"];
+        let changed = changed_relative_paths(root, paths.iter().map(Path::new));
+        assert_eq!(changed, ["auth/login.yml", "critters/bob/flows/health.yml"]);
+        assert!(touches_critters(&changed));
+        assert!(!touches_critters(&["auth/login.yml".into(), "critters.yml".into()]));
     }
 }

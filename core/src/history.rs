@@ -85,8 +85,18 @@ mod tests {
                 captured: std::collections::BTreeMap::default(),
                 capture_failures: vec![],
                 checks: Vec::new(),
+                critter: None,
+                relogged: false,
             },
         }
+    }
+
+    #[test]
+    fn history_from_before_critters_loads() {
+        let old = r#"[{"at":1,"response":{"method":"GET","url":"","status":200,"statusText":"OK","headers":[],
+            "body":"","truncated":false,"timeMs":1,"sizeBytes":0,"unresolved":[]}}]"#;
+        let entries: Vec<HistoryEntry> = serde_json::from_str(old).unwrap();
+        assert_eq!((entries[0].response.critter.as_deref(), entries[0].response.relogged), (None, false));
     }
 
     #[test]

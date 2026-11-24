@@ -12,7 +12,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { timeAgo } from "@/lib/format";
+import { TimeAgo } from "@/components/TimeAgo";
 import { useGitStore } from "@/stores/gitStore";
 
 /** The checked-out branch; opens a menu to switch, create or delete branches. */
@@ -40,7 +40,9 @@ export function BranchMenu({ status }: { status: GitStatus }) {
             <Check className={branch.current ? "size-4" : "invisible size-4"} />
             <span className="min-w-0 flex-1 truncate">{branch.name}</span>
             {branch.lastCommit && (
-              <span className="shrink-0 text-xs text-muted-foreground">{timeAgo(branch.lastCommit.at)}</span>
+              <span className="shrink-0 text-xs text-muted-foreground">
+                <TimeAgo at={branch.lastCommit.at} />
+              </span>
             )}
           </DropdownMenuItem>
         ))}

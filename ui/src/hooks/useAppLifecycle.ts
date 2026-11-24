@@ -2,11 +2,15 @@ import { useEffect } from "react";
 import { backendEvents } from "@/api/client";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { handleFilesChanged } from "@/actions/fsSync";
+import { refreshContext } from "@/actions/critters";
+import { flowStepFinished } from "@/actions/flows";
 import { refreshGitStatus } from "@/actions/git";
+import { refreshSchedules } from "@/actions/monitors";
 import { restoreLastProject } from "@/actions/project";
 import { hasUnsavedChanges, saveAll } from "@/actions/saving";
 import { refreshVariableNames } from "@/actions/variables";
 import { reportErrors } from "@/lib/errors";
+import { useCritterStore } from "@/stores/critterStore";
 import { useEditorStore } from "@/stores/editorStore";
 import { useGitStore } from "@/stores/gitStore";
 import { useProjectStore } from "@/stores/projectStore";
@@ -73,9 +77,38 @@ export function useAppLifecycle(): void {
     return () => void unlisten.then((stop) => stop());
   }, []);
 
+  // Writes to `.cactus/` aren't watched, so the backend says when a critter's
+  // context or a scheduled run changed.
+  useEffect(() => {
+    const unlisteners = [
+      backendEvents.contextChanged.listen((event) => {
+        const { critter } = event.payload;
+        void refreshContext(critter);
+        if (critter === useCritterStore.getState().activeId) void refreshVariableNames();
+      }),
+      backendEvents.scheduledRunFinished.listen(() => void refreshSchedules()),
+      backendEvents.flowProgress.listen(({ payload }) => flowStepFinished(payload.critter, payload.flow, payload.step)),
+    ];
+    return () => unlisteners.forEach((unlisten) => void unlisten.then((stop) => stop()));
+  }, []);
+
   // `.git/` isn't watched, so catch commits and checkouts made elsewhere on return.
   useEffect(() => {
     window.addEventListener("focus", refreshOnFocus);
     return () => window.removeEventListener("focus", refreshOnFocus);
+  }, []);
+
+  // Idle critters stop moving while the window is in the background (critters.css).
+  useEffect(() => {
+    const root = document.documentElement;
+    const blurred = () => root.toggleAttribute("data-window-blurred", true);
+    const focused = () => root.toggleAttribute("data-window-blurred", false);
+    window.addEventListener("blur", blurred);
+    window.addEventListener("focus", focused);
+    return () => {
+      window.removeEventListener("blur", blurred);
+      window.removeEventListener("focus", focused);
+      focused();
+    };
   }, []);
 }

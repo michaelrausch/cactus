@@ -26,6 +26,16 @@ pub enum Error {
     InvalidPath(String),
     #[error("invalid environment name: {0:?}")]
     InvalidEnvName(String),
+    #[error("invalid critter name: {0:?}; use letters, digits, - and _")]
+    InvalidCritterName(String),
+    #[error("invalid flow name: {0:?}; use letters, digits, - and _")]
+    InvalidFlowName(String),
+    #[error("no critter {0:?}")]
+    CritterNotFound(String),
+    #[error("critter {critter:?} has no flow {flow:?}")]
+    FlowNotFound { critter: String, flow: String },
+    #[error("every: {0:?}: use e.g. 30s, 5m or 1h; minimum 30s")]
+    InvalidInterval(String),
     #[error("invalid method: {0}")]
     InvalidMethod(String),
     #[error("invalid header name: {0}")]

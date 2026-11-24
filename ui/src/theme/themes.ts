@@ -1,6 +1,6 @@
 /** The themes in `themes.css`, in the order the picker shows them. */
 
-export type ThemeGroup = "default" | "variation" | "fun";
+export type ThemeGroup = "default" | "variation" | "colorful" | "fun";
 
 export interface Theme {
   id: string;
@@ -25,6 +25,12 @@ export const THEMES = [
   },
   { id: "sage", name: "Sage", group: "variation", scheme: "dark" },
   { id: "desert-day", name: "Desert Day", group: "variation", scheme: "light" },
+  { id: "salt-flat", name: "Salt Flat", group: "variation", scheme: "light" },
+  { id: "adobe", name: "Adobe", group: "variation", scheme: "light" },
+  { id: "oasis", name: "Oasis", group: "colorful", scheme: "dark" },
+  { id: "jacaranda", name: "Jacaranda", group: "colorful", scheme: "dark" },
+  { id: "citrus", name: "Citrus", group: "colorful", scheme: "light" },
+  { id: "ocean-drive", name: "Ocean Drive", group: "fun", scheme: "dark" },
   { id: "synthwave", name: "Synthwave", group: "fun", scheme: "dark" },
   { id: "phosphor", name: "Phosphor", group: "fun", scheme: "dark" },
   {
@@ -36,6 +42,8 @@ export const THEMES = [
   { id: "bloom", name: "Bloom", group: "fun", scheme: "dark" },
   { id: "aqua", name: "Aqua", group: "fun", scheme: "light" },
   { id: "win95", name: "Windows 95", group: "fun", scheme: "light" },
+  { id: "blueprint", name: "Blueprint", group: "fun", scheme: "dark" },
+  { id: "bubblegum", name: "Bubblegum", group: "fun", scheme: "light" },
 ] as const satisfies readonly Theme[];
 
 export type ThemeEntry = (typeof THEMES)[number];
@@ -46,6 +54,7 @@ export const DEFAULT_THEME: ThemeId = "cactus";
 export const THEME_GROUPS: readonly { group: ThemeGroup; label: string }[] = [
   { group: "default", label: "Default" },
   { group: "variation", label: "Variations" },
+  { group: "colorful", label: "Colorful" },
   { group: "fun", label: "Fun" },
 ];
 

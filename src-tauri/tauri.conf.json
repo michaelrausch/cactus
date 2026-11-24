@@ -10,7 +10,16 @@
     "frontendDist": "../ui/dist"
   },
   "app": {
-    "windows": [{ "title": "cactus", "width": 1280, "height": 800, "minWidth": 820, "minHeight": 560 }],
+    "windows": [
+      {
+        "title": "cactus",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 820,
+        "minHeight": 560,
+        "dragDropEnabled": false
+      }
+    ],
     "security": { "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'" }
   },
   "bundle": {

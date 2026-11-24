@@ -16,6 +16,8 @@ interface ResponseState {
 
   historyLoaded: (history: HistoryEntry[]) => void;
   historyEntryPicked: (entry: HistoryEntry) => void;
+  /** Show a response that came from elsewhere, e.g. a flow step. */
+  responseShown: (response: HttpResponse) => void;
   sendStarted: () => void;
   sendSucceeded: (path: ProjectPath, response: HttpResponse) => void;
   sendFailed: (error: string) => void;
@@ -49,6 +51,8 @@ export const useResponseStore = create<ResponseState>()((set) => ({
     })),
   historyEntryPicked: (entry) =>
     set((s) => ({ response: entry.response, historyAt: entry.at, error: null, shownVersion: s.shownVersion + 1 })),
+  responseShown: (response) =>
+    set((s) => ({ response, historyAt: null, error: null, shownVersion: s.shownVersion + 1 })),
   sendStarted: () => set({ sending: true, error: null }),
   sendSucceeded: (path, response) =>
     set((s) => ({

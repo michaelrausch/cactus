@@ -1,6 +1,8 @@
 use std::path::Path;
 
+use cactus_core::env::Scope;
 use cactus_core::http::scenario_passed;
+use cactus_core::runner::SendOptions;
 use cactus_core::{ProjectPath, runner, scenario};
 
 use crate::outcome::Outcome;
@@ -10,11 +12,11 @@ pub async fn send(
     client: &cactus_core::reqwest::Client,
     project: &Path,
     request_path: &str,
-    env: Option<&str>,
+    scope: &Scope,
 ) -> cactus_core::Result<Outcome> {
     let path = ProjectPath::parse(request_path)?;
     let scenario = scenario::load(project, &path)?;
-    let response = runner::send_and_record(client, project, &path, &scenario, env).await?;
+    let response = runner::send_as(client, project, &path, &scenario, scope, SendOptions::INTERACTIVE).await?;
     eprintln!("{}", format_status_line(&response));
     for warning in &response.warnings {
         eprintln!("warning: {warning}");

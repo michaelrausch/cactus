@@ -1,10 +1,12 @@
 import { memo, type ReactNode } from "react";
-import { Copy, Pencil, Trash2 } from "lucide-react";
+import { CopyPlus, KeyRound, Pencil, Trash2 } from "lucide-react";
 import type { ChangeKind, ScenarioEntry } from "@/api/client";
 import { deleteScenario, duplicateScenario, renameScenario, selectScenario } from "@/actions/scenario";
+import { withShortcut } from "@/app/shortcuts";
 import { GitMarker } from "@/components/GitMarker";
 import { MethodBadge } from "@/components/MethodBadge";
 import { StatusCode } from "@/components/StatusCode";
+import { isAuthRequest } from "@/domain/scenario";
 import { cn } from "@/lib/utils";
 import { isDirty, useEditorStore } from "@/stores/editorStore";
 
@@ -60,6 +62,9 @@ export const ScenarioListItem = memo(function ScenarioListItem({
         >
           {entry.title}
         </span>
+        {isAuthRequest(entry.tags) && (
+          <KeyRound className="size-3 shrink-0 text-muted-foreground" aria-label="Logs in" />
+        )}
         {dirty && (
           <span title="Unsaved changes" className="size-1.5 shrink-0 rounded-full bg-brand">
             <span className="sr-only">, unsaved changes</span>
@@ -71,8 +76,8 @@ export const ScenarioListItem = memo(function ScenarioListItem({
         )}
       </button>
       <span className="hidden shrink-0 items-center text-muted-foreground group-focus-within:flex group-hover:flex">
-        <RowAction label="Duplicate" onClick={() => void duplicateScenario(path)}>
-          <Copy className="size-3.5" />
+        <RowAction label={withShortcut("Duplicate request", "duplicate")} onClick={() => void duplicateScenario(path)}>
+          <CopyPlus className="size-3.5" />
         </RowAction>
         <RowAction label="Rename request" onClick={() => renameScenario(path)}>
           <Pencil className="size-3.5" />
