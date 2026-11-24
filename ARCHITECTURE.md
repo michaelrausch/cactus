@@ -1,7 +1,9 @@
 # cactus architecture
 
-cactus is a file-based HTTP client. Every request ("scenario") is a JSON file in
-a project folder, so projects can be versioned and reviewed like code.
+cactus is a file-based HTTP client. A project is an
+[OpenCollection](https://schema.opencollection.com/) v1.0.0 collection stored as
+YAML files in the layout Bruno uses, one file per request ("scenario" in the
+code), so projects can be versioned and reviewed like code and opened in Bruno.
 
 ```
 core/       cactus-core: all behaviour. Knows nothing about Tauri or the terminal.
@@ -14,31 +16,47 @@ ui/         React front end for the desktop app.
 
 | Path                     | What                                          | Committed |
 | ------------------------ | --------------------------------------------- | --------- |
-| `**/*.json`              | Scenarios (any JSON file except root env files) | yes     |
-| `env.json`               | Shared variables                              | yes       |
-| `env.<name>.json`        | A named environment                           | yes       |
-| `.cactus/secrets.json`   | Local secrets                                 | no        |
-| `.cactus/captured.json`  | Values written by `capture` rules             | no        |
+| `opencollection.yml`     | The collection: its defaults (`request.headers`, `auth`) and shared variables | yes |
+| `environments/<name>.yml`| A named environment                           | yes       |
+| `<folder>/folder.yml`    | A folder's name, `seq` and defaults           | yes       |
+| `**/*.yml`               | Requests (every other `.yml`)                 | yes       |
+| `.cactus/secrets.json`   | Local secrets, the values of `secret: true` variables | no |
+| `.cactus/captured.json`  | Values written by set-variable actions        | no        |
 | `.cactus/state.json`     | Active environment                            | no        |
-| `.cactus/history/*.json` | Last responses per scenario (`a/b.json` → `a__b.json`) | no |
+| `.cactus/history/*.json` | Last responses per request (`a/b.yml` → `a__b.json`) | no |
 
-All path rules live in `core/src/layout.rs`. Scenario paths are a validated
-newtype (`ScenarioPath`) that can never escape the project.
+All path rules live in `core/src/layout.rs`. Request paths are a validated
+newtype (`ScenarioPath`) that can never escape the project. Requests are listed
+and run in tree order: at each level, folders and requests sorted together by
+`seq`, as Bruno does.
 
-**Variable precedence**, lowest first: `env.json` → active `env.<name>.json` →
-secrets → captured (see `env::resolve`). `{{name}}` substitution is a single pass.
+**Variable precedence**, lowest first: collection variables → active
+environment → folder variables (outermost first) → request `runtime.variables`
+→ secrets → captured (see `env::resolve_for_request`). `{{name}}` substitution
+is a single pass. Headers and auth are inherited the same way: collection, then
+folders, then the request; `auth: inherit` takes the nearest one set.
 
-Unknown keys in scenario files are preserved on save (`Scenario::extra`), so
-hand edits survive.
+**Saving never rewrites a file.** `collection::write` reads the file into its
+model, diffs that against the model being saved and applies only the
+differences to the file's lossless syntax tree (`collection/patch.rs`, on
+`yaml-edit`). Comments, blank lines, quoting and every key the model doesn't
+know (tags, examples, settings, Bruno scripts) survive. A file that doesn't
+parse is never overwritten, and an edit that wouldn't read back as saved is
+refused. New files are written by `collection/emit.rs` in Bruno's style.
+
+cactus checks `runtime.assertions` (`res.status eq 200`, Bruno's operators) and
+runs `set-variable` actions; it keeps `runtime.scripts` but can't run them, and
+says so in the response's `warnings`.
 
 ## core
 
 | Module      | Responsibility |
 | ----------- | -------------- |
-| `scenario`  | `model` (file format), `listing` (discovery), `store` (create/save/rename/delete) |
-| `env`       | `layers` (env files and merge), `capture`, `template` (`Substituter`) |
-| `http`      | `request` (scenario → reqwest request), `send`, `response`, `assertions` (captures, checks, pass/fail) |
-| `import`    | Postman and OpenAPI → scenarios |
+| `collection`| `model` (shared OpenCollection types, root/folder/environment files), `patch` (in-place saves), `emit` (new files), defaults chain |
+| `scenario`  | `model` (the request file), `listing` (discovery, tree order), `store` (create/save/rename/delete) |
+| `env`       | `layers` (env layers and merge), `capture`, `template` (`Substituter`) |
+| `http`      | `request` (scenario + inherited defaults → reqwest request), `send`, `response`, `expression` (`res.*`), `assertions` (actions, checks, pass/fail) |
+| `import`    | Postman and OpenAPI → requests |
 | `runner`    | Send + persist captures + record history; folder runs |
 | `history`, `recent`, `state`, `storage`, `layout` | Persistence |
 
@@ -83,10 +101,15 @@ whenever its draft state must reset.
 `cargo test -p cactus` to regenerate the bindings, then call it via
 `backend.yourCommand(...)` from an action.
 
-**Add a scenario field.** Add it to `core/src/scenario/model.rs` with
-`#[serde(default, skip_serializing_if = ...)]` so old files still load and new
-files stay minimal. Regenerate the bindings, then add an editor tab under
-`ui/src/features/editor/tabs/` that takes `ScenarioTabProps`.
+**Edit another OpenCollection field.** Add it to `core/src/scenario/model.rs`
+(or `collection/model.rs`) under its spec name, with
+`#[serde(default, skip_serializing_if = ...)]` so files without it still load
+and stay minimal, and `lenient_string` for strings hand-written YAML may type as
+numbers. Until a field is in the model, saves leave it untouched. Regenerate the
+bindings, then add an editor tab under `ui/src/features/editor/tabs/` that takes
+`ScenarioTabProps`. The UI must hold a request exactly as the backend writes it
+(empty lists left out, query params mirroring the URL), or every save looks
+like an outside change and reloads the editor.
 
 ## Checks
 

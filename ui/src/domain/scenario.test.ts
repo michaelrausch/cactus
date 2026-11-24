@@ -10,6 +10,7 @@ import {
   switchBodyKind,
   withAuth,
   withBody,
+  withHeaders,
   withPathParamValues,
   withUrl,
 } from "./scenario";
@@ -90,5 +91,27 @@ describe("scenario", () => {
       { name: "post", value: "", type: "path" },
     ]);
     expect("params" in withUrl(renamed, "/users").http).toBe(false);
+  });
+
+  it("rebuilds query params like the backend, in place", () => {
+    const s = scenario({
+      params: [
+        { name: "id", value: "7", type: "path" },
+        { name: "old", value: "0", type: "query" },
+        { name: "off", value: "1", type: "query", disabled: true },
+      ],
+    });
+    // Same case as `query_params_follow_the_url` in core/src/scenario/model.rs.
+    const next = withUrl(s, "http://h/:id?a=1&b={{x}}#top");
+    expect(next.http.params?.map((p) => [p.name, p.value])).toEqual([
+      ["id", "7"],
+      ["a", "1"],
+      ["off", "1"],
+      ["b", "{{x}}"],
+    ]);
+  });
+
+  it("leaves empty header lists out", () => {
+    expect("headers" in withHeaders(scenario({ headers: [{ name: "A", value: "1" }] }), []).http).toBe(false);
   });
 });
