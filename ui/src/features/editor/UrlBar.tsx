@@ -18,8 +18,9 @@ function SendButton() {
       <button
         type="button"
         onClick={() => void cancelInFlight()}
-        title="Cancel"
-        className="grid size-9 shrink-0 place-items-center rounded-lg bg-secondary text-foreground hover:bg-accent"
+        title="Cancel request"
+        aria-label="Cancel request"
+        className="grid size-9 shrink-0 place-items-center rounded-lg bg-secondary text-foreground focus-ring hover:bg-accent"
       >
         <Square className="size-3.5 animate-pulse fill-current" />
       </button>
@@ -30,7 +31,8 @@ function SendButton() {
       type="button"
       onClick={() => void sendCurrentScenario()}
       title={withShortcut("Send", "send")}
-      className="grid size-9 shrink-0 place-items-center rounded-lg bg-brand-2 text-brand-foreground shadow-md shadow-brand-2/20 transition hover:brightness-110 active:scale-95"
+      aria-label="Send"
+      className="grid size-9 shrink-0 place-items-center rounded-lg bg-brand-2 text-brand-foreground shadow-md shadow-brand-2/20 focus-ring transition hover:brightness-110 active:scale-95"
     >
       <ArrowUp className="size-4" strokeWidth={2.5} />
     </button>
@@ -39,7 +41,7 @@ function SendButton() {
 
 export function UrlBar({ scenario, onChange }: ScenarioTabProps) {
   return (
-    <div className="flex items-center gap-1 rounded-xl border bg-card p-1 shadow-sm shadow-black/20 transition-colors focus-within:border-brand-2/40">
+    <div className="flex items-center gap-1 rounded-xl border bg-card p-1 shadow-sm shadow-shadow/20 transition-colors focus-within:border-brand-2/40">
       <Select
         value={scenario.http.method.toUpperCase()}
         onValueChange={(method) => onChange({ ...scenario, http: { ...scenario.http, method } })}
@@ -66,7 +68,7 @@ export function UrlBar({ scenario, onChange }: ScenarioTabProps) {
         placeholder="{{baseUrl}}/path"
         aria-label="URL"
         className="flex-1"
-        fieldClassName="h-9 px-2 font-mono text-[13px]"
+        fieldClassName="h-9 px-2 font-mono text-sm"
       />
       <SendButton />
     </div>

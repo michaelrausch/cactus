@@ -11,24 +11,30 @@ import { useProjectStore } from "@/stores/projectStore";
 import { useResponseStore } from "@/stores/responseStore";
 import { ScenarioListItem } from "./ScenarioListItem";
 
+const FOLDER_ACTION =
+  "focus-ring grid size-6 place-items-center rounded-md hover:bg-sidebar-accent hover:text-foreground";
+
 function FolderHeader({ dir }: { dir: string }) {
   return (
-    <div className="group mt-3 flex h-6 items-center gap-1 px-2 text-[11px] font-medium tracking-wide text-muted-foreground/80 uppercase">
+    <div className="group mt-3 flex h-6 items-center gap-1 pr-1 pl-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
       <span className="flex-1 truncate">{dir}</span>
-      <span className="hidden items-center gap-1 group-hover:flex">
+      {/* Faded rather than hidden, so the buttons stay in the tab order. */}
+      <span className="flex items-center opacity-0 group-focus-within:opacity-100 group-hover:opacity-100">
         <button
           type="button"
           title={`Run ${dir}/`}
+          aria-label={`Run ${dir}/`}
           onClick={() => void runFolder(dir)}
-          className="hover:text-foreground"
+          className={FOLDER_ACTION}
         >
           <Play className="size-3.5" />
         </button>
         <button
           type="button"
-          title={`New in ${dir}/`}
+          title={`New request in ${dir}/`}
+          aria-label={`New request in ${dir}/`}
           onClick={() => createScenarioIn(dir)}
-          className="hover:text-foreground"
+          className={FOLDER_ACTION}
         >
           <Plus className="size-3.5" />
         </button>
@@ -69,9 +75,7 @@ export function ScenarioList({ filter }: { filter: string }) {
         <FolderSection key={group.dir} group={group} changes={changes} />
       ))}
       {project && entries.length === 0 && (
-        <p className="px-2 py-4 text-sm text-muted-foreground">
-          No scenarios yet. Press Ctrl+N or import a collection.
-        </p>
+        <p className="px-2 py-4 text-sm text-muted-foreground">No requests yet. Press Ctrl+N or import a collection.</p>
       )}
     </div>
   );

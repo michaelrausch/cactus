@@ -1,5 +1,5 @@
-import { useEffect, useImperativeHandle, useState, type Ref } from "react";
-import { Trash2 } from "lucide-react";
+import { useEffect, useImperativeHandle, useState, type KeyboardEvent, type Ref } from "react";
+import { Eye, EyeOff, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { backend, type EnvFile } from "@/api/client";
 import { KeyValueTable } from "@/components/KeyValueTable";
@@ -20,14 +20,20 @@ interface EnvLayerEditorProps {
   project: string;
   file: EnvFile;
   ref?: Ref<EnvLayerEditorHandle>;
+  /** For a named environment. */
+  onRename: (name: string) => void;
+  onDelete: (name: string) => void;
 }
 
 /** Edits one layer file. Mount with a `key` per file so it loads fresh. */
-export function EnvLayerEditor({ project, file, ref }: EnvLayerEditorProps) {
+export function EnvLayerEditor({ project, file, ref, onRename, onDelete }: EnvLayerEditorProps) {
   const [rows, setRows] = useState<Row[] | null>(null);
   /** Fingerprint of the rows as they are on disk. */
   const [savedFingerprint, setSavedFingerprint] = useState<string | null>(null);
   const info = envLayerInfo(file);
+  const secret = file.kind === "secrets";
+  /** Secrets start hidden, so a screen share doesn't show them. */
+  const [revealed, setRevealed] = useState(!secret);
 
   useEffect(() => {
     let current = true;
@@ -55,31 +61,61 @@ export function EnvLayerEditor({ project, file, ref }: EnvLayerEditorProps) {
     });
     if (!saved) return false;
     setSavedFingerprint(rowsFingerprint(rows));
-    toast.success(`Saved ${info.path}`);
     return true;
+  };
+
+  /** The global Ctrl+S waits while a dialog is open; here it saves this layer. */
+  const onKeyDown = (event: KeyboardEvent) => {
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
+      event.preventDefault();
+      void save();
+    }
   };
 
   useImperativeHandle(ref, () => ({ hasUnsavedChanges: () => dirty, save }));
 
   return (
-    <div className="flex min-w-0 flex-1 flex-col p-5">
+    <div className="flex min-w-0 flex-1 flex-col p-5" onKeyDown={onKeyDown}>
       <DialogHeader className="mb-4">
         <DialogTitle className="flex items-baseline gap-2">
           {info.label} <span className="font-mono text-xs font-normal text-muted-foreground">{info.path}</span>
-          {dirty && <span className="size-1.5 self-center rounded-full bg-warning" title="Unsaved changes" />}
+          {dirty && (
+            <span className="size-1.5 self-center rounded-full bg-warning" title="Unsaved changes">
+              <span className="sr-only">Unsaved changes</span>
+            </span>
+          )}
         </DialogTitle>
         <DialogDescription>{info.note}</DialogDescription>
       </DialogHeader>
       <div className="min-h-0 flex-1 overflow-auto">
-        {rows && <KeyValueTable rows={rows} onChange={setRows} keyPlaceholder="Variable" />}
+        {rows && (
+          <KeyValueTable rows={rows} onChange={setRows} keyPlaceholder="Variable" valueColumn={{ masked: !revealed }} />
+        )}
       </div>
       <DialogFooter className="mt-4">
+        {file.kind === "named" && (
+          <>
+            <Button variant="ghost" onClick={() => onRename(file.name)}>
+              <Pencil /> Rename…
+            </Button>
+            <Button variant="ghost" className="hover:text-danger sm:mr-auto" onClick={() => onDelete(file.name)}>
+              <Trash2 /> Delete…
+            </Button>
+          </>
+        )}
+        {secret && (
+          <Button variant="ghost" className="sm:mr-auto" aria-pressed={revealed} onClick={() => setRevealed(!revealed)}>
+            {revealed ? <EyeOff /> : <Eye />} {revealed ? "Hide values" : "Show values"}
+          </Button>
+        )}
         {file.kind === "captured" && (
           <Button variant="ghost" onClick={() => setRows([])}>
             <Trash2 /> Clear all
           </Button>
         )}
-        <Button onClick={() => void save()}>Save</Button>
+        <Button onClick={() => void save()} disabled={!dirty}>
+          Save
+        </Button>
       </DialogFooter>
     </div>
   );

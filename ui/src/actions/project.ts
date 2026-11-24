@@ -24,7 +24,7 @@ export async function openProject(path?: string): Promise<void> {
   if (!hasUnsavedChanges()) return loadProject(folder);
   useUiStore.getState().askConfirm({
     title: "Unsaved changes",
-    description: "Some scenarios have unsaved edits, which opening another folder would lose.",
+    description: "Some requests have unsaved edits, which opening another folder would lose.",
     action: "Save all and open",
     destructive: false,
     onConfirm: async () => {
@@ -86,7 +86,7 @@ export async function importCollection(): Promise<void> {
     const summary = await backend.importFile(project, file);
     await refreshEntries();
     await refreshEnvs();
-    toast.success(`Imported ${summary.created.length} scenarios from ${summary.format}`, {
+    toast.success(`Imported ${summary.created.length} requests from ${summary.format}`, {
       description: summary.envVars.length ? `Added to env.json: ${summary.envVars.join(", ")}` : undefined,
     });
   });

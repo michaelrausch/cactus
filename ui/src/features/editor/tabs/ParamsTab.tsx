@@ -10,12 +10,14 @@ export function ParamsTab({ scenario, onChange }: ScenarioTabProps) {
   const query = useMemo(() => parseQuery(scenario.http.url), [scenario.http.url]);
   const path = useMemo(() => pathParams(scenario).map((param) => makeRow(param.name, param.value)), [scenario]);
   return (
-    <>
-      <KeyValueTable
-        rows={query}
-        valueColumn={{ templates: true }}
-        onChange={(rows) => onChange(withUrl(scenario, withQuery(scenario.http.url, rows)))}
-      />
+    <div className="flex flex-col gap-4">
+      <Field label="Query">
+        <KeyValueTable
+          rows={query}
+          valueColumn={{ templates: true }}
+          onChange={(rows) => onChange(withUrl(scenario, withQuery(scenario.http.url, rows)))}
+        />
+      </Field>
       {path.length > 0 && (
         <Field label="Path">
           <KeyValueTable
@@ -26,6 +28,6 @@ export function ParamsTab({ scenario, onChange }: ScenarioTabProps) {
           />
         </Field>
       )}
-    </>
+    </div>
   );
 }

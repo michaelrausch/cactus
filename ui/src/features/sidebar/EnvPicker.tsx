@@ -25,7 +25,7 @@ export function EnvPicker() {
   return (
     <div className="flex items-center gap-1 border-t border-sidebar-border p-2">
       <DropdownMenu>
-        <DropdownMenuTrigger className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-lg px-2 text-left text-sm outline-none hover:bg-sidebar-accent">
+        <DropdownMenuTrigger className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-lg px-2 text-left text-sm focus-ring hover:bg-sidebar-accent">
           <EnvDot active={!!activeEnv} />
           <span className="min-w-0 flex-1 truncate">{activeEnv ?? "No environment"}</span>
           <ChevronsUpDown className="size-3.5 text-muted-foreground" />

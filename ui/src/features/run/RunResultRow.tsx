@@ -1,6 +1,7 @@
 import type { RunResult } from "@/api/client";
 import { openRunResult } from "@/actions/request";
 import { StatusCode } from "@/components/StatusCode";
+import { formatDuration } from "@/lib/format";
 import { CheckIcon } from "@/features/response/ChecksList";
 
 const DETAIL_CLASS = "pl-[4.25rem] text-xs text-danger";
@@ -21,7 +22,9 @@ export function RunResultRow({ result }: { result: RunResult }) {
           <span className="w-8 font-mono text-xs">—</span>
         )}
         <span className="min-w-0 flex-1 truncate">{result.title}</span>
-        <span className="text-xs text-muted-foreground tabular-nums">{response ? `${response.timeMs}ms` : ""}</span>
+        <span className="text-xs text-muted-foreground tabular-nums">
+          {response ? formatDuration(response.timeMs) : ""}
+        </span>
       </div>
       {result.error && <span className={DETAIL_CLASS}>{result.error}</span>}
       {response?.checks

@@ -3,7 +3,7 @@ import type { HttpResponse } from "@/api/client";
 export function HeadersTable({ response }: { response: HttpResponse }) {
   return (
     <>
-      <div className="mb-3 font-mono text-[11px] break-all text-muted-foreground">
+      <div className="mb-3 font-mono text-xs break-all text-muted-foreground">
         {response.method} {response.url}
       </div>
       <table className="w-full font-mono text-xs">

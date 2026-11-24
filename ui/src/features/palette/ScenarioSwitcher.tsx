@@ -12,7 +12,7 @@ export function ScenarioSwitcher() {
 
   return (
     <CommandDialog open={open} onOpenChange={setOpen}>
-      <CommandInput placeholder="Jump to scenario…" />
+      <CommandInput placeholder="Jump to request…" />
       <CommandList>
         <CommandEmpty>No match.</CommandEmpty>
         {entries.map((entry) => (
@@ -24,7 +24,7 @@ export function ScenarioSwitcher() {
               void selectScenario(entry.relPath);
             }}
           >
-            <MethodBadge method={entry.method} className="w-12 text-[10px]" />
+            <MethodBadge method={entry.method} className="w-12 text-2xs" />
             <span className="flex-1 truncate">{entry.title}</span>
             <span className="truncate text-xs text-muted-foreground">{entry.relPath}</span>
           </CommandItem>

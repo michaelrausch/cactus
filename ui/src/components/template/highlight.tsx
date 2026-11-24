@@ -7,7 +7,7 @@ export type Syntax = "template" | "json";
 /** Variable names in scope; null while unknown, when nothing is flagged as unresolved. */
 export type KnownNames = ReadonlySet<string> | null;
 
-const RESOLVED = "rounded-sm bg-teal-400/15 text-teal-200";
+const RESOLVED = "rounded-sm bg-template-resolved/15 text-template-resolved";
 const UNRESOLVED =
   "rounded-sm bg-warning/15 text-warning underline decoration-warning/70 decoration-wavy underline-offset-2";
 

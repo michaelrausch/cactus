@@ -1,7 +1,7 @@
 import { Clock } from "lucide-react";
 import type { HttpResponse } from "@/api/client";
 import { StatusCode } from "@/components/StatusCode";
-import { formatBytes, timeAgo } from "@/lib/format";
+import { formatBytes, formatDuration, timeAgo } from "@/lib/format";
 
 /** Status, timing and size line, plus warning, unresolved, captured and failed-capture chips. */
 export function ResponseSummary({ response, historyAt }: { response: HttpResponse; historyAt: number | null }) {
@@ -9,10 +9,10 @@ export function ResponseSummary({ response, historyAt }: { response: HttpRespons
   return (
     <>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
-        <StatusCode status={response.status} className="rounded-md bg-current/10 px-2 py-0.5 text-[13px] font-semibold">
+        <StatusCode status={response.status} className="rounded-md bg-current/10 px-2 py-0.5 text-sm font-semibold">
           {response.status} {response.statusText}
         </StatusCode>
-        <span className="text-muted-foreground tabular-nums">{response.timeMs} ms</span>
+        <span className="text-muted-foreground tabular-nums">{formatDuration(response.timeMs)}</span>
         <span className="text-muted-foreground/50">·</span>
         <span className="text-muted-foreground tabular-nums">{formatBytes(response.sizeBytes)}</span>
         {response.truncated && <span className="text-warning">truncated</span>}
@@ -26,7 +26,7 @@ export function ResponseSummary({ response, historyAt }: { response: HttpRespons
         response.unresolved.length > 0 ||
         captured.length > 0 ||
         response.captureFailures.length > 0) && (
-        <div className="flex flex-wrap gap-1.5 text-[11px]">
+        <div className="flex flex-wrap gap-1.5 text-xs">
           {response.warnings.map((warning) => (
             <span key={warning} className="rounded-full bg-warning/10 px-2 py-0.5 text-warning">
               {warning}
@@ -53,7 +53,7 @@ export function ResponseSummary({ response, historyAt }: { response: HttpRespons
           {captured.map(([name, value]) => (
             <span
               key={name}
-              className="max-w-60 truncate rounded-full bg-teal-400/10 px-2 py-0.5 text-teal-300"
+              className="max-w-60 truncate rounded-full bg-captured/10 px-2 py-0.5 text-captured"
               title={value}
             >
               captured {name}

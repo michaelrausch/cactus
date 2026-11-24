@@ -9,9 +9,9 @@ interface ShortcutDefinition {
 export const SHORTCUTS = {
   save: { key: "s", description: "save" },
   send: { key: "Enter", description: "send" },
-  newScenario: { key: "n", description: "new scenario" },
+  newScenario: { key: "n", description: "new request" },
   openProject: { key: "o", description: "open folder" },
-  switcher: { key: "p", description: "jump to scenario" },
+  switcher: { key: "p", description: "jump to request" },
   duplicate: { key: "d", description: "duplicate" },
   variables: { key: "e", description: "variables" },
   changes: { key: "g", description: "git changes" },
@@ -34,7 +34,7 @@ export const shortcutKeys = (id: ShortcutId): string[] => ["Ctrl", displayKey(SH
 /** `"Ctrl+N"`, for tooltips. */
 export const shortcutLabel = (id: ShortcutId): string => shortcutKeys(id).join("+");
 
-/** `"New scenario (Ctrl+N)"` */
+/** `"New request (Ctrl+N)"` */
 export const withShortcut = (title: string, id: ShortcutId): string => `${title} (${shortcutLabel(id)})`;
 
 export const shortcutForKey = (key: string): ShortcutId | undefined =>

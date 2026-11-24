@@ -1,5 +1,6 @@
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Toaster } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { ConfirmDialog } from "@/features/dialogs/ConfirmDialog";
 import { PromptDialog } from "@/features/dialogs/PromptDialog";
 import { EnvDialog } from "@/features/env/EnvDialog";
@@ -17,27 +18,29 @@ export default function App() {
   useKeyboardShortcuts();
 
   return (
-    <div className="relative h-screen overflow-hidden bg-background bg-(image:--app-backdrop) text-foreground">
-      <ResizablePanelGroup orientation="horizontal">
-        <ResizablePanel defaultSize="264px" minSize="200px" maxSize="420px">
-          <Sidebar />
-        </ResizablePanel>
-        <ResizableHandle />
-        <ResizablePanel>
-          <Workspace />
-        </ResizablePanel>
-      </ResizablePanelGroup>
+    <TooltipProvider delayDuration={400}>
+      <div className="relative h-screen overflow-hidden bg-background bg-(image:--app-backdrop) text-foreground">
+        <ResizablePanelGroup orientation="horizontal">
+          <ResizablePanel defaultSize="264px" minSize="200px" maxSize="420px">
+            <Sidebar />
+          </ResizablePanel>
+          <ResizableHandle />
+          <ResizablePanel>
+            <Workspace />
+          </ResizablePanel>
+        </ResizablePanelGroup>
 
-      <PromptDialog />
-      <ConfirmDialog />
-      <EnvDialog />
-      <GitDialog />
-      <SettingsDialog />
-      <RunDialog />
-      <ScenarioSwitcher />
-      <Toaster position="bottom-right" />
-      {/* Theme effects drawn over everything, e.g. scanlines. */}
-      <div aria-hidden className="pointer-events-none absolute inset-0 z-40 bg-(image:--app-overlay)" />
-    </div>
+        <PromptDialog />
+        <ConfirmDialog />
+        <EnvDialog />
+        <GitDialog />
+        <SettingsDialog />
+        <RunDialog />
+        <ScenarioSwitcher />
+        <Toaster position="bottom-right" />
+        {/* Theme effects drawn over everything, e.g. scanlines. */}
+        <div aria-hidden className="pointer-events-none absolute inset-0 z-40 bg-(image:--app-overlay)" />
+      </div>
+    </TooltipProvider>
   );
 }

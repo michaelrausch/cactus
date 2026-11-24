@@ -26,6 +26,8 @@ pub fn builder() -> Builder<tauri::Wry> {
             env::set_active_env,
             env::load_env,
             env::save_env,
+            env::rename_env,
+            env::delete_env,
             env::variable_names,
             git::git_status,
             git::git_init,

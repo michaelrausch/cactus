@@ -112,6 +112,39 @@ pub fn list_named(project: &Path) -> Result<Vec<String>> {
     Ok(names)
 }
 
+/// Rename environment `from` to `to`: its file and the `name` inside it,
+/// edited in place. The active env follows the rename.
+pub fn rename_named(project: &Path, from: &str, to: &str) -> Result<()> {
+    validate_env_name(from)?;
+    validate_env_name(to)?;
+    if from == to {
+        return Ok(());
+    }
+    let source = layout::environment_file(project, from);
+    let target = layout::environment_file(project, to);
+    if target.exists() {
+        return Err(Error::AlreadyExists(format!("environment {to}")));
+    }
+    fs::rename(&source, &target)?;
+    let mut environment = load_environment(project, to)?;
+    environment.name = to.into();
+    collection::write(&target, &environment)?;
+    if state::load(project).env.as_deref() == Some(from) {
+        set_active(project, Some(to.into()))?;
+    }
+    Ok(())
+}
+
+/// Delete environment `name`; if it was active, no environment is.
+pub fn delete_named(project: &Path, name: &str) -> Result<()> {
+    validate_env_name(name)?;
+    fs::remove_file(layout::environment_file(project, name))?;
+    if state::load(project).env.as_deref() == Some(name) {
+        set_active(project, None)?;
+    }
+    Ok(())
+}
+
 /// The active named env, if its file still exists.
 pub fn active(project: &Path) -> Option<String> {
     let name = state::load(project).env?;
@@ -197,6 +230,31 @@ mod tests {
         assert_eq!(for_request["c"], "request");
         let for_request = resolve_for_request(p, None, &[RequestDefaults::default(), folder], &request).unwrap();
         assert_eq!(for_request["d"], "secret");
+    }
+
+    #[test]
+    fn rename_and_delete_named() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path();
+        fs::create_dir_all(p.join("environments")).unwrap();
+        fs::write(p.join("environments/dev.yml"), "name: dev\n# keep me\nvariables:\n  - name: a\n    value: '1'\n")
+            .unwrap();
+        save(p, &EnvFile::Named("prod".into()), &env(&[("b", "2")])).unwrap();
+        set_active(p, Some("dev".into())).unwrap();
+
+        assert!(rename_named(p, "dev", "prod").is_err());
+        rename_named(p, "dev", "staging").unwrap();
+        assert_eq!(list_named(p).unwrap(), ["prod", "staging"]);
+        assert_eq!(
+            fs::read_to_string(p.join("environments/staging.yml")).unwrap(),
+            "name: staging\n# keep me\nvariables:\n  - name: a\n    value: '1'\n"
+        );
+        assert_eq!(active(p).as_deref(), Some("staging"));
+
+        delete_named(p, "staging").unwrap();
+        assert_eq!(list_named(p).unwrap(), ["prod"]);
+        assert_eq!(active(p), None);
+        assert!(delete_named(p, "../x").is_err());
     }
 
     #[test]

@@ -7,6 +7,9 @@ export function formatBytes(bytes: number): string {
   return `${(bytes / MIB).toFixed(1)} MB`;
 }
 
+/** `"123 ms"`: one spelling everywhere a request time is shown. */
+export const formatDuration = (millis: number): string => `${millis} ms`;
+
 const MINUTE = 60;
 const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;

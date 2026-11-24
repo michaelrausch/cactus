@@ -28,7 +28,7 @@ export function SettingsDialog() {
       <DialogContent className="gap-0 p-0 sm:max-w-3xl">
         <DialogTitle className="sr-only">Settings</DialogTitle>
         <DialogDescription className="sr-only">Theme and information about this build.</DialogDescription>
-        <Tabs.Root orientation="vertical" defaultValue="theme" className="flex h-[520px]">
+        <Tabs.Root orientation="vertical" defaultValue="theme" className="flex h-[min(520px,calc(100vh-4rem))]">
           <div className="flex w-44 shrink-0 flex-col gap-3 border-r bg-sidebar/60 p-3">
             <p className="px-2 pt-1 text-xs font-medium tracking-wide text-muted-foreground uppercase">Settings</p>
             <Tabs.List className="flex flex-col gap-0.5">

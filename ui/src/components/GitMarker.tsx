@@ -8,7 +8,7 @@ export function GitMarker({ kind, className }: { kind: ChangeKind; className?: s
   return (
     <span
       title={kindLabel(kind)}
-      className={cn("w-3 shrink-0 text-center font-mono text-[11px] font-semibold", changeColor(kind), className)}
+      className={cn("w-3 shrink-0 text-center font-mono text-xs font-semibold", changeColor(kind), className)}
     >
       {markerFor(kind)}
     </span>

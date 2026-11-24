@@ -72,14 +72,14 @@ function CommitForm({ status }: { status: GitStatus }) {
           className="max-h-40 min-h-16 pb-5 text-sm"
         />
         {summaryLength > SUMMARY_LIMIT && (
-          <span className="absolute right-2 bottom-1 text-[10px] text-warning" title="Keep the first line short">
+          <span className="absolute right-2 bottom-1 text-2xs text-warning" title="Keep the first line short">
             {summaryLength}/{SUMMARY_LIMIT}
           </span>
         )}
       </div>
       <Button type="submit" size="sm" disabled={!canCommit}>
         {stagedCount > 0 ? `Commit ${plural(stagedCount, "file")}` : "Nothing staged"}
-        {canCommit && <span className="ml-1 text-[10px] opacity-60">Ctrl+Enter</span>}
+        {canCommit && <span className="ml-1 text-2xs opacity-60">Ctrl+Enter</span>}
       </Button>
     </form>
   );
@@ -110,7 +110,7 @@ export function GitDialog() {
       <DialogContent className="gap-0 p-0 sm:max-w-5xl">
         <DialogTitle className="sr-only">Changes</DialogTitle>
         <DialogDescription className="sr-only">Stage, review and commit changes to this collection.</DialogDescription>
-        <div className="flex h-[560px]">
+        <div className="flex h-[min(560px,calc(100vh-4rem))]">
           <div className="flex w-80 shrink-0 flex-col border-r bg-sidebar/60">
             <div className="flex shrink-0 flex-col gap-1 border-b px-4 py-3">
               <div className="flex min-w-0">

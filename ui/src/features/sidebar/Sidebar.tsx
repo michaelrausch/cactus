@@ -15,12 +15,13 @@ import { ScenarioList } from "./ScenarioList";
 function ScenarioToolbar({ filter, onFilterChange }: { filter: string; onFilterChange: (value: string) => void }) {
   return (
     <div className="flex items-center gap-1 px-2 pb-2">
-      <div className="flex h-8 flex-1 items-center gap-2 rounded-lg bg-sidebar-accent/50 px-2.5 text-muted-foreground focus-within:bg-sidebar-accent">
+      <div className="flex h-8 flex-1 items-center gap-2 rounded-lg bg-sidebar-accent/50 px-2.5 text-muted-foreground focus-within:bg-sidebar-accent focus-within:ring-1 focus-within:ring-ring">
         <Search className="size-3.5 shrink-0" />
         <input
           value={filter}
           onChange={(e) => onFilterChange(e.target.value)}
           placeholder="Search"
+          aria-label="Search requests"
           className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
         />
       </div>
@@ -28,7 +29,7 @@ function ScenarioToolbar({ filter, onFilterChange }: { filter: string; onFilterC
         <Play />
       </IconButton>
       <IconButton
-        label={withShortcut("New scenario", "newScenario")}
+        label={withShortcut("New request", "newScenario")}
         tone="sidebar"
         onClick={() => createScenarioIn("")}
       >
@@ -48,7 +49,7 @@ function SettingsButton() {
       title={label}
       aria-label={label}
       onClick={() => openSettings(true)}
-      className="group -ml-1 grid size-7 shrink-0 place-items-center rounded-md transition hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+      className="group -ml-1 grid size-7 shrink-0 place-items-center rounded-md focus-ring transition hover:bg-sidebar-accent"
     >
       <Logo className="transition-transform duration-300 group-hover:scale-110 group-hover:-rotate-6 group-active:scale-95" />
     </button>

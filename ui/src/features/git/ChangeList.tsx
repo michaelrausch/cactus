@@ -53,10 +53,10 @@ function ChangeRow({ file, side, titles }: { file: FileStatus; side: DiffSide; t
         ]
           .filter(Boolean)
           .join("\n")}
-        className="flex h-full min-w-0 flex-1 items-center gap-2 pl-2 text-left outline-none"
+        className="flex h-full min-w-0 flex-1 items-center gap-2 rounded-md pl-2 text-left focus-ring"
       >
         <GitMarker kind={kind} />
-        <span className="shrink-0 truncate text-[13px]">{name}</span>
+        <span className="shrink-0 truncate text-sm">{name}</span>
         {detail && <span className="min-w-0 truncate text-xs text-muted-foreground">{detail}</span>}
       </button>
       <span className="hidden items-center group-focus-within:flex group-hover:flex">
@@ -93,7 +93,7 @@ export function ChangeList({ side, files }: { side: DiffSide; files: FileStatus[
   if (files.length === 0) return null;
   return (
     <div className="mb-3">
-      <div className="flex h-7 items-center pr-1 pl-2 text-[11px] font-medium tracking-wide text-muted-foreground/80 uppercase">
+      <div className="flex h-7 items-center pr-1 pl-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
         <span className="flex-1">
           {side === "staged" ? "Staged" : "Changes"} · {files.length}
         </span>
