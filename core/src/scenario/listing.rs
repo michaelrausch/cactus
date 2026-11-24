@@ -85,8 +85,21 @@ pub fn walk(project: &Path) -> impl Iterator<Item = DirEntry> {
 }
 
 fn is_skipped(entry: &DirEntry) -> bool {
-    let name = entry.file_name().to_string_lossy();
-    name.starts_with('.') || (entry.file_type().is_dir() && IGNORED_DIRS.contains(&&*name))
+    is_skipped_name(&entry.file_name().to_string_lossy(), entry.file_type().is_dir())
+}
+
+fn is_skipped_name(name: &str, is_dir: bool) -> bool {
+    name.starts_with('.') || (is_dir && IGNORED_DIRS.contains(&name))
+}
+
+/// Whether [`walk`] would leave out the file or folder at `rel_path`
+/// (project-relative, `/`-separated), for filtering events from a watcher
+/// that sees the whole tree. Whether the last part is a folder isn't known,
+/// so a file named like an ignored folder counts as ignored too; it can't be
+/// a request anyway.
+pub fn is_ignored(rel_path: &str) -> bool {
+    let parts: Vec<&str> = rel_path.split('/').filter(|part| !part.is_empty()).collect();
+    parts.len() > MAX_WALK_DEPTH || parts.iter().any(|part| is_skipped_name(part, true))
 }
 
 /// Every request in the project in tree order, as Bruno lists and runs them:
@@ -202,6 +215,17 @@ mod tests {
         assert_eq!(entries[3].method, UNPARSEABLE_METHOD);
         assert_eq!(next_seq(p, ""), 3.0);
         assert_eq!(next_seq(p, "auth"), 3.0);
+    }
+
+    #[test]
+    fn ignored_paths_match_the_walk() {
+        assert!(!is_ignored("auth/login.yml"));
+        assert!(is_ignored("node_modules/pkg/x.yml"));
+        assert!(is_ignored("web/node_modules"));
+        assert!(is_ignored(".git/HEAD"));
+        assert!(is_ignored("auth/.hidden.yml"));
+        assert!(is_ignored("1/2/3/4/5/6/7.yml"));
+        assert!(!is_ignored("1/2/3/4/5/6.yml"));
     }
 
     #[test]

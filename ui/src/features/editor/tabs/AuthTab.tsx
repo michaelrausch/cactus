@@ -1,5 +1,5 @@
 import type { AuthMode } from "@/api/client";
-import { Field, Hint } from "@/components/Field";
+import { Field } from "@/components/Field";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AUTH_KIND_LABELS, AUTH_KINDS, isAuthKind, type AuthKind } from "@/domain/http";
@@ -124,14 +124,6 @@ export function AuthTab({ scenario, onChange }: ScenarioTabProps) {
         </Select>
       </Field>
       {mode && <AuthFields auth={mode} onChange={(next) => onChange(withAuth(scenario, next))} />}
-      {kind === "inherit" && <Hint>Uses the auth set on the nearest folder, or else the collection.</Hint>}
-      {kind === "other" && (
-        <Hint>
-          cactus can&apos;t send {otherAuthType(scenario)} auth, so it keeps it in the file as written and sends the
-          request without auth. Edit it in the file, or pick another type to replace it.
-        </Hint>
-      )}
-      <Hint>Use {"{{vars}}"} here and keep the real values in Secrets, which are never committed.</Hint>
     </>
   );
 }

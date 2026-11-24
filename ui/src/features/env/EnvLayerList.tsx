@@ -50,7 +50,7 @@ interface EnvLayerListProps {
 export function EnvLayerList({ envs, selected, onSelect, onCreate }: EnvLayerListProps) {
   return (
     <div className="flex w-52 shrink-0 flex-col gap-0.5 border-r bg-sidebar p-2">
-      <p className="px-2 pt-1 pb-2 text-xs text-muted-foreground">Layers, lowest first</p>
+      
       {envLayers(envs).map((file) => (
         <button
           type="button"

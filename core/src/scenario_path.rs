@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::fmt;
 use std::path::{Component, Path, PathBuf};
 
@@ -6,6 +7,12 @@ use serde::{Deserialize, Serialize};
 use crate::{Error, Result};
 
 const SEPARATOR: char = '/';
+/// Accepted on input on every platform, so a path typed on Windows means the
+/// same everywhere; it is stored as [`SEPARATOR`].
+const WINDOWS_SEPARATOR: char = '\\';
+/// Marks a drive (`C:`) or an NTFS alternate data stream (`a.yml:x`), either
+/// of which would make a joined path leave the project on Windows.
+const DRIVE_MARKER: char = ':';
 
 /// A request file's location relative to the project root, using `/` separators.
 /// It can never point outside the project, so it is safe to join onto it.
@@ -15,18 +22,23 @@ const SEPARATOR: char = '/';
 pub struct ScenarioPath(String);
 
 impl ScenarioPath {
+    /// Accepts `\` as well as `/` between folders. Every part must be a plain
+    /// name: no empty parts, `.`, `..`, roots or drives.
     pub fn parse(relative: impl Into<String>) -> Result<Self> {
         let relative = relative.into();
-        let only_normal_parts = Path::new(&relative).components().all(|c| matches!(c, Component::Normal(_)));
-        if relative.is_empty() || !only_normal_parts {
+        let normalized = relative.replace(WINDOWS_SEPARATOR, &SEPARATOR.to_string());
+        let plain_parts = normalized.split(SEPARATOR).all(is_plain_name);
+        // Also ask the platform, which knows its own kinds of prefix.
+        let only_normal_parts = Path::new(&normalized).components().all(|c| matches!(c, Component::Normal(_)));
+        if !plain_parts || !only_normal_parts {
             return Err(Error::InvalidScenarioPath(relative));
         }
-        Ok(Self(relative))
+        Ok(Self(normalized))
     }
 
     /// `file_name` inside folder `dir`, where `""` is the project root.
     pub fn in_dir(dir: &str, file_name: &str) -> Result<Self> {
-        let dir = dir.trim_end_matches(SEPARATOR);
+        let dir = normalize_dir(dir);
         if dir.is_empty() { Self::parse(file_name) } else { Self::parse(format!("{dir}{SEPARATOR}{file_name}")) }
     }
 
@@ -51,12 +63,26 @@ impl ScenarioPath {
 
     /// Whether this path lies under folder `dir`; everything is within `""`.
     pub fn is_within(&self, dir: &str) -> bool {
-        let dir = dir.trim_end_matches(SEPARATOR);
-        dir.is_empty() || self.0.strip_prefix(dir).is_some_and(|rest| rest.starts_with(SEPARATOR))
+        let dir = normalize_dir(dir);
+        dir.is_empty() || self.0.strip_prefix(&*dir).is_some_and(|rest| rest.starts_with(SEPARATOR))
     }
 
     pub fn resolve(&self, project: &Path) -> PathBuf {
         project.join(&self.0)
+    }
+}
+
+fn is_plain_name(part: &str) -> bool {
+    !part.is_empty() && part != "." && part != ".." && !part.contains(DRIVE_MARKER)
+}
+
+/// A folder as given by a user or the UI: either separator, maybe a trailing one.
+fn normalize_dir(dir: &str) -> Cow<'_, str> {
+    let dir = dir.trim_end_matches([SEPARATOR, WINDOWS_SEPARATOR]);
+    if dir.contains(WINDOWS_SEPARATOR) {
+        Cow::Owned(dir.replace(WINDOWS_SEPARATOR, &SEPARATOR.to_string()))
+    } else {
+        Cow::Borrowed(dir)
     }
 }
 
@@ -90,6 +116,29 @@ mod tests {
         assert!(ScenarioPath::parse("/etc/passwd").is_err());
         assert!(ScenarioPath::parse("").is_err());
         assert!(ScenarioPath::parse("a/b.yml").is_ok());
+        for bad in [
+            "a//b.yml",
+            "a/",
+            "./a.yml",
+            "a/../b.yml",
+            "C:/x.yml",
+            "C:x.yml",
+            "a.yml:stream",
+            "\\\\srv\\share\\a.yml",
+            "\\a.yml",
+        ] {
+            assert!(ScenarioPath::parse(bad).is_err(), "{bad}");
+        }
+    }
+
+    #[test]
+    fn normalizes_windows_separators() {
+        let path = ScenarioPath::parse("auth\\admin\\login.yml").unwrap();
+        assert_eq!(path.as_str(), "auth/admin/login.yml");
+        assert_eq!((path.dir(), path.file_name()), ("auth/admin", "login.yml"));
+        assert!(path.is_within("auth\\"));
+        assert!(path.is_within("auth\\admin"));
+        assert_eq!(ScenarioPath::in_dir("auth\\", "x.yml").unwrap().as_str(), "auth/x.yml");
     }
 
     #[test]

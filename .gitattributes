@@ -1,0 +1,5 @@
+# Keep checkouts byte-identical on every platform, so tests that compare file
+# text and the example collection behave the same on Windows.
+* text=auto eol=lf
+*.png binary
+*.ico binary

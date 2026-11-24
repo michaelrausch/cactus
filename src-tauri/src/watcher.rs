@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use cactus_core::layout::WORKSPACE_DIR;
 use cactus_core::scenario;
-use notify_debouncer_mini::notify::{RecommendedWatcher, RecursiveMode};
+use notify_debouncer_mini::notify::{RecommendedWatcher, RecursiveMode, Watcher};
 use notify_debouncer_mini::{DebounceEventResult, Debouncer, new_debouncer};
 use tauri::AppHandle;
 use tauri_specta::Event;
@@ -34,21 +34,36 @@ impl ProjectWatcher {
             }
         })
         .ok()?;
-        // Watch only the folders scenarios are listed from, so ignored trees
-        // like node_modules cost nothing.
-        for dir in scenario::walk(project).filter(|e| e.file_type().is_dir()) {
-            let _ = debouncer.watcher().watch(dir.path(), RecursiveMode::NonRecursive);
-        }
+        watch_project(debouncer.watcher(), project);
         Some(Self { _debouncer: debouncer })
     }
 }
 
-/// Sorted, deduplicated project-relative paths, minus our own writes.
+/// Windows watches a tree recursively through a single handle, which is
+/// cheap. A watch per folder would hold a handle on each, and Windows then
+/// refuses to rename or delete their parents in Explorer.
+#[cfg(windows)]
+fn watch_project(watcher: &mut dyn Watcher, project: &Path) {
+    let _ = watcher.watch(project, RecursiveMode::Recursive);
+}
+
+/// Elsewhere a recursive watch costs one watch per folder, so only the
+/// folders requests are listed from are watched, and ignored trees like
+/// `node_modules` cost nothing.
+#[cfg(not(windows))]
+fn watch_project(watcher: &mut dyn Watcher, project: &Path) {
+    for dir in scenario::walk(project).filter(|e| e.file_type().is_dir()) {
+        let _ = watcher.watch(dir.path(), RecursiveMode::NonRecursive);
+    }
+}
+
+/// Sorted, deduplicated project-relative paths, minus our own writes and
+/// anything the listing leaves out.
 fn changed_relative_paths<'a>(root: &Path, paths: impl Iterator<Item = &'a Path>) -> Vec<String> {
     let mut relative: Vec<String> = paths
         .filter_map(|path| path.strip_prefix(root).ok())
         .map(|path| path.to_string_lossy().replace('\\', "/"))
-        .filter(|path| !is_own_write(path))
+        .filter(|path| !is_own_write(path) && !scenario::is_ignored(path))
         .collect();
     relative.sort();
     relative.dedup();
@@ -67,8 +82,16 @@ mod tests {
     #[test]
     fn filters_and_dedupes() {
         let root = Path::new("/p");
-        let paths =
-            ["/p/b.json", "/p/a.json", "/p/b.json", "/p/.cactus/history/x", "/p/a.json.tmp", "/elsewhere/c.json"];
+        let paths = [
+            "/p/b.json",
+            "/p/a.json",
+            "/p/b.json",
+            "/p/.cactus/history/x",
+            "/p/a.json.tmp",
+            "/elsewhere/c.json",
+            "/p/web/node_modules/x/y.yml",
+            "/p/.git/index",
+        ];
         let changed = changed_relative_paths(root, paths.iter().map(Path::new));
         assert_eq!(changed, ["a.json", "b.json"]);
     }

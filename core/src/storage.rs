@@ -1,8 +1,11 @@
 //! File persistence shared by every on-disk store.
 
+use std::ffi::OsString;
 use std::fs;
-use std::io::ErrorKind;
+use std::io::{self, ErrorKind};
 use std::path::Path;
+use std::thread;
+use std::time::Duration;
 
 use serde::Serialize;
 use serde::de::DeserializeOwned;
@@ -11,6 +14,11 @@ use crate::Result;
 
 /// Appended to a file name while it is being written; the watcher ignores it.
 const TEMP_SUFFIX: &str = ".tmp";
+/// On Windows a rename fails while another process (antivirus, the search
+/// indexer, an editor) briefly has the target open, so it is retried for up
+/// to about a second. Elsewhere the same error is a real permission problem.
+const RENAME_ATTEMPTS: u32 = if cfg!(windows) { 10 } else { 1 };
+const RENAME_RETRY_DELAY: Duration = Duration::from_millis(100);
 
 /// Read a JSON file, treating a missing file as `T::default()`.
 pub fn read_json<T: DeserializeOwned + Default>(path: &Path) -> Result<T> {
@@ -37,12 +45,29 @@ pub fn write_json<T: Serialize>(path: &Path, value: &T) -> Result<()> {
 
 /// Write via a temp file and rename, so readers and file watchers never
 /// observe a half-written file.
+/// The temp file is removed if the write fails.
 pub fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
-    let mut tmp = path.as_os_str().to_owned();
+    let mut tmp: OsString = path.as_os_str().to_owned();
     tmp.push(TEMP_SUFFIX);
-    fs::write(&tmp, bytes)?;
-    fs::rename(&tmp, path)?;
-    Ok(())
+    let tmp = Path::new(&tmp);
+    let written = fs::write(tmp, bytes).and_then(|()| rename_with_retry(tmp, path));
+    if written.is_err() {
+        let _ = fs::remove_file(tmp);
+    }
+    Ok(written?)
+}
+
+fn rename_with_retry(from: &Path, to: &Path) -> io::Result<()> {
+    let mut attempt = 1;
+    loop {
+        match fs::rename(from, to) {
+            Err(e) if e.kind() == ErrorKind::PermissionDenied && attempt < RENAME_ATTEMPTS => {
+                attempt += 1;
+                thread::sleep(RENAME_RETRY_DELAY);
+            }
+            result => return result,
+        }
+    }
 }
 
 pub fn ensure_parent_dir(path: &Path) -> Result<()> {
@@ -50,4 +75,29 @@ pub fn ensure_parent_dir(path: &Path) -> Result<()> {
         fs::create_dir_all(parent)?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn write_atomic_replaces_and_leaves_no_temp_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("a.yml");
+        write_atomic(&path, b"one").unwrap();
+        write_atomic(&path, b"two").unwrap();
+        assert_eq!(fs::read(&path).unwrap(), b"two");
+        assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 1);
+    }
+
+    #[test]
+    fn failed_write_removes_temp_file() {
+        let dir = tempfile::tempdir().unwrap();
+        // Renaming a file over a directory fails on every platform.
+        let path = dir.path().join("taken");
+        fs::create_dir(&path).unwrap();
+        assert!(write_atomic(&path, b"x").is_err());
+        assert!(!dir.path().join("taken.tmp").exists());
+    }
 }

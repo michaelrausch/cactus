@@ -1,6 +1,5 @@
 import { useMemo } from "react";
 import type { MultipartField } from "@/api/client";
-import { Hint } from "@/components/Field";
 import { KeyValueTable } from "@/components/KeyValueTable";
 import { Textarea } from "@/components/ui/textarea";
 import { BODY_KIND_LABELS, BODY_KINDS, type BodyKind } from "@/domain/http";
@@ -86,7 +85,6 @@ function FieldsEditor({ scenario, onChange, kind }: ScenarioTabProps & { kind: "
         onChange={update}
         valuePlaceholder={multipart ? "Value, or @path/to/file" : "Value"}
       />
-      {multipart && <Hint>Start a value with @ to upload a file. Relative paths resolve from the project folder.</Hint>}
     </div>
   );
 }
@@ -115,13 +113,6 @@ export function BodyTab(tab: ScenarioTabProps) {
       <BodyKindPicker {...tab} />
       {isTextBodyKind(kind) && <TextEditor {...tab} kind={kind} />}
       {(kind === "form-urlencoded" || kind === "multipart-form") && <FieldsEditor {...tab} kind={kind} />}
-      {kind === "none" && <Hint>This request has no body.</Hint>}
-      {kind === "other" && (
-        <Hint>
-          This body (variants, a file, or another kind) is kept in the file as written and sent as its selected variant.
-          Edit it in the file, or pick a kind above to replace it.
-        </Hint>
-      )}
     </>
   );
 }
