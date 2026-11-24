@@ -31,6 +31,11 @@ export function RunResultRow({ result }: { result: RunResult }) {
             {check.name}: {check.detail}
           </span>
         ))}
+      {response?.captureFailures.map((failure) => (
+        <span key={failure.name} className={`${DETAIL_CLASS} font-mono`}>
+          capture {failure.name}: {failure.reason}
+        </span>
+      ))}
     </button>
   );
 }

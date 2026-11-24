@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import type { MultipartField } from "@/api/client";
 import { KeyValueTable } from "@/components/KeyValueTable";
-import { Textarea } from "@/components/ui/textarea";
+import { TemplateField } from "@/components/template/TemplateField";
 import { BODY_KIND_LABELS, BODY_KINDS, type BodyKind } from "@/domain/http";
 import { listFromRows, makeRow, rowsFromList, type Row } from "@/domain/rows";
 import {
@@ -84,6 +84,7 @@ function FieldsEditor({ scenario, onChange, kind }: ScenarioTabProps & { kind: "
         toggles
         onChange={update}
         valuePlaceholder={multipart ? "Value, or @path/to/file" : "Value"}
+        valueColumn={{ templates: true }}
       />
     </div>
   );
@@ -94,13 +95,18 @@ function TextEditor({ scenario, onChange, kind }: ScenarioTabProps & { kind: "js
   const problem = kind === "json" ? jsonProblem(text) : null;
   return (
     <>
-      <Textarea
-        value={text}
-        onChange={(e) => onChange(withBodyText(scenario, kind, e.target.value))}
-        spellCheck={false}
-        placeholder={kind === "json" ? JSON_PLACEHOLDER : ""}
-        className="min-h-0 flex-1 resize-none rounded-lg font-mono text-xs leading-relaxed"
-      />
+      <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-input bg-input/30 transition-colors focus-within:border-ring">
+        <TemplateField
+          multiline
+          syntax={kind === "json" ? "json" : "template"}
+          value={text}
+          onChange={(next) => onChange(withBodyText(scenario, kind, next))}
+          placeholder={kind === "json" ? JSON_PLACEHOLDER : ""}
+          aria-label="Body"
+          className="min-h-full"
+          fieldClassName="px-2.5 py-2 font-mono text-xs leading-relaxed md:text-sm"
+        />
+      </div>
       {problem && <span className="truncate text-xs text-amber-400">Not valid JSON: {problem}</span>}
     </>
   );

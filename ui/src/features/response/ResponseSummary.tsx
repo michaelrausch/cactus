@@ -3,7 +3,7 @@ import type { HttpResponse } from "@/api/client";
 import { StatusCode } from "@/components/StatusCode";
 import { formatBytes, timeAgo } from "@/lib/format";
 
-/** Status, timing and size line, plus warning, unresolved and captured variable chips. */
+/** Status, timing and size line, plus warning, unresolved, captured and failed-capture chips. */
 export function ResponseSummary({ response, historyAt }: { response: HttpResponse; historyAt: number | null }) {
   const captured = Object.entries(response.captured);
   return (
@@ -22,7 +22,10 @@ export function ResponseSummary({ response, historyAt }: { response: HttpRespons
           </span>
         )}
       </div>
-      {(response.warnings.length > 0 || response.unresolved.length > 0 || captured.length > 0) && (
+      {(response.warnings.length > 0 ||
+        response.unresolved.length > 0 ||
+        captured.length > 0 ||
+        response.captureFailures.length > 0) && (
         <div className="flex flex-wrap gap-1.5 text-[11px]">
           {response.warnings.map((warning) => (
             <span key={warning} className="rounded-full bg-amber-400/10 px-2 py-0.5 text-amber-300">
@@ -36,6 +39,15 @@ export function ResponseSummary({ response, historyAt }: { response: HttpRespons
               title="Not defined in any env layer"
             >
               {`{{${name}}}`} unresolved
+            </span>
+          ))}
+          {response.captureFailures.map((failure) => (
+            <span
+              key={failure.name}
+              className="rounded-full bg-rose-400/10 px-2 py-0.5 text-rose-300"
+              title={`${failure.expression}: ${failure.reason}`}
+            >
+              capture {failure.name} failed
             </span>
           ))}
           {captured.map(([name, value]) => (

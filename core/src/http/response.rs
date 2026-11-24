@@ -32,8 +32,20 @@ pub struct Response {
     pub warnings: Vec<String>,
     #[serde(default)]
     pub captured: BTreeMap<String, String>,
+    /// Set-variable actions that found nothing to save.
+    #[serde(default)]
+    pub capture_failures: Vec<CaptureFailure>,
     #[serde(default)]
     pub checks: Vec<Check>,
+}
+
+/// A set-variable action that couldn't select a value from the response.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct CaptureFailure {
+    pub name: String,
+    pub expression: String,
+    pub reason: String,
 }
 
 /// The outcome of one assertion.
@@ -77,6 +89,7 @@ impl Response {
             unresolved: sent.unresolved,
             warnings: sent.warnings,
             captured: BTreeMap::new(),
+            capture_failures: Vec::new(),
             checks: Vec::new(),
         }
     }

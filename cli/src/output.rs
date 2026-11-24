@@ -25,6 +25,7 @@ pub fn format_run_result(result: &RunResult) -> String {
     if let Some(response) = &result.response {
         let mut lines = vec![format!("{mark} {:>3} {:>6}ms  {location}", response.status, response.time_ms)];
         lines.extend(failed_check_lines(response));
+        lines.extend(capture_failure_lines(response));
         lines.extend(unresolved_line(response));
         lines.extend(warning_lines(response));
         return lines.join("\n");
@@ -39,6 +40,14 @@ fn failed_check_lines(response: &Response) -> impl Iterator<Item = String> + '_ 
         .iter()
         .filter(|check| !check.ok)
         .map(|check| format!("{DETAIL_INDENT}{}", paint(RED, &format!("{}: {}", check.name, check.detail))))
+}
+
+/// Set-variable actions that found nothing, one line each.
+fn capture_failure_lines(response: &Response) -> impl Iterator<Item = String> + '_ {
+    response.capture_failures.iter().map(|failure| {
+        let text = format!("capture {} failed: {}", failure.name, failure.reason);
+        format!("{DETAIL_INDENT}{}", paint(YELLOW, &text))
+    })
 }
 
 fn unresolved_line(response: &Response) -> Option<String> {

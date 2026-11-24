@@ -83,6 +83,7 @@ mod tests {
                 unresolved: Vec::new(),
                 warnings: Vec::new(),
                 captured: std::collections::BTreeMap::default(),
+                capture_failures: vec![],
                 checks: Vec::new(),
             },
         }

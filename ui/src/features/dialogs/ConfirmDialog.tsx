@@ -9,10 +9,15 @@ import {
 } from "@/components/ui/dialog";
 import { useUiStore } from "@/stores/uiStore";
 
-/** The app-wide destructive confirmation, driven by `useUiStore().askConfirm`. */
+/** The app-wide confirmation, driven by `useUiStore().askConfirm`. */
 export function ConfirmDialog() {
   const confirm = useUiStore((s) => s.confirm);
   const close = useUiStore((s) => s.closeConfirm);
+  const destructive = confirm?.destructive ?? true;
+  const choose = (onConfirm: (() => Promise<void> | void) | undefined) => {
+    close();
+    void onConfirm?.();
+  };
   return (
     <Dialog open={!!confirm} onOpenChange={(open) => !open && close()}>
       <DialogContent className="sm:max-w-md">
@@ -24,13 +29,15 @@ export function ConfirmDialog() {
           <Button variant="ghost" onClick={close}>
             Cancel
           </Button>
+          {confirm?.alternative && (
+            <Button variant="destructive" onClick={() => choose(confirm.alternative?.onConfirm)}>
+              {confirm.alternative.action}
+            </Button>
+          )}
           <Button
-            variant="destructive"
+            variant={destructive ? "destructive" : "default"}
             autoFocus
-            onClick={() => {
-              void confirm?.onConfirm();
-              close();
-            }}
+            onClick={() => choose(confirm?.onConfirm)}
           >
             {confirm?.action}
           </Button>

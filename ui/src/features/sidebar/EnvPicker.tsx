@@ -1,6 +1,5 @@
 import { ChevronsUpDown, SlidersHorizontal } from "lucide-react";
 import { selectEnv } from "@/actions/project";
-import { IconButton } from "@/components/IconButton";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -46,9 +45,6 @@ export function EnvPicker() {
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-      <IconButton label="Edit variables" tone="sidebar" onClick={openEnvDialog}>
-        <SlidersHorizontal />
-      </IconButton>
     </div>
   );
 }

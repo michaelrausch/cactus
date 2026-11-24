@@ -13,6 +13,10 @@ export interface ConfirmRequest {
   description: string;
   action: string;
   onConfirm: () => Promise<void> | void;
+  /** Whether the main action destroys something; true unless set. */
+  destructive?: boolean;
+  /** A second choice shown left of the main action, e.g. "Discard". */
+  alternative?: { action: string; onConfirm: () => Promise<void> | void };
 }
 
 interface UiState {

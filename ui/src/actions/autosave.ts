@@ -14,7 +14,15 @@ interface PendingSave {
   scenario: Scenario;
 }
 
+/**
+ * How long after saving a file its change event counts as our own. The
+ * watcher debounces by 150 ms, so its event arrives well within this.
+ */
+const OWN_WRITE_WINDOW_MS = 1000;
+
 let pending: PendingSave | null = null;
+/** When each scenario was last written by autosave. */
+const lastWrittenAt = new Map<ScenarioPath, number>();
 let timer: ReturnType<typeof setTimeout> | undefined;
 
 export function scheduleSave(save: PendingSave): void {
@@ -29,10 +37,16 @@ export async function flushPendingSave(): Promise<void> {
   pending = null;
   if (!save) return;
   await reportErrors(async () => {
+    lastWrittenAt.set(save.path, Date.now());
     await backend.saveScenario(save.project, save.path, save.scenario);
+    lastWrittenAt.set(save.path, Date.now());
     useProjectStore.getState().entrySaved(save.path, save.scenario);
   }, "Save failed");
 }
+
+/** Whether autosave just wrote `path`, so a change event for it is our own echo. */
+export const isOwnRecentWrite = (path: string): boolean =>
+  Date.now() - (lastWrittenAt.get(path as ScenarioPath) ?? -Infinity) < OWN_WRITE_WINDOW_MS;
 
 export const hasPendingSave = (): boolean => pending !== null;
 

@@ -10,5 +10,5 @@ mod send;
 pub use assertions::scenario_passed;
 pub use client::build_client;
 pub use request::{PreparedRequest, build_request};
-pub use response::{Check, Response};
+pub use response::{CaptureFailure, Check, Response};
 pub use send::send;

@@ -21,7 +21,7 @@ export function ProjectSwitcher() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm outline-none hover:bg-sidebar-accent">
-        <span className="min-w-0 flex-1 truncate font-medium">{name ?? "Open a project"}</span>
+        <span className="min-w-0 flex-1 truncate text-base font-semibold">{name ?? "Open a project"}</span>
         <ChevronsUpDown className="size-3.5 text-muted-foreground" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-60">

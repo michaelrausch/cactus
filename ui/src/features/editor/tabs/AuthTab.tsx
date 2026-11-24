@@ -1,12 +1,16 @@
 import type { AuthMode } from "@/api/client";
 import { Field } from "@/components/Field";
-import { Input } from "@/components/ui/input";
+import { TemplateField } from "@/components/template/TemplateField";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AUTH_KIND_LABELS, AUTH_KINDS, isAuthKind, type AuthKind } from "@/domain/http";
 import { authKind, authMode, otherAuthType, withAuth } from "@/domain/scenario";
 import type { ScenarioTabProps } from "../types";
 
-const SECRET_INPUT = "font-mono text-xs";
+/** Looks like `Input`; the border is on the box so the text inside lines up with its colours. */
+const FIELD_BOX =
+  "rounded-lg border border-input bg-input/30 transition-colors focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50";
+/** `Input`'s height less its border. */
+const FIELD_TEXT = "h-[calc(2rem-2px)] px-2.5 py-1 font-mono text-xs md:text-sm";
 
 /** What a freshly chosen auth kind starts as; `none` removes auth. */
 const AUTH_DEFAULTS: Record<AuthKind, AuthMode | "inherit" | undefined> = {
@@ -30,11 +34,13 @@ function TextField({
 }) {
   return (
     <Field label={label}>
-      <Input
-        className={SECRET_INPUT}
+      <TemplateField
+        className={FIELD_BOX}
+        fieldClassName={FIELD_TEXT}
         value={value}
         placeholder={placeholder}
-        onChange={(e) => onChange(e.target.value)}
+        aria-label={label}
+        onChange={onChange}
       />
     </Field>
   );
