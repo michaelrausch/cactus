@@ -9,6 +9,7 @@ import { refreshGitStatus } from "@/actions/git";
 import { restoreLastProject } from "@/actions/project";
 import { historyChanged } from "@/actions/request";
 import { hasUnsavedChanges, saveAll } from "@/actions/saving";
+import { checkForUpdate } from "@/actions/update";
 import { refreshVariableNames } from "@/actions/variables";
 import { reportErrors } from "@/lib/errors";
 import { useCritterStore } from "@/stores/critterStore";
@@ -41,10 +42,11 @@ function guardClose(event: { preventDefault: () => void }): void {
   });
 }
 
-/** Restore the last project, ask before closing with unsaved edits, follow external file changes and keep variable names and git status current. */
+/** Restore the last project, check for a newer version, ask before closing with unsaved edits, follow external file changes and keep variable names and git status current. */
 export function useAppLifecycle(): void {
   useEffect(() => {
     void reportErrors(restoreLastProject);
+    void checkForUpdate();
     window.addEventListener("beforeunload", warnOnUnload);
     const unlistenClose = getCurrentWindow().onCloseRequested(guardClose);
     return () => {

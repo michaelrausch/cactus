@@ -2,7 +2,7 @@
 
 use tauri_specta::{Builder, collect_commands, collect_events};
 
-use crate::commands::{critter, env, flow, git, import, mcp, project, request, scenario, schedule};
+use crate::commands::{critter, env, flow, git, import, mcp, project, request, scenario, schedule, update};
 use crate::events::{
     ContextChanged, FlowAskClosed, FlowAsked, FlowDisplayed, FlowNotified, FlowProgress, FlowStepStarted, FsChanged,
     HistoryChanged, MatrixProgress, MonitorAlert, RunProgress, ScheduledRunFinished,
@@ -103,6 +103,8 @@ pub fn builder() -> Builder<tauri::Wry> {
             mcp::mcp_status,
             mcp::set_mcp_settings,
             mcp::regenerate_mcp_token,
+            update::check_for_update,
+            update::open_website,
         ])
         .events(collect_events![
             FsChanged,
