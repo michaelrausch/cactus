@@ -4,10 +4,12 @@ use std::path::PathBuf;
 
 use cactus_core::env::Scope;
 use cactus_core::http::Response;
+use cactus_core::oauth2::{self, TokenStatus};
 use cactus_core::runner::{self, RunResult, SendOptions};
 use cactus_core::scenario::Scenario;
-use cactus_core::{ProjectPath, Result};
+use cactus_core::{Error, ProjectPath, Result};
 use tauri::{AppHandle, State};
+use tauri_plugin_opener::OpenerExt;
 
 use crate::events::{ContextChanged, RunProgress, notify};
 use crate::state::AppState;
@@ -61,4 +63,38 @@ fn context_may_have_changed(app: &AppHandle, scope: &Scope) {
 #[specta::specta]
 pub fn cancel_request(state: State<'_, AppState>) {
     state.cancel_current();
+}
+
+/// The cached OAuth2 token of the request (as edited) for the active env
+/// and critter.
+#[tauri::command(async)]
+#[specta::specta]
+pub fn oauth2_token_status(project: PathBuf, path: ProjectPath, scenario: Scenario) -> Result<TokenStatus> {
+    oauth2::token_status(&project, &Scope::active(&project), &path, &scenario)
+}
+
+/// Get a new OAuth2 token for the request. The authorization code grant
+/// opens the authorization page in the browser and waits for it to come
+/// back. Resolves to `None` when cancelled.
+#[tauri::command]
+#[specta::specta]
+pub async fn get_oauth2_token(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    project: PathBuf,
+    path: ProjectPath,
+    scenario: Scenario,
+) -> Result<Option<TokenStatus>> {
+    let scope = Scope::active(&project);
+    let open = |url: &str| {
+        app.opener().open_url(url, None::<&str>).map_err(|e| Error::OAuth2(format!("couldn't open the browser: {e}")))
+    };
+    let get = oauth2::get_token(&state.client, &project, &scope, &path, &scenario, open);
+    state.run_cancellable(get).await.transpose()
+}
+
+#[tauri::command(async)]
+#[specta::specta]
+pub fn clear_oauth2_token(project: PathBuf, path: ProjectPath, scenario: Scenario) -> Result<()> {
+    oauth2::clear_token(&project, &Scope::active(&project), &path, &scenario)
 }

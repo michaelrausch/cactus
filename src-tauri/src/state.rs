@@ -8,6 +8,7 @@ use cactus_core::http::build_client;
 use cactus_core::reqwest;
 use tokio::sync::oneshot;
 
+use crate::mcp::Mcp;
 use crate::scheduler::Scheduler;
 use crate::tool_host::PendingAsks;
 use crate::watcher::ProjectWatcher;
@@ -20,21 +21,35 @@ pub struct AppState {
     pub scheduler: Scheduler,
     /// Flow tool questions waiting for the UI.
     pub asks: PendingAsks,
+    /// The MCP server agents reach the open project through.
+    pub mcp: Mcp,
     cancel: CancelSlot,
+    /// The project open in the window, for the MCP server.
+    project: Mutex<Option<PathBuf>>,
     /// Watches the open project; replaced when another project opens.
     watcher: Mutex<Option<ProjectWatcher>>,
 }
 
 impl AppState {
-    pub fn new(recent_projects_file: PathBuf) -> Self {
+    pub fn new(recent_projects_file: PathBuf, mcp_settings_file: PathBuf) -> Self {
         Self {
             client: build_client(),
             recent_projects_file,
             scheduler: Scheduler::default(),
             asks: PendingAsks::default(),
+            mcp: Mcp::new(mcp_settings_file),
             cancel: CancelSlot::default(),
+            project: Mutex::default(),
             watcher: Mutex::default(),
         }
+    }
+
+    pub fn project(&self) -> Option<PathBuf> {
+        lock(&self.project).clone()
+    }
+
+    pub fn set_project(&self, project: PathBuf) {
+        *lock(&self.project) = Some(project);
     }
 
     pub fn replace_watcher(&self, watcher: Option<ProjectWatcher>) {

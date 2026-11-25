@@ -24,10 +24,22 @@ impl Request {
     }
 }
 
-type Route = dyn Fn(&Request) -> (u16, String) + Send + Sync;
+/// A reply: status, extra headers and a JSON body.
+pub type Reply = (u16, Vec<(&'static str, String)>, String);
+
+type Route = dyn Fn(&Request) -> Reply + Send + Sync;
 
 /// Serve `route` until the test's runtime shuts down; returns the base URL.
 pub async fn serve(route: impl Fn(&Request) -> (u16, String) + Send + Sync + 'static) -> String {
+    serve_with_headers(move |request| {
+        let (status, body) = route(request);
+        (status, Vec::new(), body)
+    })
+    .await
+}
+
+/// [`serve`], with headers on the replies.
+pub async fn serve_with_headers(route: impl Fn(&Request) -> Reply + Send + Sync + 'static) -> String {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base = format!("http://{}", listener.local_addr().unwrap());
     let route: Arc<Route> = Arc::new(route);
@@ -36,9 +48,10 @@ pub async fn serve(route: impl Fn(&Request) -> (u16, String) + Send + Sync + 'st
             let route = Arc::clone(&route);
             tokio::spawn(async move {
                 let Some(request) = read_request(&mut socket).await else { return };
-                let (status, body) = route(&request);
+                let (status, headers, body) = route(&request);
+                let headers: String = headers.iter().flat_map(|(name, value)| [name, ": ", value, "\r\n"]).collect();
                 let reply = format!(
-                    "HTTP/1.1 {status} X\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
+                    "HTTP/1.1 {status} X\r\ncontent-type: application/json\r\n{headers}content-length: {}\r\nconnection: close\r\n\r\n{body}",
                     body.len()
                 );
                 let _ = socket.write_all(reply.as_bytes()).await;

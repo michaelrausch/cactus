@@ -1,1 +1,1 @@
-doc-valid-idents = ["OpenAPI", "OpenCollection", "JSONPath", "TypeScript", ".."]
+doc-valid-idents = ["OpenAPI", "OpenCollection", "JSONPath", "TypeScript", "OAuth2", ".."]

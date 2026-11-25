@@ -72,6 +72,10 @@ export const commands = {
 	 *  so the UI can offer Undo.
 	 */
 	clearContext: (project: string, id: string, names: string[] | null, options?: InvokeOptions) => __TAURI_INVOKE<{ [key in string]: ContextEntry }>("clear_context", { project, id, names }, options),
+	/**  The cookies in the critter's jar. */
+	loadCookies: (project: string, id: string, options?: InvokeOptions) => __TAURI_INVOKE<CookieEntry_Serialize[]>("load_cookies", { project, id }, options),
+	/**  Remove the given cookies, or all of them when `cookies` is `None`. */
+	removeCookies: (project: string, id: string, cookies: CookieKey[] | null, options?: InvokeOptions) => __TAURI_INVOKE<null>("remove_cookies", { project, id, cookies }, options),
 	listFlows: (project: string, critter: string, options?: InvokeOptions) => __TAURI_INVOKE<FlowSummary_Serialize[]>("list_flows", { project, critter }, options),
 	loadFlow: (project: string, critter: string, flow: string, options?: InvokeOptions) => __TAURI_INVOKE<Flow_Serialize>("load_flow", { project, critter, flow }, options),
 	/**
@@ -156,6 +160,23 @@ export const commands = {
 	 */
 	runFolder: (project: string, dir: string, options?: InvokeOptions) => __TAURI_INVOKE<RunResult_Serialize[] | null>("run_folder", { project, dir }, options),
 	cancelRequest: (options?: InvokeOptions) => __TAURI_INVOKE<void>("cancel_request", undefined, options),
+	/**
+	 *  The cached OAuth2 token of the request (as edited) for the active env
+	 *  and critter.
+	 */
+	oauth2TokenStatus: (project: string, path: ProjectPath, scenario: Scenario_Deserialize, options?: InvokeOptions) => __TAURI_INVOKE<TokenStatus_Serialize>("oauth2_token_status", { project, path, scenario }, options),
+	/**
+	 *  Get a new OAuth2 token for the request. The authorization code grant
+	 *  opens the authorization page in the browser and waits for it to come
+	 *  back. Resolves to `None` when cancelled.
+	 */
+	getOauth2Token: (project: string, path: ProjectPath, scenario: Scenario_Deserialize, options?: InvokeOptions) => __TAURI_INVOKE<TokenStatus_Serialize | null>("get_oauth2_token", { project, path, scenario }, options),
+	clearOauth2Token: (project: string, path: ProjectPath, scenario: Scenario_Deserialize, options?: InvokeOptions) => __TAURI_INVOKE<null>("clear_oauth2_token", { project, path, scenario }, options),
+	mcpStatus: (options?: InvokeOptions) => __TAURI_INVOKE<McpStatus_Serialize>("mcp_status", undefined, options),
+	/**  Save the settings and restart the server to match. */
+	setMcpSettings: (enabled: boolean, allowEdits: boolean, port: number, options?: InvokeOptions) => __TAURI_INVOKE<McpStatus_Serialize>("set_mcp_settings", { enabled, allowEdits, port }, options),
+	/**  A new token; agents using the old one are turned away. */
+	regenerateMcpToken: (options?: InvokeOptions) => __TAURI_INVOKE<McpStatus_Serialize>("regenerate_mcp_token", undefined, options),
 };
 
 /** Events */
@@ -168,6 +189,7 @@ export const events = {
 	flowProgress: makeEvent<FlowProgress_Serialize, FlowProgress_Deserialize>("flow-progress"),
 	flowStepStarted: makeEvent<FlowStepStarted_Serialize, FlowStepStarted_Deserialize>("flow-step-started"),
 	fsChanged: makeEvent<FsChanged, FsChanged>("fs-changed"),
+	historyChanged: makeEvent<HistoryChanged, HistoryChanged>("history-changed"),
 	matrixProgress: makeEvent<MatrixProgress_Serialize, MatrixProgress_Deserialize>("matrix-progress"),
 	monitorAlert: makeEvent<MonitorAlert_Serialize, MonitorAlert_Deserialize>("monitor-alert"),
 	runProgress: makeEvent<RunProgress_Serialize, RunProgress_Deserialize>("run-progress"),
@@ -319,19 +341,39 @@ export type Auth = Auth_Serialize | Auth_Deserialize;
 export type AuthMode = AuthMode_Serialize | AuthMode_Deserialize;
 
 /**  The auth modes cactus can send. */
-export type AuthMode_Deserialize = { type: "bearer"; token?: LenientString } | { type: "basic"; username?: LenientString; password?: LenientString } | { type: "apikey"; key?: LenientString; value?: LenientString; placement?: ApiKeyPlacement | null };
+export type AuthMode_Deserialize = ({ type: "bearer"; token?: LenientString }) & { key?: never; password?: never; placement?: never; username?: never; value?: never } | ({ type: "basic"; username?: LenientString; password?: LenientString }) & { key?: never; placement?: never; token?: never; value?: never } | ({ type: "apikey"; key?: LenientString; value?: LenientString; placement?: ApiKeyPlacement | null }) & { password?: never; token?: never; username?: never } | 
+/**
+ *  Challenge and response: sent once without credentials, then again
+ *  answering the server's `WWW-Authenticate: Digest` challenge.
+ */
+({ type: "digest"; username?: LenientString; password?: LenientString }) & { key?: never; placement?: never; token?: never; value?: never } | {
+	type: "oauth2",
+} & OAuth2_Deserialize;
 
 /**  The auth modes cactus can send. */
-export type AuthMode_Serialize = { type: "bearer"; token: LenientString } | { type: "basic"; username: LenientString; password: LenientString } | { type: "apikey"; key: LenientString; value: LenientString; placement?: ApiKeyPlacement };
+export type AuthMode_Serialize = ({ type: "bearer"; token: LenientString }) & { key?: never; password?: never; placement?: never; username?: never; value?: never } | ({ type: "basic"; username: LenientString; password: LenientString }) & { key?: never; placement?: never; token?: never; value?: never } | ({ type: "apikey"; key: LenientString; value: LenientString; placement?: ApiKeyPlacement }) & { password?: never; token?: never; username?: never } | 
+/**
+ *  Challenge and response: sent once without credentials, then again
+ *  answering the server's `WWW-Authenticate: Digest` challenge.
+ */
+({ type: "digest"; username: LenientString; password: LenientString }) & { key?: never; placement?: never; token?: never; value?: never } | {
+	type: "oauth2",
+} & OAuth2_Serialize;
 
 /**  `auth:` on a request, folder or collection. */
 export type Auth_Deserialize = Inherit | AuthMode_Deserialize | 
-/**  A mode cactus doesn't send (OAuth, AWS, digest, ...), kept as written. */
+/**
+ *  A mode cactus doesn't send (AWS, NTLM, OAuth 1, OAuth2's implicit
+ *  grant, ...), kept as written.
+ */
 JsonValue;
 
 /**  `auth:` on a request, folder or collection. */
 export type Auth_Serialize = Inherit | AuthMode_Serialize | 
-/**  A mode cactus doesn't send (OAuth, AWS, digest, ...), kept as written. */
+/**
+ *  A mode cactus doesn't send (AWS, NTLM, OAuth 1, OAuth2's implicit
+ *  grant, ...), kept as written.
+ */
 JsonValue;
 
 export type Body = Body_Serialize | Body_Deserialize;
@@ -419,6 +461,48 @@ export type ContextEntry = {
 	from: string,
 	/**  Unix epoch millis. */
 	at: number,
+};
+
+/**  A cookie in a critter's jar, for showing. */
+export type CookieEntry = CookieEntry_Serialize | CookieEntry_Deserialize;
+
+/**  A cookie in a critter's jar, for showing. */
+export type CookieEntry_Deserialize = {
+	name: string,
+	value: string,
+	/**  The host it was set by, or the domain it was set for. */
+	domain: string,
+	path: string,
+	/**
+	 *  Unix epoch millis; `None` for a session cookie, which the jar keeps
+	 *  until it's cleared.
+	 */
+	expires?: number | null,
+	secure: boolean,
+	httpOnly: boolean,
+};
+
+/**  A cookie in a critter's jar, for showing. */
+export type CookieEntry_Serialize = {
+	name: string,
+	value: string,
+	/**  The host it was set by, or the domain it was set for. */
+	domain: string,
+	path: string,
+	/**
+	 *  Unix epoch millis; `None` for a session cookie, which the jar keeps
+	 *  until it's cleared.
+	 */
+	expires: number | null,
+	secure: boolean,
+	httpOnly: boolean,
+};
+
+/**  Which cookie: they are told apart by domain, path and name. */
+export type CookieKey = {
+	domain: string,
+	path: string,
+	name: string,
 };
 
 /**  `critters/<id>/critter.yml`. */
@@ -967,6 +1051,14 @@ export type Header_Serialize = {
 	disabled?: boolean,
 };
 
+/**
+ *  A request was sent from outside the window (an agent, over MCP), so its
+ *  history has a new entry.
+ */
+export type HistoryChanged = {
+	path: ProjectPath,
+};
+
 export type HistoryEntry = HistoryEntry_Serialize | HistoryEntry_Deserialize;
 
 export type HistoryEntry_Deserialize = {
@@ -1064,6 +1156,33 @@ export type MatrixProgress_Deserialize = MatrixCell_Deserialize;
 /**  One row of a matrix run finished. */
 export type MatrixProgress_Serialize = MatrixCell_Serialize;
 
+/**  What the settings tab shows. */
+export type McpStatus = McpStatus_Serialize | McpStatus_Deserialize;
+
+/**  What the settings tab shows. */
+export type McpStatus_Deserialize = {
+	enabled: boolean,
+	allowEdits: boolean,
+	port: number,
+	token: string,
+	url: string,
+	running: boolean,
+	/**  Why it isn't running though enabled, e.g. the port is taken. */
+	error?: string | null,
+};
+
+/**  What the settings tab shows. */
+export type McpStatus_Serialize = {
+	enabled: boolean,
+	allowEdits: boolean,
+	port: number,
+	token: string,
+	url: string,
+	running: boolean,
+	/**  Why it isn't running though enabled, e.g. the port is taken. */
+	error: string | null,
+};
+
 /**  A scheduled flow started failing, recovered, or a watched value changed. */
 export type MonitorAlert = MonitorAlert_Serialize | MonitorAlert_Deserialize;
 
@@ -1111,6 +1230,192 @@ export type Notify_Deserialize = {
 export type Notify_Serialize = {
 	title?: LenientString,
 	body?: LenientString,
+};
+
+/**
+ *  `auth: {type: oauth2, flow: ...}`, as OpenCollection writes it. Each
+ *  grant reads only the fields it uses; the rest stay in the file.
+ */
+export type OAuth2 = OAuth2_Serialize | OAuth2_Deserialize;
+
+/**  Extra parameters for each request of a grant, such as Auth0's `audience`. */
+export type OAuth2AdditionalParameters = OAuth2AdditionalParameters_Serialize | OAuth2AdditionalParameters_Deserialize;
+
+/**  Extra parameters for each request of a grant, such as Auth0's `audience`. */
+export type OAuth2AdditionalParameters_Deserialize = {
+	authorizationRequest?: OAuth2Parameter_Deserialize[],
+	accessTokenRequest?: OAuth2Parameter_Deserialize[],
+	refreshTokenRequest?: OAuth2Parameter_Deserialize[],
+};
+
+/**  Extra parameters for each request of a grant, such as Auth0's `audience`. */
+export type OAuth2AdditionalParameters_Serialize = {
+	authorizationRequest?: OAuth2Parameter_Serialize[],
+	accessTokenRequest?: OAuth2Parameter_Serialize[],
+	refreshTokenRequest?: OAuth2Parameter_Serialize[],
+};
+
+export type OAuth2ClientCredentials = OAuth2ClientCredentials_Serialize | OAuth2ClientCredentials_Deserialize;
+
+export type OAuth2ClientCredentials_Deserialize = {
+	clientId?: LenientString,
+	clientSecret?: LenientString,
+	placement?: OAuth2CredentialsPlacement | null,
+};
+
+export type OAuth2ClientCredentials_Serialize = {
+	clientId: LenientString,
+	clientSecret?: LenientString,
+	placement?: OAuth2CredentialsPlacement,
+};
+
+export type OAuth2CredentialsPlacement = 
+/**  `Authorization: Basic` with the client id and secret; the default. */
+"basic_auth_header" | 
+/**  `client_id` and `client_secret` in the form body. */
+"body";
+
+/**
+ *  The OAuth 2.0 grants cactus can get a token with. The implicit grant
+ *  isn't one of them, so such an `auth` is kept as written
+ *  ([`Auth::Other`]).
+ */
+export type OAuth2Flow = "client_credentials" | "resource_owner_password_credentials" | "authorization_code";
+
+export type OAuth2Parameter = OAuth2Parameter_Serialize | OAuth2Parameter_Deserialize;
+
+export type OAuth2ParameterPlacement = "header" | "query" | "body";
+
+export type OAuth2Parameter_Deserialize = {
+	name?: LenientString,
+	value?: LenientString,
+	/**  The form body when absent (the query for the authorization request). */
+	placement?: OAuth2ParameterPlacement | null,
+};
+
+export type OAuth2Parameter_Serialize = {
+	name: LenientString,
+	value: LenientString,
+	/**  The form body when absent (the query for the authorization request). */
+	placement?: OAuth2ParameterPlacement,
+};
+
+export type OAuth2Pkce = OAuth2Pkce_Serialize | OAuth2Pkce_Deserialize;
+
+export type OAuth2Pkce_Deserialize = {
+	disabled?: boolean,
+	/**  `S256` when absent. */
+	method?: PkceMethod | null,
+};
+
+export type OAuth2Pkce_Serialize = {
+	disabled?: boolean,
+	/**  `S256` when absent. */
+	method?: PkceMethod,
+};
+
+export type OAuth2ResourceOwner = OAuth2ResourceOwner_Serialize | OAuth2ResourceOwner_Deserialize;
+
+export type OAuth2ResourceOwner_Deserialize = {
+	username?: LenientString,
+	password?: LenientString,
+};
+
+export type OAuth2ResourceOwner_Serialize = {
+	username: LenientString,
+	password: LenientString,
+};
+
+export type OAuth2Settings = OAuth2Settings_Serialize | OAuth2Settings_Deserialize;
+
+export type OAuth2Settings_Deserialize = {
+	/**  Get a token when a send has none; on when absent. */
+	autoFetchToken?: boolean | null,
+	/**  Refresh an expired token when a send needs it; on when absent. */
+	autoRefreshToken?: boolean | null,
+};
+
+export type OAuth2Settings_Serialize = {
+	/**  Get a token when a send has none; on when absent. */
+	autoFetchToken?: boolean,
+	/**  Refresh an expired token when a send needs it; on when absent. */
+	autoRefreshToken?: boolean,
+};
+
+export type OAuth2TokenConfig = OAuth2TokenConfig_Serialize | OAuth2TokenConfig_Deserialize;
+
+export type OAuth2TokenConfig_Deserialize = {
+	/**  Names the cached token, so requests with the same id share it. */
+	id?: LenientString,
+	/**  `Authorization: Bearer <token>` when absent. */
+	placement?: OAuth2TokenPlacement | null,
+	/**  The access token when absent. */
+	source?: OAuth2TokenSource | null,
+};
+
+export type OAuth2TokenConfig_Serialize = {
+	/**  Names the cached token, so requests with the same id share it. */
+	id?: LenientString,
+	/**  `Authorization: Bearer <token>` when absent. */
+	placement?: OAuth2TokenPlacement,
+	/**  The access token when absent. */
+	source?: OAuth2TokenSource,
+};
+
+/**
+ *  How the token goes on the request: `{header: <prefix>}` sends
+ *  `Authorization: <prefix> <token>`, `{query: <name>}` adds `?<name>=<token>`.
+ */
+export type OAuth2TokenPlacement = ({ header: LenientString }) & { query?: never } | ({ query: LenientString }) & { header?: never };
+
+export type OAuth2TokenSource = "access_token" | "id_token";
+
+/**
+ *  `auth: {type: oauth2, flow: ...}`, as OpenCollection writes it. Each
+ *  grant reads only the fields it uses; the rest stay in the file.
+ */
+export type OAuth2_Deserialize = {
+	flow: OAuth2Flow,
+	authorizationUrl?: LenientString,
+	accessTokenUrl?: LenientString,
+	/**  Where a refresh goes; the access token URL when empty. */
+	refreshTokenUrl?: LenientString,
+	callbackUrl?: LenientString,
+	credentials?: OAuth2ClientCredentials_Deserialize | null,
+	resourceOwner?: OAuth2ResourceOwner_Deserialize | null,
+	/**  Space-separated. */
+	scope?: LenientString,
+	/**  Sent with the authorization request; a random one when empty. */
+	state?: LenientString,
+	/**  PKCE is used when this is present and not `disabled`. */
+	pkce?: OAuth2Pkce_Deserialize | null,
+	additionalParameters?: OAuth2AdditionalParameters_Deserialize | null,
+	tokenConfig?: OAuth2TokenConfig_Deserialize | null,
+	settings?: OAuth2Settings_Deserialize | null,
+};
+
+/**
+ *  `auth: {type: oauth2, flow: ...}`, as OpenCollection writes it. Each
+ *  grant reads only the fields it uses; the rest stay in the file.
+ */
+export type OAuth2_Serialize = {
+	flow: OAuth2Flow,
+	authorizationUrl?: LenientString,
+	accessTokenUrl?: LenientString,
+	/**  Where a refresh goes; the access token URL when empty. */
+	refreshTokenUrl?: LenientString,
+	callbackUrl?: LenientString,
+	credentials?: OAuth2ClientCredentials_Serialize,
+	resourceOwner?: OAuth2ResourceOwner_Serialize,
+	/**  Space-separated. */
+	scope?: LenientString,
+	/**  Sent with the authorization request; a random one when empty. */
+	state?: LenientString,
+	/**  PKCE is used when this is present and not `disabled`. */
+	pkce?: OAuth2Pkce_Serialize,
+	additionalParameters?: OAuth2AdditionalParameters_Serialize,
+	tokenConfig?: OAuth2TokenConfig_Serialize,
+	settings?: OAuth2Settings_Serialize,
 };
 
 export type Open = Open_Serialize | Open_Deserialize;
@@ -1181,6 +1486,8 @@ export type Pick_Serialize = {
 	value?: string,
 	name?: string,
 };
+
+export type PkceMethod = "S256" | "plain";
 
 export type Poll = Poll_Serialize | Poll_Deserialize;
 
@@ -1649,6 +1956,31 @@ export type Step_Deserialize = ToolStep_Deserialize | FlowStep_Deserialize;
 export type Step_Serialize = ToolStep_Serialize | FlowStep_Serialize;
 
 export type Timeout = number | Inherit;
+
+/**  What the UI shows about a request's token. */
+export type TokenStatus = TokenStatus_Serialize | TokenStatus_Deserialize;
+
+/**  What the UI shows about a request's token. */
+export type TokenStatus_Deserialize = {
+	flow: OAuth2Flow,
+	/**  Whether a token is cached, expired or not. */
+	hasToken: boolean,
+	expiresAt?: number | null,
+	obtainedAt?: number | null,
+	refreshable: boolean,
+	scope?: string | null,
+};
+
+/**  What the UI shows about a request's token. */
+export type TokenStatus_Serialize = {
+	flow: OAuth2Flow,
+	/**  Whether a token is cached, expired or not. */
+	hasToken: boolean,
+	expiresAt: number | null,
+	obtainedAt: number | null,
+	refreshable: boolean,
+	scope: string | null,
+};
 
 /**  What a tool step did, for the step card, the run panel and the CLI. */
 export type ToolOutput = ToolOutput_Serialize | ToolOutput_Deserialize;

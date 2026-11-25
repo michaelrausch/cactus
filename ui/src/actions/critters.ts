@@ -1,12 +1,13 @@
 import { toast } from "sonner";
-import { backend, type Critter, type Env, type Species } from "@/api/client";
+import { backend, type CookieKey, type Critter, type Env, type Species } from "@/api/client";
 import { uniqueCritterId } from "@/domain/critterId";
 import { flowRunSummary } from "@/domain/flowRun";
 import { overriddenNames } from "@/domain/varSources";
-import { reportErrors, warnQuietly } from "@/lib/errors";
+import { reportErrors, succeeded, warnQuietly } from "@/lib/errors";
 import { useCritterStore } from "@/stores/critterStore";
 import { useProjectStore } from "@/stores/projectStore";
 import { useUiStore } from "@/stores/uiStore";
+import { track } from "./achievements";
 import { refreshSchedules } from "./monitors";
 import { refreshVariableNames } from "./variables";
 
@@ -26,12 +27,26 @@ export async function refreshCritters(): Promise<void> {
   await Promise.all(critters.map((critter) => refreshContext(critter.id)));
 }
 
-/** Reload one critter's captured values. Only a hint (expiry, the Captured list) if it fails. */
+/** Reload one critter's captured values and cookies. Only a hint (expiry, the lists) if it fails. */
 export async function refreshContext(id: string): Promise<void> {
   const project = currentProject();
   if (!project) return;
-  const context = await warnQuietly(() => backend.loadContext(project, id), `Couldn't load ${id}'s context`);
-  if (context && currentProject() === project) useCritterStore.getState().contextLoaded(id, context);
+  const [context, cookies] = await Promise.all([
+    warnQuietly(() => backend.loadContext(project, id), `Couldn't load ${id}'s context`),
+    warnQuietly(() => backend.loadCookies(project, id), `Couldn't load ${id}'s cookies`),
+  ]);
+  if (currentProject() !== project) return;
+  if (context) useCritterStore.getState().contextLoaded(id, context);
+  if (cookies) useCritterStore.getState().cookiesLoaded(id, cookies);
+}
+
+/** Remove the given cookies from the critter's jar, or all of them when `cookies` is null. */
+export async function removeCookies(id: string, cookies: CookieKey[] | null): Promise<void> {
+  const project = currentProject();
+  if (!project) return;
+  if (await succeeded(() => backend.removeCookies(project, id, cookies), "Couldn't remove cookies")) {
+    await refreshContext(id);
+  }
 }
 
 /** Forget the named captured values (all when `names` is null), offering Undo for a few seconds. */
@@ -251,6 +266,7 @@ export async function createCritter(name: string, species: Species, start: Critt
     return true;
   }, "Couldn't create the critter");
   if (!created) return false;
+  track("crittersCreated");
   await reportErrors(refreshCritters);
   showCritter(id);
   return true;
@@ -263,6 +279,7 @@ export async function runFlowNow(critter: string, flow: string): Promise<void> {
   const run = await reportErrors(() => backend.runFlow(project, critter, flow, null), `Couldn't run ${flow}`);
   // `null` when cancelled by another send.
   if (!run) return;
+  track("flowsRun");
   if (run.ok) toast.success(`${flow} passed`, { description: flowRunSummary(run) });
   else toast.warning(`${flow} failed`, { description: flowRunSummary(run) });
 }

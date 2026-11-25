@@ -8,6 +8,7 @@ import { useResponseStore } from "@/stores/responseStore";
 import { useRunStore } from "@/stores/runStore";
 import { useUiStore } from "@/stores/uiStore";
 import { selectScenario } from "./scenario";
+import { track } from "./achievements";
 import { saveAll } from "./saving";
 import { refreshVariableNames } from "./variables";
 
@@ -22,6 +23,11 @@ function alertCaptureFailures(response: HttpResponse): void {
   });
 }
 
+function trackResponse(status: number): void {
+  track("requestsSent");
+  if (status >= 500) track("serverErrors");
+}
+
 /** Send the open scenario as currently edited, even if not saved yet. */
 export async function sendCurrentScenario(): Promise<void> {
   const { project } = useProjectStore.getState();
@@ -34,6 +40,7 @@ export async function sendCurrentScenario(): Promise<void> {
     const response = await backend.sendRequest(project, path, scenario);
     if (!response) return; // Cancelled.
     responses.sendSucceeded(path, response);
+    trackResponse(response.status);
     alertCaptureFailures(response);
     if (Object.keys(response.captured).length > 0) void refreshVariableNames();
     // The backend has just recorded it, and trimmed what it keeps; show its list.
@@ -51,7 +58,9 @@ export const cancelInFlight = (): Promise<unknown> => reportErrors(() => backend
 
 function recordRunResult(result: RunResult): void {
   useRunStore.getState().resultArrived(result);
-  if (result.response) useResponseStore.getState().statusSeen(result.relPath, result.response.status);
+  if (!result.response) return;
+  useResponseStore.getState().statusSeen(result.relPath, result.response.status);
+  trackResponse(result.response.status);
 }
 
 /** Run every scenario under `dir`, streaming results into the run dialog. */
@@ -82,6 +91,7 @@ async function runSaved(dir: string): Promise<void> {
   }
 
   useRunStore.getState().started(dir, total);
+  track("foldersRun");
   const unlisten = await backendEvents.runProgress.listen((event) => recordRunResult(event.payload));
   try {
     await reportErrors(() => backend.runFolder(project, dir), "Run failed");
@@ -91,6 +101,18 @@ async function runSaved(dir: string): Promise<void> {
     void refreshVariableNames();
     await reportErrors(() => reloadOpenHistory(project));
   }
+}
+
+/** An agent sent `path` over MCP (the `HistoryChanged` event): show its response if it's open. */
+export async function historyChanged(path: ProjectPath): Promise<void> {
+  const { project } = useProjectStore.getState();
+  if (!project) return;
+  const history = await warnQuietly(() => backend.loadHistory(project, path), "Couldn't reload history");
+  const latest = history?.[0];
+  if (!history || !latest) return;
+  const responses = useResponseStore.getState();
+  responses.statusSeen(path, latest.response.status);
+  if (useEditorStore.getState().path === path && !responses.sending) responses.historyLoaded(history);
 }
 
 /** A run may have added history for the open scenario. */

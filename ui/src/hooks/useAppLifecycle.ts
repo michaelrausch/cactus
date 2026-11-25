@@ -7,6 +7,7 @@ import { refreshContext } from "@/actions/critters";
 import { flowAskClosed, flowAsked, flowDisplayed, flowStepFinished, flowStepStarted } from "@/actions/flows";
 import { refreshGitStatus } from "@/actions/git";
 import { restoreLastProject } from "@/actions/project";
+import { historyChanged } from "@/actions/request";
 import { hasUnsavedChanges, saveAll } from "@/actions/saving";
 import { refreshVariableNames } from "@/actions/variables";
 import { reportErrors } from "@/lib/errors";
@@ -86,6 +87,7 @@ export function useAppLifecycle(): void {
         void refreshContext(critter);
         if (critter === useCritterStore.getState().activeId) void refreshVariableNames();
       }),
+      backendEvents.historyChanged.listen(({ payload }) => void historyChanged(payload.path)),
       backendEvents.scheduledRunFinished.listen(() => scheduledRunFinished()),
       backendEvents.monitorAlert.listen(({ payload }) => showAlert(payload)),
       backendEvents.flowStepStarted.listen(({ payload }) =>

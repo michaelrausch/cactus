@@ -1,17 +1,15 @@
 import { useState, type ComponentType } from "react";
-import { FolderOpen } from "lucide-react";
-import { finishOnboarding, openProject } from "@/actions/project";
+import { FolderOpen, Import, type LucideIcon } from "lucide-react";
+import { finishOnboarding, importCollection, openProject } from "@/actions/project";
 import { CritterSprite } from "@/components/critters/CritterSprite";
 import { SPECIES, SPECIES_IDS } from "@/components/critters/species";
 import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
-import { ThemeCard } from "@/features/settings/ThemeTab";
+import { ThemePicker } from "@/features/settings/ThemeTab";
 import { cn } from "@/lib/utils";
 import { useProjectStore } from "@/stores/projectStore";
-import { useSettingsStore } from "@/stores/settingsStore";
 import { useUiStore } from "@/stores/uiStore";
-import { THEMES } from "@/theme/themes";
 
 const STEPS = ["welcome", "theme", "project"] as const;
 type Step = (typeof STEPS)[number];
@@ -31,37 +29,77 @@ function WelcomeStep() {
 }
 
 function ThemeStep() {
-  const themeId = useSettingsStore((s) => s.themeId);
-  const setTheme = useSettingsStore((s) => s.setTheme);
   return (
     <div className="flex min-h-0 flex-col gap-4 py-4">
       <DialogTitle className="text-2xl font-semibold tracking-tight">Theme</DialogTitle>
-      <div role="radiogroup" aria-label="Theme" className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-        {THEMES.map((theme) => (
-          <ThemeCard key={theme.id} theme={theme} selected={theme.id === themeId} onSelect={() => setTheme(theme.id)} />
-        ))}
-      </div>
+      <ThemePicker columns="grid-cols-2 sm:grid-cols-3" />
     </div>
   );
 }
 
-async function openFirstProject(): Promise<void> {
+/** Open a folder, then (if one was picked) leave onboarding and optionally import into it. */
+async function openFirstProject(thenImport = false): Promise<void> {
   await openProject();
   // Picking was cancelled: stay on this step.
-  if (useProjectStore.getState().project) finishOnboarding();
+  if (!useProjectStore.getState().project) return;
+  finishOnboarding();
+  if (thenImport) await importCollection();
+}
+
+function ProjectChoice({
+  icon: Icon,
+  label,
+  detail,
+  primary = false,
+  onSelect,
+}: {
+  icon: LucideIcon;
+  label: string;
+  detail: string;
+  primary?: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className="group flex w-52 flex-col items-center gap-3 rounded-xl border bg-card/60 px-4 pt-6 pb-5 focus-ring transition hover:border-brand-2/60 hover:bg-accent/50"
+    >
+      <span
+        className={cn(
+          "flex size-12 items-center justify-center rounded-full transition group-hover:scale-105",
+          primary ? "bg-brand-2 text-brand-foreground shadow-lg shadow-brand-2/25" : "bg-muted text-foreground",
+        )}
+      >
+        <Icon className="size-5" />
+      </span>
+      <span className="flex flex-col gap-0.5">
+        <span className="text-sm font-medium">{label}</span>
+        <span className="text-xs text-muted-foreground">{detail}</span>
+      </span>
+    </button>
+  );
 }
 
 function ProjectStep() {
   return (
-    <div className="flex flex-col items-center gap-4 text-center">
+    <div className="flex flex-col items-center gap-8 text-center">
       <DialogTitle className="text-2xl font-semibold tracking-tight">Create/open project</DialogTitle>
-      <button
-        type="button"
-        onClick={() => void openFirstProject()}
-        className="flex items-center gap-2 rounded-full bg-brand-2 px-4 py-2 text-sm font-medium text-brand-foreground shadow-lg shadow-brand-2/20 focus-ring hover:brightness-110"
-      >
-        <FolderOpen className="size-4" /> Open folder
-      </button>
+      <div className="flex flex-wrap justify-center gap-3">
+        <ProjectChoice
+          icon={FolderOpen}
+          label="Open folder"
+          detail="New or existing"
+          primary
+          onSelect={() => void openFirstProject()}
+        />
+        <ProjectChoice
+          icon={Import}
+          label="Import collection"
+          detail="Postman · OpenAPI"
+          onSelect={() => void openFirstProject(true)}
+        />
+      </div>
     </div>
   );
 }

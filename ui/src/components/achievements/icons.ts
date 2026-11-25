@@ -1,0 +1,37 @@
+import {
+  Compass,
+  Download,
+  FilePlus,
+  Flame,
+  Folder,
+  GitCommitHorizontal,
+  Palette,
+  PawPrint,
+  Rocket,
+  Send,
+  ServerCrash,
+  SwatchBook,
+  Users,
+  Workflow,
+  Zap,
+  type LucideIcon,
+} from "lucide-react";
+import type { AchievementIcon } from "@/domain/achievements";
+
+export const ACHIEVEMENT_ICONS: Record<AchievementIcon, LucideIcon> = {
+  send: Send,
+  zap: Zap,
+  rocket: Rocket,
+  flame: Flame,
+  "server-crash": ServerCrash,
+  folder: Folder,
+  workflow: Workflow,
+  "file-plus": FilePlus,
+  paw: PawPrint,
+  users: Users,
+  "git-commit": GitCommitHorizontal,
+  download: Download,
+  compass: Compass,
+  palette: Palette,
+  swatch: SwatchBook,
+};

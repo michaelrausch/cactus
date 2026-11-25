@@ -8,6 +8,7 @@ import { EnvLayerEditor } from "@/features/env/EnvLayerEditor";
 import { cn } from "@/lib/utils";
 import { useProjectStore } from "@/stores/projectStore";
 import { CapturedList } from "./CapturedList";
+import { CookiesList } from "./CookiesList";
 
 /** One input per `secret: true` variable with no value anywhere yet. */
 function MissingSecrets({ critter }: { critter: CritterSummary }) {
@@ -113,13 +114,14 @@ function Variables({ critter }: { critter: CritterSummary }) {
   );
 }
 
-/** Missing secrets, the critter's variables and secrets, and what its requests captured. */
+/** Missing secrets, the critter's variables and secrets, what its requests captured, and its cookies. */
 export function ContextTab({ critter }: { critter: CritterSummary }) {
   return (
     <div className="flex flex-col gap-8 p-5">
       <MissingSecrets key={critter.id} critter={critter} />
       <Variables critter={critter} />
       <CapturedList critter={critter} />
+      <CookiesList critter={critter} />
     </div>
   );
 }

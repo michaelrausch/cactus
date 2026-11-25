@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { ContextEntry, CritterSummary } from "@/api/client";
+import type { ContextEntry, CookieEntry, CritterSummary } from "@/api/client";
 
 /** A critter's captured values, by name. */
 export type CritterContext = Record<string, ContextEntry>;
@@ -15,12 +15,15 @@ interface CritterState {
   selectedId: string | null;
   /** Each critter's captured values, once loaded. */
   contexts: Record<string, CritterContext>;
+  /** Each critter's cookie jar, once loaded. */
+  cookies: Record<string, CookieEntry[]>;
 
   reset: () => void;
   listed: (critters: CritterSummary[], activeId: string | null) => void;
   activeChanged: (id: string | null) => void;
   select: (id: string | null) => void;
   contextLoaded: (id: string, context: CritterContext) => void;
+  cookiesLoaded: (id: string, cookies: CookieEntry[]) => void;
 }
 
 export const useCritterStore = create<CritterState>()((set) => ({
@@ -29,8 +32,9 @@ export const useCritterStore = create<CritterState>()((set) => ({
   activeId: null,
   selectedId: null,
   contexts: {},
+  cookies: {},
 
-  reset: () => set({ critters: [], loaded: false, activeId: null, selectedId: null, contexts: {} }),
+  reset: () => set({ critters: [], loaded: false, activeId: null, selectedId: null, contexts: {}, cookies: {} }),
   listed: (critters, activeId) =>
     set((state) => ({
       critters,
@@ -38,14 +42,18 @@ export const useCritterStore = create<CritterState>()((set) => ({
       activeId,
       // Keep the selection while it still exists; otherwise fall back to the first.
       selectedId: critters.some((c) => c.id === state.selectedId) ? state.selectedId : (critters[0]?.id ?? null),
-      // Forget the contexts of critters that are gone.
+      // Forget the contexts and jars of critters that are gone.
       contexts: Object.fromEntries(
         Object.entries(state.contexts).filter(([id]) => critters.some((critter) => critter.id === id)),
+      ),
+      cookies: Object.fromEntries(
+        Object.entries(state.cookies).filter(([id]) => critters.some((critter) => critter.id === id)),
       ),
     })),
   activeChanged: (activeId) => set({ activeId }),
   select: (selectedId) => set({ selectedId }),
   contextLoaded: (id, context) => set((state) => ({ contexts: { ...state.contexts, [id]: context } })),
+  cookiesLoaded: (id, cookies) => set((state) => ({ cookies: { ...state.cookies, [id]: cookies } })),
 }));
 
 /** The summary of the critter requests are sent as. */

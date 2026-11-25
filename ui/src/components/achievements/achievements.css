@@ -1,0 +1,92 @@
+/*
+ * The achievement toast (AchievementToast.tsx): the pill drops in as just the
+ * medal, the medal pops, then the pill widens as its text is revealed. It
+ * widens by animating the text's max-width rather than clipping, so the
+ * border and shadow follow the pill. No blur, which is slow in WebKitGTK.
+ */
+
+.achievement-pill {
+  animation: achievement-drop 300ms cubic-bezier(0.2, 0.8, 0.3, 1) both;
+}
+
+.achievement-medal {
+  animation: achievement-pop 450ms cubic-bezier(0.34, 1.56, 0.64, 1) 100ms both;
+}
+
+.achievement-ripple {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  border: 2px solid var(--brand-2);
+  opacity: 0;
+  animation: achievement-ripple 900ms ease-out 350ms both;
+}
+
+.achievement-reveal {
+  animation: achievement-reveal 450ms cubic-bezier(0.65, 0, 0.35, 1) 450ms both;
+}
+
+.achievement-text {
+  animation: achievement-text 300ms ease-out 700ms both;
+}
+
+@keyframes achievement-drop {
+  from {
+    transform: translateY(-16px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+@keyframes achievement-pop {
+  0% {
+    transform: scale(0) rotate(-90deg);
+  }
+  100% {
+    transform: scale(1) rotate(0);
+  }
+}
+
+@keyframes achievement-ripple {
+  0% {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(1.8);
+    opacity: 0;
+  }
+}
+
+@keyframes achievement-reveal {
+  from {
+    max-width: 0;
+  }
+  to {
+    max-width: 16rem;
+  }
+}
+
+@keyframes achievement-text {
+  from {
+    transform: translateX(-8px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .achievement-pill,
+  .achievement-medal,
+  .achievement-ripple,
+  .achievement-reveal,
+  .achievement-text {
+    animation: none;
+  }
+}

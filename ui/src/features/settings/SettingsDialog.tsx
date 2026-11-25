@@ -1,11 +1,13 @@
 import type { ReactNode } from "react";
-import { BookOpen, GitBranch, Info, Palette } from "lucide-react";
+import { BookOpen, GitBranch, Info, Palette, Plug, Trophy } from "lucide-react";
 import { Tabs } from "radix-ui";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { useUiStore } from "@/stores/uiStore";
 import { AboutTab } from "./AboutTab";
+import { AchievementsTab } from "./AchievementsTab";
 import { GitTab } from "./GitTab";
 import { GuideTab } from "./GuideTab";
+import { McpTab } from "./McpTab";
 import { ThemeTab } from "./ThemeTab";
 
 /** A row in the settings nav: highlighted when active, no underline or side bar. */
@@ -30,7 +32,7 @@ export function SettingsDialog() {
       <DialogContent className="gap-0 p-0 sm:max-w-3xl">
         <DialogTitle className="sr-only">Settings</DialogTitle>
         <DialogDescription className="sr-only">
-          Theme, commit author, a guide and information about this build.
+          Theme, commit author, MCP server, achievements, a guide and information about this build.
         </DialogDescription>
         <Tabs.Root orientation="vertical" defaultValue="theme" className="flex h-[min(520px,calc(100vh-4rem))]">
           <div className="flex w-44 shrink-0 flex-col gap-3 border-r bg-sidebar/60 p-3">
@@ -41,6 +43,12 @@ export function SettingsDialog() {
               </NavItem>
               <NavItem value="git">
                 <GitBranch /> Git
+              </NavItem>
+              <NavItem value="mcp">
+                <Plug /> MCP
+              </NavItem>
+              <NavItem value="achievements">
+                <Trophy /> Achievements
               </NavItem>
               <NavItem value="guide">
                 <BookOpen /> Guide
@@ -55,6 +63,12 @@ export function SettingsDialog() {
           </Tabs.Content>
           <Tabs.Content value="git" className="min-h-0 flex-1 overflow-y-auto p-5 outline-none">
             <GitTab />
+          </Tabs.Content>
+          <Tabs.Content value="mcp" className="min-h-0 flex-1 overflow-y-auto p-5 outline-none">
+            <McpTab />
+          </Tabs.Content>
+          <Tabs.Content value="achievements" className="min-h-0 flex-1 overflow-y-auto p-5 outline-none">
+            <AchievementsTab />
           </Tabs.Content>
           <Tabs.Content value="guide" className="min-h-0 flex-1 overflow-y-auto p-5 outline-none">
             <GuideTab />

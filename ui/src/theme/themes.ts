@@ -1,49 +1,38 @@
 /** The themes in `themes.css`, in the order the picker shows them. */
 
-export type ThemeGroup = "default" | "variation" | "colorful" | "fun";
-
 export interface Theme {
   id: string;
   name: string;
-  group: ThemeGroup;
   scheme: "dark" | "light";
 }
 
 export const THEMES = [
-  {
-    id: "cactus",
-    name: "Cactus",
-    group: "default",
-    scheme: "dark",
-  },
-  { id: "agave", name: "Agave", group: "variation", scheme: "dark" },
-  {
-    id: "prickly-pear",
-    name: "Prickly Pear",
-    group: "variation",
-    scheme: "dark",
-  },
-  { id: "sage", name: "Sage", group: "variation", scheme: "dark" },
-  { id: "desert-day", name: "Desert Day", group: "variation", scheme: "light" },
-  { id: "salt-flat", name: "Salt Flat", group: "variation", scheme: "light" },
-  { id: "adobe", name: "Adobe", group: "variation", scheme: "light" },
-  { id: "oasis", name: "Oasis", group: "colorful", scheme: "dark" },
-  { id: "jacaranda", name: "Jacaranda", group: "colorful", scheme: "dark" },
-  { id: "citrus", name: "Citrus", group: "colorful", scheme: "light" },
-  { id: "ocean-drive", name: "Ocean Drive", group: "fun", scheme: "dark" },
-  { id: "synthwave", name: "Synthwave", group: "fun", scheme: "dark" },
-  { id: "phosphor", name: "Phosphor", group: "fun", scheme: "dark" },
-  {
-    id: "sunset-mesa",
-    name: "Sunset Mesa",
-    group: "fun",
-    scheme: "dark",
-  },
-  { id: "bloom", name: "Bloom", group: "fun", scheme: "dark" },
-  { id: "aqua", name: "Aqua", group: "fun", scheme: "light" },
-  { id: "win95", name: "Windows 95", group: "fun", scheme: "light" },
-  { id: "blueprint", name: "Blueprint", group: "fun", scheme: "dark" },
-  { id: "bubblegum", name: "Bubblegum", group: "fun", scheme: "light" },
+  { id: "cactus", name: "Cactus", scheme: "dark" },
+  { id: "vanilla", name: "Vanilla", scheme: "light" },
+  { id: "agave", name: "Agave", scheme: "dark" },
+  { id: "prickly-pear", name: "Prickly Pear", scheme: "dark" },
+  { id: "sage", name: "Sage", scheme: "dark" },
+  { id: "oasis", name: "Oasis", scheme: "dark" },
+  { id: "jacaranda", name: "Jacaranda", scheme: "dark" },
+  { id: "ember", name: "Ember", scheme: "dark" },
+  { id: "aurora", name: "Aurora", scheme: "dark" },
+  { id: "stargazer", name: "Stargazer", scheme: "dark" },
+  { id: "sunset-mesa", name: "Sunset Mesa", scheme: "dark" },
+  { id: "bloom", name: "Bloom", scheme: "dark" },
+  { id: "synthwave", name: "Synthwave", scheme: "dark" },
+  { id: "ocean-drive", name: "Ocean Drive", scheme: "dark" },
+  { id: "phosphor", name: "Phosphor", scheme: "dark" },
+  { id: "amber", name: "Amber", scheme: "dark" },
+  { id: "blueprint", name: "Blueprint", scheme: "dark" },
+  { id: "desert-day", name: "Desert Day", scheme: "light" },
+  { id: "salt-flat", name: "Salt Flat", scheme: "light" },
+  { id: "adobe", name: "Adobe", scheme: "light" },
+  { id: "matcha", name: "Matcha", scheme: "light" },
+  { id: "paper", name: "Paper", scheme: "light" },
+  { id: "citrus", name: "Citrus", scheme: "light" },
+  { id: "bubblegum", name: "Bubblegum", scheme: "light" },
+  { id: "aqua", name: "Aqua", scheme: "light" },
+  { id: "win95", name: "Windows 95", scheme: "light" },
 ] as const satisfies readonly Theme[];
 
 export type ThemeEntry = (typeof THEMES)[number];
@@ -51,12 +40,8 @@ export type ThemeId = ThemeEntry["id"];
 
 export const DEFAULT_THEME: ThemeId = "cactus";
 
-export const THEME_GROUPS: readonly { group: ThemeGroup; label: string }[] = [
-  { group: "default", label: "Default" },
-  { group: "variation", label: "Variations" },
-  { group: "colorful", label: "Colorful" },
-  { group: "fun", label: "Fun" },
-];
+/** The main dark and light themes, shown apart from (and above) the rest in the picker. */
+export const MAIN_THEME_IDS: readonly ThemeId[] = ["cactus", "vanilla"];
 
 const isThemeId = (id: string): id is ThemeId => THEMES.some((theme) => theme.id === id);
 

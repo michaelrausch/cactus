@@ -1,5 +1,13 @@
 import type { Auth, AuthMode, Body, FormField, Header, MultipartField, Param, Scenario, TypedBody } from "@/api/client";
-import { AUTH_KINDS, BODY_KINDS, TEXT_BODY_KINDS, type AuthKind, type BodyKind, type TextBodyKind } from "./http";
+import {
+  AUTH_KINDS,
+  BODY_KINDS,
+  OAUTH2_FLOWS,
+  TEXT_BODY_KINDS,
+  type AuthKind,
+  type BodyKind,
+  type TextBodyKind,
+} from "./http";
 import { parseQuery, withQuery } from "./query";
 import { makeRow, type Row } from "./rows";
 
@@ -112,8 +120,10 @@ export function authKind(scenario: Scenario): AuthKind | "other" {
   const { auth } = scenario.http;
   if (auth === undefined || auth === null) return "none";
   if (auth === "inherit") return "inherit";
-  if (isAuthMode(auth) && (AUTH_KINDS as readonly string[]).includes(auth.type)) return auth.type;
-  return "other";
+  if (!isAuthMode(auth) || !(AUTH_KINDS as readonly string[]).includes(auth.type)) return "other";
+  // A grant cactus doesn't run (implicit) is kept as written.
+  if (auth.type === "oauth2" && !OAUTH2_FLOWS.includes(auth.flow)) return "other";
+  return auth.type;
 }
 
 /** The `type` of an auth mode cactus keeps but doesn't send, for display. */

@@ -11,6 +11,7 @@ import { useGitStore } from "@/stores/gitStore";
 import { useProjectStore } from "@/stores/projectStore";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { useUiStore } from "@/stores/uiStore";
+import { track } from "./achievements";
 import { refreshEntries, refreshEnvs } from "./project";
 import { hasUnsavedChanges, saveAll } from "./saving";
 import { selectScenario } from "./scenario";
@@ -182,6 +183,7 @@ export async function commit(message: string): Promise<boolean> {
   const committed = await reportErrors(async () => {
     const summary = await backend.gitCommit(project, message, commitAuthor());
     toast.success(`Committed ${summary.id}`, { description: summary.summary });
+    track("commits");
     return true;
   }, "Commit failed");
   await refreshGitStatus();

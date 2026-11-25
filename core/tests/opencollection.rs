@@ -5,7 +5,11 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use cactus_core::collection::{Auth, AuthMode, Header, Variable};
+use cactus_core::collection::{
+    Auth, AuthMode, Header, OAuth2, OAuth2AdditionalParameters, OAuth2ClientCredentials, OAuth2CredentialsPlacement,
+    OAuth2Flow, OAuth2Parameter, OAuth2ParameterPlacement, OAuth2Pkce, OAuth2ResourceOwner, OAuth2Settings,
+    OAuth2TokenConfig, OAuth2TokenPlacement, OAuth2TokenSource, PkceMethod, Variable,
+};
 use cactus_core::env::{self, EnvFile};
 use cactus_core::scenario::{
     self, Action, Assertion, Body, MultipartField, PartKind, PartValue, SetVariable, TypedBody,
@@ -206,6 +210,82 @@ fn everything_cactus_writes_is_valid() {
         request.sync_query_params();
         request
     });
+}
+
+fn oauth2_modes() -> Vec<OAuth2> {
+    let mut client_credentials = OAuth2::new(OAuth2Flow::ClientCredentials);
+    client_credentials.access_token_url = "{{auth}}/token".into();
+    client_credentials.credentials = Some(OAuth2ClientCredentials {
+        client_id: "{{clientId}}".into(),
+        client_secret: "{{clientSecret}}".into(),
+        placement: Some(OAuth2CredentialsPlacement::Body),
+    });
+    client_credentials.scope = "read write".into();
+    client_credentials.token_config = Some(OAuth2TokenConfig {
+        id: "service".into(),
+        placement: Some(OAuth2TokenPlacement::Query { query: "access_token".into() }),
+        source: None,
+    });
+    client_credentials.settings = Some(OAuth2Settings { auto_fetch_token: Some(false), auto_refresh_token: None });
+
+    let mut password = OAuth2::new(OAuth2Flow::ResourceOwnerPasswordCredentials);
+    password.access_token_url = "{{auth}}/token".into();
+    password.refresh_token_url = "{{auth}}/refresh".into();
+    password.resource_owner =
+        Some(OAuth2ResourceOwner { username: "{{user}}".into(), password: "{{password}}".into() });
+
+    let mut authorization_code = OAuth2::new(OAuth2Flow::AuthorizationCode);
+    authorization_code.authorization_url = "{{auth}}/authorize".into();
+    authorization_code.access_token_url = "{{auth}}/token".into();
+    authorization_code.callback_url = "http://localhost:8765/callback".into();
+    authorization_code.credentials = Some(OAuth2ClientCredentials { client_id: "app".into(), ..Default::default() });
+    authorization_code.pkce = Some(OAuth2Pkce { disabled: false, method: Some(PkceMethod::S256) });
+    authorization_code.additional_parameters = Some(OAuth2AdditionalParameters {
+        authorization_request: vec![OAuth2Parameter { name: "audience".into(), value: "api".into(), placement: None }],
+        access_token_request: vec![OAuth2Parameter {
+            name: "X-Tenant".into(),
+            value: "t1".into(),
+            placement: Some(OAuth2ParameterPlacement::Header),
+        }],
+        refresh_token_request: vec![],
+    });
+    authorization_code.token_config = Some(OAuth2TokenConfig {
+        id: String::new().into(),
+        placement: Some(OAuth2TokenPlacement::Header { header: "Bearer".into() }),
+        source: Some(OAuth2TokenSource::IdToken),
+    });
+    vec![client_credentials, password, authorization_code]
+}
+
+/// Each auth mode is written as valid OpenCollection, reads back as saved,
+/// and switching from one to another leaves none of the old one's keys.
+#[test]
+fn auth_modes_are_written_valid_and_read_back() {
+    let dir = tempfile::tempdir().unwrap();
+    let p = dir.path();
+    let file = scenario::create_blank(p, "", "Api").unwrap();
+    let digest = AuthMode::Digest { username: "{{user}}".into(), password: "{{password}}".into() };
+    let modes = std::iter::once(digest)
+        .chain(oauth2_modes().into_iter().map(|oauth2| AuthMode::OAuth2(Box::new(oauth2))))
+        .chain([AuthMode::Bearer { token: "{{token}}".into() }]);
+    for mode in modes {
+        let mut request = scenario::load(p, &file).unwrap();
+        request.http.auth = Some(Auth::Mode(mode.clone()));
+        scenario::save(p, &file, &request).unwrap();
+        assert_valid(p, &file.resolve(p));
+        assert_eq!(scenario::load(p, &file).unwrap().http.auth, Some(Auth::Mode(mode)));
+    }
+}
+
+/// The implicit grant isn't one cactus runs, so it's kept as written.
+#[test]
+fn the_implicit_grant_is_kept_as_written() {
+    let dir = tempfile::tempdir().unwrap();
+    let p = dir.path();
+    let text = "info:\n  name: Api\n  type: http\nhttp:\n  method: GET\n  url: http://x\n  auth:\n    type: oauth2\n    flow: implicit\n    authorizationUrl: http://x/authorize\n";
+    fs::write(p.join("api.yml"), text).unwrap();
+    let request = scenario::load(p, &ProjectPath::parse("api.yml").unwrap()).unwrap();
+    assert!(matches!(request.http.auth, Some(Auth::Other(_))));
 }
 
 #[test]

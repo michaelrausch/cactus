@@ -5,6 +5,7 @@ import { isDirty, useEditorStore } from "@/stores/editorStore";
 import { useProjectStore } from "@/stores/projectStore";
 import { useResponseStore } from "@/stores/responseStore";
 import { useUiStore } from "@/stores/uiStore";
+import { track } from "./achievements";
 import { refreshEntries } from "./project";
 import { saveScenario, writingFile } from "./saving";
 
@@ -49,6 +50,7 @@ export async function createRequest(dir: string, title: string, method: string, 
   if (!project) return false;
   const created = await reportErrors(async () => {
     const path = await backend.createScenario(project, dir, title, method, url);
+    track("requestsCreated");
     await refreshEntries();
     await selectScenario(path);
     return true;

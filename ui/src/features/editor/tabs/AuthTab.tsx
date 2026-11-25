@@ -1,16 +1,11 @@
 import type { AuthMode } from "@/api/client";
 import { Field } from "@/components/Field";
-import { TemplateField } from "@/components/template/TemplateField";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AUTH_KIND_LABELS, AUTH_KINDS, isAuthKind, type AuthKind } from "@/domain/http";
 import { authKind, authMode, otherAuthType, withAuth } from "@/domain/scenario";
 import type { ScenarioTabProps } from "../types";
-
-/** Looks like `Input`; the border is on the box so the text inside lines up with its colours. */
-const FIELD_BOX =
-  "rounded-lg border border-input bg-input/30 transition-colors focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50";
-/** `Input`'s height less its border. */
-const FIELD_TEXT = "h-[calc(2rem-2px)] px-2.5 py-1 font-mono text-xs md:text-sm";
+import { TextField } from "./AuthFields";
+import { OAuth2Fields } from "./OAuth2Fields";
 
 /** What a freshly chosen auth kind starts as; `none` removes auth. */
 const AUTH_DEFAULTS: Record<AuthKind, AuthMode | "inherit" | undefined> = {
@@ -19,32 +14,14 @@ const AUTH_DEFAULTS: Record<AuthKind, AuthMode | "inherit" | undefined> = {
   bearer: { type: "bearer", token: "" },
   basic: { type: "basic", username: "", password: "" },
   apikey: { type: "apikey", key: "", value: "", placement: "header" },
+  digest: { type: "digest", username: "", password: "" },
+  oauth2: {
+    type: "oauth2",
+    flow: "client_credentials",
+    accessTokenUrl: "",
+    credentials: { clientId: "", clientSecret: "", placement: "basic_auth_header" },
+  },
 };
-
-function TextField({
-  label,
-  value,
-  placeholder,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  placeholder?: string;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <Field label={label}>
-      <TemplateField
-        className={FIELD_BOX}
-        fieldClassName={FIELD_TEXT}
-        value={value}
-        placeholder={placeholder}
-        aria-label={label}
-        onChange={onChange}
-      />
-    </Field>
-  );
-}
 
 function AuthFields({ auth, onChange }: { auth: AuthMode; onChange: (auth: AuthMode) => void }) {
   switch (auth.type) {
@@ -57,7 +34,10 @@ function AuthFields({ auth, onChange }: { auth: AuthMode; onChange: (auth: AuthM
           onChange={(token) => onChange({ ...auth, token })}
         />
       );
+    case "oauth2":
+      return <OAuth2Fields auth={auth} onChange={onChange} />;
     case "basic":
+    case "digest":
       return (
         <div className="grid grid-cols-2 gap-3">
           <TextField label="Username" value={auth.username} onChange={(username) => onChange({ ...auth, username })} />

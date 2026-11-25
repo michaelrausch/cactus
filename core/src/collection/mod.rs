@@ -13,8 +13,10 @@ use std::path::Path;
 pub(crate) use emit::to_yaml;
 pub use file::{read, read_if_exists, write};
 pub use model::{
-    ApiKeyPlacement, Auth, AuthMode, CollectionRoot, Environment, Folder, Header, Inherit, LenientString,
-    RequestDefaults, Variable, VariableValue,
+    ApiKeyPlacement, Auth, AuthMode, CollectionRoot, Environment, Folder, Header, Inherit, LenientString, OAuth2,
+    OAuth2AdditionalParameters, OAuth2ClientCredentials, OAuth2CredentialsPlacement, OAuth2Flow, OAuth2Parameter,
+    OAuth2ParameterPlacement, OAuth2Pkce, OAuth2ResourceOwner, OAuth2Settings, OAuth2TokenConfig, OAuth2TokenPlacement,
+    OAuth2TokenSource, PkceMethod, RequestDefaults, Variable, VariableValue,
 };
 
 use crate::{Error, Result, layout, scenario};

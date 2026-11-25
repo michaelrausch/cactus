@@ -17,6 +17,7 @@ use crate::watcher::ProjectWatcher;
 pub fn open_project(app: AppHandle, state: State<'_, AppState>, project: PathBuf) -> Result<Vec<ScenarioEntry>> {
     let entries = scenario::list(&project)?;
     recent::push(&state.recent_projects_file, &project.to_string_lossy())?;
+    state.set_project(project.clone());
     state.scheduler.reload(&app, &project);
     // Registering a watch per folder can be slow on big trees; the list needn't wait for it.
     std::thread::spawn(move || {
