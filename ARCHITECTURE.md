@@ -93,8 +93,8 @@ re-logins are `Headless`, so a prompt falls back to its defaults.
 
 **Secrets files** (the project's and each critter's) are read and written
 only through `crate::secrets` (`read`, `names`, `write`). They, the context
-files (`captured.json`, each critter's `context.json`), cookie jars and OAuth2
-tokens are sealed whole by
+files (`captured.json`, each critter's `context.json`), cookie jars, OAuth2
+tokens and history are sealed whole by
 `secrets::vault` (XChaCha20-Poly1305). With no password the key is built in,
 so they're obscured rather than protected. A password (`.cactus/vault`: salt
 and check value) switches to an Argon2id key; the app asks for it when a
@@ -102,7 +102,8 @@ project opens, the CLI reads `CACTUS_PASSWORD` or prompts. An optional TOTP
 secret (`secrets::totp`, RFC 6238) is sealed inside `.cactus/vault`, so
 unlocking also takes an authenticator code (`CACTUS_TOTP_CODE` in the CLI);
 it's local, a second step rather than a true second factor. Changing the
-password re-seals every file. Plain JSON from before is read as-is and
+password re-seals every file, staging each beside itself so a crash midway
+is finished on the next read. Plain JSON from before is read as-is and
 sealed on its next write.
 
 **Saving never rewrites a file.** `collection::write` reads the file into its

@@ -26,6 +26,7 @@ function alertCaptureFailures(response: HttpResponse): void {
 function trackResponse(status: number): void {
   track("requestsSent");
   if (status >= 500) track("serverErrors");
+  if (status === 418) track("teapots");
 }
 
 /** Send the open scenario as currently edited, even if not saved yet. */

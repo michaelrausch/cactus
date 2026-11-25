@@ -7,8 +7,8 @@ export interface Theme {
 }
 
 export const THEMES = [
-  { id: "cactus", name: "Cactus", scheme: "dark" },
-  { id: "vanilla", name: "Vanilla", scheme: "light" },
+  { id: "cactus", name: "Default dark", scheme: "dark" },
+  { id: "vanilla", name: "Default light", scheme: "light" },
   { id: "agave", name: "Agave", scheme: "dark" },
   { id: "prickly-pear", name: "Prickly Pear", scheme: "dark" },
   { id: "sage", name: "Sage", scheme: "dark" },

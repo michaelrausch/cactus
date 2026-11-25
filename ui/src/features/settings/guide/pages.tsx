@@ -32,6 +32,7 @@ export const GUIDE_PAGES: GuidePage[] = [
             Open a folder with <K id="openProject" />. An empty folder becomes a new project. The last project you had
             open comes back when you start cactus.
           </>,
+          <>Change the look in Settings › Theme. Default dark and Default light are the main themes.</>,
         ],
       },
       {
@@ -264,8 +265,51 @@ export const GUIDE_PAGES: GuidePage[] = [
             The request file isn't touched.
           </>,
           <>
-            Tool steps do things other than send a request: ask you for a value, show something, wait, call a webhook,
-            post to Slack, send a notification, run another flow, and more. Values they set last for that run only.
+            Tool steps do things other than send a request. Drag them in from the Tools list, under your requests.
+            Values they set last for that run only.
+          </>,
+        ],
+      },
+      {
+        heading: "Tools",
+        body: [
+          <>
+            <b>Prompt</b> asks you for values when the flow runs.
+          </>,
+          <>
+            <b>Pick from list</b> lets you choose one item from a list an earlier step captured, and sets variables from
+            it.
+          </>,
+          <>
+            <b>Display</b> shows a message. It can pause the run until you continue.
+          </>,
+          <>
+            <b>Set values</b> sets variables for later steps. Use <C>$uuid</C>, <C>$timestamp</C>, <C>$isoTime</C>,{" "}
+            <C>$randomInt</C> or <C>$randomEmail</C> to generate one.
+          </>,
+          <>
+            <b>Assert</b> fails the flow unless values pass their checks, including every item of a list.
+          </>,
+          <>
+            <b>Poll</b> sends a request again and again until its checks pass, like waiting for a job to finish.
+          </>,
+          <>
+            <b>Wait</b> pauses for a while, like for an API that takes time to catch up.
+          </>,
+          <>
+            <b>Run flow</b> runs another flow as one step, from this critter or another, so flows can share setup.
+          </>,
+          <>
+            <b>Open in browser</b> opens a URL, like a sign-in page.
+          </>,
+          <>
+            <b>Webhook</b> sends a request that isn't in the project, like telling another system the flow ran.
+          </>,
+          <>
+            <b>Slack</b> posts a message to a Slack incoming webhook.
+          </>,
+          <>
+            <b>Notify</b> shows a desktop notification.
           </>,
         ],
       },
@@ -320,6 +364,38 @@ export const GUIDE_PAGES: GuidePage[] = [
             Commits use your name and email from git, or from Settings › Git. Git hooks don't run. Push and pull from
             your usual git tool.
           </>,
+        ],
+      },
+    ],
+  },
+  {
+    id: "mcp",
+    title: "MCP",
+    sections: [
+      {
+        body: [
+          <>
+            cactus can run an MCP server so AI agents can use the open project. Agents send requests and run flows
+            through cactus, so they never see your secrets or tokens.
+          </>,
+          <>
+            Turn it on in Settings › MCP. It only listens on this machine, and every call needs the token shown there.
+          </>,
+        ],
+      },
+      {
+        heading: "What agents can do",
+        body: [
+          <>List and read requests, environments, critters, flows, variables and history. Secret values stay hidden.</>,
+          <>Send requests and run folders and flows. These show up in history like your own.</>,
+          <>With Allow edits on, create and save requests and flows.</>,
+        ],
+      },
+      {
+        heading: "Connecting",
+        body: [
+          <>Copy config gives you the JSON most agents take. Copy Claude Code command gives you a command to paste.</>,
+          <>New token replaces the old one, so agents using it need the new one.</>,
         ],
       },
     ],

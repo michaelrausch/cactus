@@ -1,28 +1,21 @@
 import { useState } from "react";
-import { toast } from "sonner";
 import { ChevronRight, Copy, LogIn, X } from "lucide-react";
+import { copyText } from "@/actions/clipboard";
 import { clearContext, logInAgain } from "@/actions/critters";
 import { selectScenario } from "@/actions/scenario";
 import type { ContextEntry, CritterSummary } from "@/api/client";
 import { TimeAgo } from "@/components/TimeAgo";
 import { IconButton } from "@/components/IconButton";
 import { Button } from "@/components/ui/button";
-import { decodeJwt, expiryText, isExpired, type DecodedJwt } from "@/domain/jwt";
+import { EXPIRY_TICK_MS, decodeJwt, expiryText, isExpired, type DecodedJwt } from "@/domain/jwt";
 import { useNow } from "@/hooks/useNow";
 import { cn } from "@/lib/utils";
 import { useCritterStore } from "@/stores/critterStore";
 
-/** How often expiry text ("expires in 4m") updates. */
-const TICK_MS = 30_000;
-
 /** What an entry hand-edited in the layer editor says it came from. */
 const EDITED = "edited";
 
-const copy = (name: string, value: string) =>
-  navigator.clipboard.writeText(value).then(
-    () => toast.success(`Copied ${name}`),
-    () => toast.warning("Couldn't copy to the clipboard"),
-  );
+const copy = (name: string, value: string) => copyText(value, `Copied ${name}`);
 
 function Claims({ jwt }: { jwt: DecodedJwt }) {
   return (
@@ -109,7 +102,7 @@ function CapturedRow({ critter, name, entry, now }: RowProps) {
 /** What the critter's requests captured, kept apart from every other critter's. */
 export function CapturedList({ critter }: { critter: CritterSummary }) {
   const context = useCritterStore((s) => s.contexts[critter.id]);
-  const now = useNow(TICK_MS);
+  const now = useNow(EXPIRY_TICK_MS);
   const names = Object.keys(context ?? {}).toSorted();
   return (
     <section className="flex flex-col gap-2">

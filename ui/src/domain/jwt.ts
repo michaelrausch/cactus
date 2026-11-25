@@ -65,6 +65,9 @@ export const expiredTokens = (values: Record<string, { value: string }>, now: nu
     .filter(([, entry]) => isExpired(decodeJwt(entry.value)?.expiresAt ?? null, now))
     .map(([name]) => name);
 
+/** How often expiry text ("expires in 4m") needs updating. */
+export const EXPIRY_TICK_MS = 30_000;
+
 /** `"expires in 4m"` or `"expired 2h ago"`. */
 export const expiryText = (expiresAt: number, now: number): string =>
   expiresAt > now ? `expires in ${shortDuration(expiresAt - now)}` : `expired ${shortDuration(now - expiresAt)} ago`;

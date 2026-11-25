@@ -1,4 +1,5 @@
 import {
+  Coffee,
   Compass,
   Download,
   FilePlus,
@@ -24,6 +25,7 @@ export const ACHIEVEMENT_ICONS: Record<AchievementIcon, LucideIcon> = {
   rocket: Rocket,
   flame: Flame,
   "server-crash": ServerCrash,
+  teapot: Coffee,
   folder: Folder,
   workflow: Workflow,
   "file-plus": FilePlus,

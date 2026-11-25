@@ -177,7 +177,11 @@ pub fn tokens_file(project: &Path) -> PathBuf {
 pub fn history_file(project: &Path, scenario: &ProjectPath) -> PathBuf {
     let path = scenario.as_str();
     let stem = path.strip_suffix(REQUEST_EXTENSION).unwrap_or(path).replace('%', "%25").replace('/', "%2F");
-    workspace_dir(project).join(HISTORY_DIR).join(format!("{stem}{HISTORY_EXTENSION}"))
+    history_dir(project).join(format!("{stem}{HISTORY_EXTENSION}"))
+}
+
+pub fn history_dir(project: &Path) -> PathBuf {
+    workspace_dir(project).join(HISTORY_DIR)
 }
 
 /// Each folder on the way down to `dir` (`""` is the root), as its path

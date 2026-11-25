@@ -227,7 +227,10 @@ mod tests {
 
         let store = load(p, "bob").unwrap();
         // `pref` has no Path, so it takes /login's default path, `/`.
-        assert_eq!(cookie_header(&store, &url("http://api.test/me")).unwrap(), "pref=dark; sid=abc");
+        let header = cookie_header(&store, &url("http://api.test/me")).unwrap();
+        let mut sent: Vec<&str> = header.to_str().unwrap().split("; ").collect();
+        sent.sort_unstable();
+        assert_eq!(sent, ["pref=dark", "sid=abc"]);
         assert!(cookie_header(&store, &url("http://other.test/")).is_none());
 
         let key = CookieKey { domain: "api.test".into(), path: "/".into(), name: "sid".into() };

@@ -1,6 +1,6 @@
 //! Secrets files: the project's `.cactus/secrets.json` and each critter's
-//! `.cactus/critters/<id>/secrets.json`. They, and the context files, are
-//! sealed at rest by [`vault`].
+//! `.cactus/critters/<id>/secrets.json`. They, context, cookies, OAuth2
+//! tokens and history are sealed at rest by [`vault`].
 
 mod store;
 mod totp;
@@ -11,4 +11,4 @@ pub use totp::TotpSetup;
 pub use vault::{
     Unlocked, VaultStatus, disable_totp, enable_totp, set_password, start_totp, status, totp_enabled, unlock, wipe,
 };
-pub(crate) use vault::{read_json as read_sealed, write_json as write_sealed};
+pub(crate) use vault::{read_json as read_sealed, staged as staged_copy, write_json as write_sealed};

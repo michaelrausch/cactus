@@ -4,7 +4,7 @@ import { cancelGetToken, clearToken, getToken, loadTokenStatus } from "@/actions
 import type { AuthMode, OAuth2Flow, TokenStatus } from "@/api/client";
 import { IconButton } from "@/components/IconButton";
 import { Button } from "@/components/ui/button";
-import { expiryText } from "@/domain/jwt";
+import { EXPIRY_TICK_MS, expiryText } from "@/domain/jwt";
 import { useNow } from "@/hooks/useNow";
 import { useCritterStore } from "@/stores/critterStore";
 import { useProjectStore } from "@/stores/projectStore";
@@ -25,8 +25,6 @@ type PkceChoice = keyof typeof PKCE;
 
 /** How long a status lookup waits for typing to stop. */
 const STATUS_DEBOUNCE_MS = 400;
-/** How often expiry text ("expires in 4m") updates. */
-const TICK_MS = 30_000;
 
 function pkceChoice(auth: OAuth2Mode): PkceChoice {
   if (!auth.pkce || auth.pkce.disabled) return "off";
@@ -133,7 +131,7 @@ function TokenRow({ auth }: { auth: OAuth2Mode }) {
   const activeCritter = useCritterStore((s) => s.activeId);
   const [status, setStatus] = useState<TokenStatus | null>(null);
   const [getting, setGetting] = useState(false);
-  const now = useNow(TICK_MS);
+  const now = useNow(EXPIRY_TICK_MS);
   // The cached token depends on the settings, so look again as they change.
   const settings = JSON.stringify(auth);
 

@@ -38,7 +38,7 @@ pub(super) fn setup(secret: &[u8], account: &str) -> Result<TotpSetup> {
 
 /// The secret from its base32 form, as [`TotpSetup::secret`] gave it.
 pub(super) fn decode(secret: &str) -> Result<Vec<u8>> {
-    BASE32_NOPAD.decode(secret.trim().as_bytes()).map_err(|_| Error::WrongCode)
+    BASE32_NOPAD.decode(secret.trim().as_bytes()).map_err(|_| Error::InvalidTotpSecret)
 }
 
 /// Whether `code` is right now, or one step either side for clock drift.
