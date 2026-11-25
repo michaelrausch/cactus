@@ -8,8 +8,9 @@ use serde::Serialize;
 
 use super::model::{Critter, Flow, Species, Trigger, validate_critter_id, validate_flow_id};
 use super::secrets::missing_secrets;
+use crate::num::saturating_u32;
 use crate::storage::write_atomic;
-use crate::{Error, Result, collection, layout, state};
+use crate::{Error, Result, best_effort, collection, layout, state};
 
 /// What the UI lists for a critter, in one call.
 #[derive(Debug, Clone, Serialize)]
@@ -49,29 +50,50 @@ pub enum FlowParse {
     Invalid { message: String, line: Option<u32>, column: Option<u32> },
 }
 
-/// `"<critter>/<flow>"`, how the scheduler names a flow.
-pub fn schedule_key(critter: &str, flow: &str) -> String {
-    format!("{critter}/{flow}")
+/// A flow by its critter and file name, shown as `bob/health`: how the
+/// scheduler and the UI's schedule list name a flow.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct FlowKey {
+    pub critter: String,
+    pub flow: String,
+}
+
+impl FlowKey {
+    pub fn new(critter: impl Into<String>, flow: impl Into<String>) -> Self {
+        Self { critter: critter.into(), flow: flow.into() }
+    }
+}
+
+impl std::fmt::Display for FlowKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}/{}", self.critter, self.flow)
+    }
 }
 
 /// Every critter in `critters/`, sorted by id. Folders without a
 /// `critter.yml` or with an invalid id are left out.
-pub fn list(project: &Path) -> Result<Vec<CritterSummary>> {
+pub fn list(project: &Path) -> Vec<CritterSummary> {
     let mut ids = child_names(&layout::critters_dir(project), Path::is_dir);
-    ids.retain(|id| validate_critter_id(id).is_ok() && layout::critter_file(project, id).is_file());
+    ids.retain(|id| exists(project, id));
     ids.sort();
-    Ok(ids.into_iter().map(|id| summarise(project, id)).collect())
+    ids.into_iter().map(|id| summarise(project, id)).collect()
 }
 
 fn summarise(project: &Path, id: String) -> CritterSummary {
-    let (critter, error) = match load(project, &id) {
+    let (critter, mut error) = match load(project, &id) {
         Ok(critter) => (critter, None),
         Err(error) => (Critter::default(), Some(error.to_string())),
     };
+    // Not being able to tell which secrets are missing is a problem to show,
+    // not "none missing".
+    let missing_secrets = missing_secrets(project, &id).unwrap_or_else(|failure| {
+        error.get_or_insert_with(|| failure.to_string());
+        Vec::new()
+    });
     let name = if critter.name.is_empty() { id.clone() } else { critter.name.0 };
     CritterSummary {
-        flows: list_flows(project, &id).unwrap_or_default(),
-        missing_secrets: missing_secrets(project, &id).unwrap_or_default(),
+        flows: flow_summaries(project, &id),
+        missing_secrets,
         name,
         species: critter.species,
         notes: critter.notes.0,
@@ -95,6 +117,28 @@ pub fn exists(project: &Path, id: &str) -> bool {
     validate_critter_id(id).is_ok() && layout::critter_file(project, id).is_file()
 }
 
+/// `Ok` when the critter exists; otherwise an invalid id is reported as
+/// such, and a valid one as not found.
+pub fn require(project: &Path, id: &str) -> Result<()> {
+    if exists(project, id) {
+        return Ok(());
+    }
+    validate_critter_id(id)?;
+    Err(Error::CritterNotFound(id.into()))
+}
+
+/// Make the new folder `dir`, failing with [`Error::AlreadyExists`] if it is
+/// already there. Creating it is the check, so two creators can't both pass.
+fn create_new_dir(dir: &Path, what: String) -> Result<()> {
+    if let Some(parent) = dir.parent() {
+        fs::create_dir_all(parent).map_err(Error::file(parent))?;
+    }
+    fs::create_dir(dir).map_err(|e| match e.kind() {
+        ErrorKind::AlreadyExists => Error::AlreadyExists(what),
+        _ => Error::file(dir)(e),
+    })
+}
+
 pub fn load(project: &Path, id: &str) -> Result<Critter> {
     validate_critter_id(id)?;
     collection::read_if_exists(&layout::critter_file(project, id))?.ok_or_else(|| Error::CritterNotFound(id.into()))
@@ -113,11 +157,17 @@ pub fn save(project: &Path, id: &str, critter: &Critter) -> Result<()> {
 pub fn create(project: &Path, id: &str, critter: &Critter) -> Result<()> {
     validate_critter_id(id)?;
     let dir = layout::critter_dir(project, id);
-    if dir.exists() {
-        return Err(Error::AlreadyExists(format!("critter {id}")));
+    create_new_dir(&dir, format!("critter {id}"))?;
+    undo_on_error(&dir, collection::write(&layout::critter_file(project, id), critter))
+}
+
+/// Remove the folder `dir` just created when what was put in it failed, so
+/// a failed create or copy doesn't leave a critter that can't be read.
+fn undo_on_error<T>(dir: &Path, result: Result<T>) -> Result<T> {
+    if result.is_err() {
+        best_effort::log("remove the half-made folder", fs::remove_dir_all(dir));
     }
-    fs::create_dir_all(&dir).map_err(Error::file(&dir))?;
-    collection::write(&layout::critter_file(project, id), critter)
+    result
 }
 
 /// Move the critter's folder and its local files; the active critter and
@@ -128,9 +178,7 @@ pub fn rename(project: &Path, from: &str, to: &str) -> Result<()> {
     if from == to {
         return Ok(());
     }
-    if !exists(project, from) {
-        return Err(Error::CritterNotFound(from.into()));
-    }
+    require(project, from)?;
     let target = layout::critter_dir(project, to);
     if target.exists() {
         return Err(Error::AlreadyExists(format!("critter {to}")));
@@ -151,23 +199,28 @@ pub fn duplicate(project: &Path, from: &str, to: &str, name: &str, species: Spec
     let mut critter = load(project, from)?;
     validate_critter_id(to)?;
     let target = layout::critter_dir(project, to);
-    if target.exists() {
-        return Err(Error::AlreadyExists(format!("critter {to}")));
-    }
-    fs::create_dir_all(&target).map_err(Error::file(&target))?;
+    create_new_dir(&target, format!("critter {to}"))?;
+    let copied = copy_critter_files(project, from, to).and_then(|()| {
+        critter.name = name.into();
+        critter.species = species;
+        save(project, to, &critter)
+    });
+    undo_on_error(&target, copied)
+}
+
+fn copy_critter_files(project: &Path, from: &str, to: &str) -> Result<()> {
     copy_file(&layout::critter_file(project, from), &layout::critter_file(project, to))?;
     let flows = layout::flows_dir(project, from);
     let flow_names = child_names(&flows, Path::is_file);
-    if !flow_names.is_empty() {
-        let target_flows = layout::flows_dir(project, to);
-        fs::create_dir_all(&target_flows).map_err(Error::file(&target_flows))?;
-        for file_name in flow_names {
-            copy_file(&flows.join(&file_name), &target_flows.join(&file_name))?;
-        }
+    if flow_names.is_empty() {
+        return Ok(());
     }
-    critter.name = name.into();
-    critter.species = species;
-    save(project, to, &critter)
+    let target_flows = layout::flows_dir(project, to);
+    fs::create_dir_all(&target_flows).map_err(Error::file(&target_flows))?;
+    for file_name in flow_names {
+        copy_file(&flows.join(&file_name), &target_flows.join(&file_name))?;
+    }
+    Ok(())
 }
 
 /// Delete the critter's folder and local files, and forget it in the state.
@@ -192,22 +245,18 @@ pub fn active(project: &Path) -> Option<String> {
 }
 
 pub fn set_active(project: &Path, id: Option<String>) -> Result<()> {
-    if let Some(id) = &id
-        && !exists(project, id)
-    {
-        validate_critter_id(id)?;
-        return Err(Error::CritterNotFound(id.clone()));
+    if let Some(id) = &id {
+        require(project, id)?;
     }
     state::update(project, |state| state.critter = id)
 }
 
-/// Every critter's flows as `"<critter>/<flow>"`, readable or not, for the
-/// scheduler to pick out the ones with a schedule.
-pub fn flow_keys(project: &Path) -> Vec<String> {
+/// Every critter's flows, readable or not, for the scheduler to pick out
+/// the ones with a schedule.
+pub fn flow_keys(project: &Path) -> Vec<FlowKey> {
     list(project)
-        .unwrap_or_default()
         .iter()
-        .flat_map(|critter| critter.flows.iter().map(|flow| schedule_key(&critter.id, &flow.id)))
+        .flat_map(|critter| critter.flows.iter().map(|flow| FlowKey::new(&critter.id, &flow.id)))
         .collect()
 }
 
@@ -215,6 +264,11 @@ pub fn flow_keys(project: &Path) -> Vec<String> {
 /// with its error.
 pub fn list_flows(project: &Path, id: &str) -> Result<Vec<FlowSummary>> {
     validate_critter_id(id)?;
+    Ok(flow_summaries(project, id))
+}
+
+/// [`list_flows`] for an id that is already known to be valid.
+fn flow_summaries(project: &Path, id: &str) -> Vec<FlowSummary> {
     let mut flows: Vec<String> = child_names(&layout::flows_dir(project, id), Path::is_file)
         .iter()
         .filter_map(|file_name| layout::flow_from_file_name(file_name))
@@ -222,12 +276,12 @@ pub fn list_flows(project: &Path, id: &str) -> Result<Vec<FlowSummary>> {
         .map(str::to_string)
         .collect();
     flows.sort();
-    Ok(flows
+    flows
         .into_iter()
         .map(|flow_id| match load_flow(project, id, &flow_id) {
             Ok(flow) => FlowSummary {
                 name: if flow.name.is_empty() { flow_id.clone() } else { flow.name.0 },
-                steps: u32::try_from(flow.steps.len()).unwrap_or(u32::MAX),
+                steps: saturating_u32(flow.steps.len()),
                 triggers: flow.triggers,
                 error: None,
                 id: flow_id,
@@ -240,7 +294,7 @@ pub fn list_flows(project: &Path, id: &str) -> Result<Vec<FlowSummary>> {
                 id: flow_id,
             },
         })
-        .collect())
+        .collect()
 }
 
 fn flow_path(project: &Path, id: &str, flow: &str) -> Result<std::path::PathBuf> {
@@ -251,6 +305,14 @@ fn flow_path(project: &Path, id: &str, flow: &str) -> Result<std::path::PathBuf>
 
 fn flow_not_found(id: &str, flow: &str) -> Error {
     Error::FlowNotFound { critter: id.into(), flow: flow.into() }
+}
+
+/// An I/O failure on a flow's `file`: a missing file is the flow not found.
+fn flow_io_error<'a>(file: &'a Path, id: &'a str, flow: &'a str) -> impl Fn(std::io::Error) -> Error + 'a {
+    move |e| match e.kind() {
+        ErrorKind::NotFound => flow_not_found(id, flow),
+        _ => Error::file(file)(e),
+    }
 }
 
 pub fn load_flow(project: &Path, id: &str, flow: &str) -> Result<Flow> {
@@ -268,15 +330,32 @@ pub fn save_flow(project: &Path, id: &str, flow_id: &str, flow: &Flow) -> Result
 
 pub fn create_flow(project: &Path, id: &str, flow_id: &str, flow: &Flow) -> Result<()> {
     let file = flow_path(project, id, flow_id)?;
-    if !exists(project, id) {
-        return Err(Error::CritterNotFound(id.into()));
-    }
+    require(project, id)?;
     if file.exists() {
         return Err(Error::AlreadyExists(format!("flow {flow_id}")));
     }
     let dir = layout::flows_dir(project, id);
     fs::create_dir_all(&dir).map_err(Error::file(&dir))?;
     collection::write(&file, flow)
+}
+
+/// Copy a flow's file, comments and all, to a new file name and flow name.
+/// Its run log stays with the original.
+pub fn duplicate_flow(project: &Path, id: &str, from: &str, to: &str, name: &str) -> Result<()> {
+    let text = load_flow_text(project, id, from)?;
+    let target = flow_path(project, id, to)?;
+    if target.exists() {
+        return Err(Error::AlreadyExists(format!("flow {to}")));
+    }
+    save_flow_text(project, id, to, &text)?;
+    let named = load_flow(project, id, to).and_then(|mut flow| {
+        flow.name = name.into();
+        save_flow(project, id, to, &flow)
+    });
+    if named.is_err() {
+        best_effort::log("remove the half-made copy", fs::remove_file(&target));
+    }
+    named
 }
 
 /// Rename a flow file, with its run log and the critter's
@@ -293,9 +372,21 @@ pub fn rename_flow(project: &Path, id: &str, from: &str, to: &str) -> Result<()>
     if target.exists() {
         return Err(Error::AlreadyExists(format!("flow {to}")));
     }
+    // Read before anything moves, so a critter that can't be read fails the
+    // rename while it is still a no-op.
+    let critter = load(project, id)?;
     fs::rename(&source, &target).map_err(Error::file(&source))?;
-    move_if_exists(&layout::run_log_file(project, id, from), &layout::run_log_file(project, id, to))?;
-    let mut critter = load(project, id)?;
+    let (log_from, log_to) = (layout::run_log_file(project, id, from), layout::run_log_file(project, id, to));
+    let followed = move_if_exists(&log_from, &log_to).and_then(|()| point_login_at(project, id, critter, from, to));
+    if followed.is_err() {
+        best_effort::log("undo the flow rename", fs::rename(&target, &source));
+        best_effort::log("undo the run log move", move_if_exists(&log_to, &log_from));
+    }
+    followed
+}
+
+/// Make the critter's `login` follow a renamed flow.
+fn point_login_at(project: &Path, id: &str, mut critter: Critter, from: &str, to: &str) -> Result<()> {
     if critter.login.as_ref().is_some_and(|login| login == from) {
         critter.login = Some(to.into());
         save(project, id, &critter)?;
@@ -306,10 +397,7 @@ pub fn rename_flow(project: &Path, id: &str, from: &str, to: &str) -> Result<()>
 /// Delete a flow file and its run log.
 pub fn delete_flow(project: &Path, id: &str, flow: &str) -> Result<()> {
     let file = flow_path(project, id, flow)?;
-    fs::remove_file(&file).map_err(|e| match e.kind() {
-        ErrorKind::NotFound => flow_not_found(id, flow),
-        _ => Error::file(&file)(e),
-    })?;
+    fs::remove_file(&file).map_err(flow_io_error(&file, id, flow))?;
     let log = layout::run_log_file(project, id, flow);
     if let Err(e) = fs::remove_file(&log)
         && e.kind() != ErrorKind::NotFound
@@ -322,19 +410,14 @@ pub fn delete_flow(project: &Path, id: &str, flow: &str) -> Result<()> {
 /// The flow file exactly as written, for the YAML editor.
 pub fn load_flow_text(project: &Path, id: &str, flow: &str) -> Result<String> {
     let file = flow_path(project, id, flow)?;
-    fs::read_to_string(&file).map_err(|e| match e.kind() {
-        ErrorKind::NotFound => flow_not_found(id, flow),
-        _ => Error::file(&file)(e),
-    })
+    fs::read_to_string(&file).map_err(flow_io_error(&file, id, flow))
 }
 
 /// Write flow text verbatim, keeping comments and formatting as typed. Text
 /// that doesn't parse as a flow is refused.
 pub fn save_flow_text(project: &Path, id: &str, flow: &str, text: &str) -> Result<()> {
     let file = flow_path(project, id, flow)?;
-    if !exists(project, id) {
-        return Err(Error::CritterNotFound(id.into()));
-    }
+    require(project, id)?;
     parse_flow_text(text)?;
     let dir = layout::flows_dir(project, id);
     fs::create_dir_all(&dir).map_err(Error::file(&dir))?;
@@ -413,7 +496,7 @@ mod tests {
     fn create_list_rename_delete() {
         let dir = tempfile::tempdir().unwrap();
         let p = dir.path();
-        assert!(list(p).unwrap().is_empty());
+        assert!(list(p).is_empty());
         create(p, "bob", &bob()).unwrap();
         assert!(matches!(create(p, "bob", &bob()), Err(Error::AlreadyExists(_))));
         assert!(matches!(create(p, "../x", &bob()), Err(Error::InvalidCritterName(_))));
@@ -421,7 +504,7 @@ mod tests {
         fs::create_dir_all(p.join("critters/no-file")).unwrap();
         fs::write(p.join("critters/bob/flows/broken.yml"), "steps: [").unwrap();
 
-        let critters = list(p).unwrap();
+        let critters = list(p);
         assert_eq!(critters.len(), 1);
         let summary = &critters[0];
         assert_eq!((summary.id.as_str(), summary.name.as_str(), summary.species), ("bob", "Bob", Species::Gecko));
@@ -432,7 +515,7 @@ mod tests {
         critter.login = Some("login".into());
         save(p, "bob", &critter).unwrap();
         set_active(p, Some("bob".into())).unwrap();
-        assert_eq!(flow_keys(p), ["bob/broken", "bob/login"]);
+        assert_eq!(flow_keys(p), [FlowKey::new("bob", "broken"), FlowKey::new("bob", "login")]);
         save_secret(p, "bob");
         assert!(matches!(set_active(p, Some("nobody".into())), Err(Error::CritterNotFound(_))));
 
@@ -443,9 +526,9 @@ mod tests {
 
         rename_flow(p, "robert", "login", "sign-in").unwrap();
         assert_eq!(load(p, "robert").unwrap().login.unwrap(), "sign-in");
-        assert_eq!(flow_keys(p), ["robert/broken", "robert/sign-in"]);
+        assert_eq!(flow_keys(p), [FlowKey::new("robert", "broken"), FlowKey::new("robert", "sign-in")]);
         delete_flow(p, "robert", "sign-in").unwrap();
-        assert_eq!(flow_keys(p), ["robert/broken"]);
+        assert_eq!(flow_keys(p), [FlowKey::new("robert", "broken")]);
         assert!(matches!(delete_flow(p, "robert", "sign-in"), Err(Error::FlowNotFound { .. })));
 
         delete(p, "robert").unwrap();
@@ -501,5 +584,32 @@ mod tests {
             FlowParse::Invalid { line, .. } => assert_eq!(line, Some(2)),
             FlowParse::Ok { .. } => panic!("expected invalid"),
         }
+    }
+
+    #[test]
+    fn a_duplicated_flow_keeps_its_comments_and_takes_the_new_name() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path();
+        create(p, "bob", &bob()).unwrap();
+        save_flow_text(p, "bob", "h", "# health check\nname: H\nsteps:\n  - request: a.yml # first\n").unwrap();
+
+        duplicate_flow(p, "bob", "h", "h-copy", "H copy").unwrap();
+        let copy = load_flow_text(p, "bob", "h-copy").unwrap();
+        assert!(copy.starts_with("# health check\n") && copy.contains("request: a.yml # first"), "{copy}");
+        assert_eq!(load_flow(p, "bob", "h-copy").unwrap().name.as_str(), "H copy");
+        assert_eq!(load_flow(p, "bob", "h").unwrap().name.as_str(), "H");
+
+        assert!(matches!(duplicate_flow(p, "bob", "h", "h-copy", "again"), Err(Error::AlreadyExists(_))));
+        assert!(matches!(duplicate_flow(p, "bob", "nope", "x", "x"), Err(Error::FlowNotFound { .. })));
+    }
+
+    #[test]
+    fn require_tells_a_bad_id_from_a_missing_critter() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path();
+        create(p, "bob", &bob()).unwrap();
+        assert!(require(p, "bob").is_ok());
+        assert!(matches!(require(p, "nobody"), Err(Error::CritterNotFound(_))));
+        assert!(matches!(require(p, "../x"), Err(Error::InvalidCritterName(_))));
     }
 }

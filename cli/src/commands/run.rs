@@ -1,3 +1,5 @@
+//! `cactus-cli run`: every request in the project, or in one folder.
+
 use std::path::Path;
 
 use cactus_core::env::Scope;

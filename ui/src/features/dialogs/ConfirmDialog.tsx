@@ -18,8 +18,12 @@ export function ConfirmDialog() {
     close();
     void onConfirm?.();
   };
+  const cancel = () => {
+    close();
+    confirm?.onCancel?.();
+  };
   return (
-    <Dialog open={!!confirm} onOpenChange={(open) => !open && close()}>
+    <Dialog open={!!confirm} onOpenChange={(open) => !open && cancel()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{confirm?.title}</DialogTitle>
@@ -27,7 +31,7 @@ export function ConfirmDialog() {
         </DialogHeader>
         <DialogFooter>
           {/* A destructive action never takes Enter: focus starts on Cancel. */}
-          <Button variant="ghost" autoFocus={destructive} onClick={close}>
+          <Button variant="ghost" autoFocus={destructive} onClick={cancel}>
             Cancel
           </Button>
           {confirm?.alternative && (

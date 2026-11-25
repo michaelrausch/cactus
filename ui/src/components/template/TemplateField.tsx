@@ -103,6 +103,8 @@ export function TemplateField({
     refresh(next, caret);
   };
 
+  // A controlled value change puts the caret at the end; put it back where
+  // the completion left it, before the browser paints.
   useLayoutEffect(() => {
     const input = inputRef.current;
     if (input && pendingCaret.current !== null && document.activeElement === input) {

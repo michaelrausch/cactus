@@ -1,3 +1,6 @@
+//! One request over the wire: build it, send it, read the whole body, then
+//! evaluate actions and assertions. No side effects; those live in `runner`.
+
 use std::path::Path;
 use std::time::Instant;
 

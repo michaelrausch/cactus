@@ -67,6 +67,8 @@ export const commands = {
 	saveFlow: (project: string, critter: string, flow: string, definition: Flow_Deserialize, options?: InvokeOptions) => __TAURI_INVOKE<null>("save_flow", { project, critter, flow, definition }, options),
 	createFlow: (project: string, critter: string, flow: string, definition: Flow_Deserialize, options?: InvokeOptions) => __TAURI_INVOKE<null>("create_flow", { project, critter, flow, definition }, options),
 	renameFlow: (project: string, critter: string, from: string, to: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("rename_flow", { project, critter, from, to }, options),
+	/**  Copy a flow, comments and all, as `to` named `name`. */
+	duplicateFlow: (project: string, critter: string, from: string, to: string, name: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("duplicate_flow", { project, critter, from, to, name }, options),
 	deleteFlow: (project: string, critter: string, flow: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("delete_flow", { project, critter, flow }, options),
 	loadFlowText: (project: string, critter: string, flow: string, options?: InvokeOptions) => __TAURI_INVOKE<string>("load_flow_text", { project, critter, flow }, options),
 	/**  Write the YAML editor's text as typed; text that isn't a valid flow is refused. */
@@ -164,6 +166,7 @@ export const events = {
 };
 
 /* Types */
+/**  Actions cactus doesn't run are kept as written, so saving won't drop them. */
 export type Action = Action_Serialize | Action_Deserialize;
 
 export type ActionPhase = "before-request" | "after-response";
@@ -180,8 +183,10 @@ export type ActionVariable_Serialize = {
 	scope: string,
 };
 
+/**  Actions cactus doesn't run are kept as written, so saving won't drop them. */
 export type Action_Deserialize = SetVariable_Deserialize | JsonValue;
 
+/**  Actions cactus doesn't run are kept as written, so saving won't drop them. */
 export type Action_Serialize = SetVariable_Serialize | JsonValue;
 
 export type AlertEvent = AlertEvent_Serialize | AlertEvent_Deserialize;
@@ -1263,13 +1268,25 @@ export type SecretsStatusChanged = {
 	status: SecretsStatus,
 };
 
+/**
+ *  What a set-variable action reads. `method` is kept for Bruno; cactus
+ *  ignores it and evaluates every `expression` as a `res.…` path.
+ */
 export type Selector = Selector_Serialize | Selector_Deserialize;
 
+/**
+ *  What a set-variable action reads. `method` is kept for Bruno; cactus
+ *  ignores it and evaluates every `expression` as a `res.…` path.
+ */
 export type Selector_Deserialize = {
 	expression?: LenientString,
 	method?: string,
 };
 
+/**
+ *  What a set-variable action reads. `method` is kept for Bruno; cactus
+ *  ignores it and evaluates every `expression` as a `res.…` path.
+ */
 export type Selector_Serialize = {
 	expression: LenientString,
 	method: string,
@@ -1278,6 +1295,10 @@ export type Selector_Serialize = {
 /**  Save a value from the response as a variable for later requests. */
 export type SetVariable = SetVariable_Serialize | SetVariable_Deserialize;
 
+/**
+ *  The one action type cactus runs. An enum, not a string, so that any
+ *  other type fails to match and lands in [`Action::Other`].
+ */
 export type SetVariableType = "set-variable";
 
 /**  Save a value from the response as a variable for later requests. */

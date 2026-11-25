@@ -6,6 +6,7 @@ use std::fmt::Write;
 use cactus_core::runner::{FlowRun, FlowStepResult};
 
 /// `runs` as `(critter, flow, run)`, in the order they ran.
+// The `let _ = write!` calls below write to a `String`, which can't fail.
 pub fn report(runs: &[(String, String, FlowRun)]) -> String {
     let mut critters: Vec<&str> = Vec::new();
     for (critter, _, _) in runs {

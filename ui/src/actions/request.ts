@@ -110,6 +110,7 @@ export function openRunResult(path: ProjectPath): void {
   void selectScenario(path);
 }
 
+/** Close the folder run's results; a run still going stays open. */
 export function dismissRun(): void {
   const { run, dismissed } = useRunStore.getState();
   if (run?.done) dismissed();

@@ -9,9 +9,10 @@ use serde::{Deserialize, Serialize};
 
 use super::{SendOptions, send_and_record, send_as};
 use crate::clock::now_unix_millis;
-use crate::critter::{self, FlowStep};
+use crate::critter::{self, Flow, FlowStep};
 use crate::env::{self, Scope};
 use crate::http::{Response, is_status_expression, preview_url, scenario_passed, select_values};
+use crate::num::saturating_u32;
 use crate::scenario::{self, Action, Assertion, Scenario, SetVariable};
 use crate::{Error, ProjectPath, Result, layout};
 
@@ -97,11 +98,27 @@ impl FlowStepResult {
     fn new(index: usize, step: &FlowStep) -> Self {
         let request = step.request.trim().to_string();
         Self {
-            index: u32::try_from(index).unwrap_or(u32::MAX),
+            index: saturating_u32(index),
             title: request.clone(),
             request,
             method: String::new(),
             url: String::new(),
+            ok: false,
+            skipped: false,
+            response: None,
+            error: None,
+            watched: BTreeMap::new(),
+        }
+    }
+
+    /// The result of the step `start` describes, before it has been sent.
+    fn started(start: &FlowStepStart) -> Self {
+        Self {
+            index: start.index,
+            request: start.request.clone(),
+            title: start.title.clone(),
+            method: start.method.clone(),
+            url: start.url.clone(),
             ok: false,
             skipped: false,
             response: None,
@@ -143,50 +160,25 @@ pub fn apply_step(mut scenario: Scenario, step: &FlowStep) -> Scenario {
     scenario
 }
 
-/// How a flow's steps are sent.
-pub(super) trait StepSender {
-    fn send(
-        &self,
-        client: &reqwest::Client,
-        project: &Path,
-        path: &ProjectPath,
-        scenario: &Scenario,
-        scope: &Scope,
-        options: SendOptions,
-    ) -> impl Future<Output = Result<Response>> + Send;
+/// What the steps of one run share.
+pub(super) struct StepContext<'a> {
+    pub client: &'a reqwest::Client,
+    pub project: &'a Path,
+    pub scope: &'a Scope,
+    pub options: SendOptions,
+    /// A 401 logs the critter in again ([`send_as`]). Off for the login flow
+    /// itself, so it can't loop.
+    pub relogin: bool,
 }
 
-/// Without logging in again: for the login flow itself.
-pub(super) struct Plain;
-
-/// With [`send_as`]: a 401 logs the critter in again.
-struct Relogin;
-
-impl StepSender for Plain {
-    async fn send(
-        &self,
-        client: &reqwest::Client,
-        project: &Path,
-        path: &ProjectPath,
-        scenario: &Scenario,
-        scope: &Scope,
-        options: SendOptions,
-    ) -> Result<Response> {
-        send_and_record(client, project, path, scenario, scope, options).await
-    }
-}
-
-impl StepSender for Relogin {
-    async fn send(
-        &self,
-        client: &reqwest::Client,
-        project: &Path,
-        path: &ProjectPath,
-        scenario: &Scenario,
-        scope: &Scope,
-        options: SendOptions,
-    ) -> Result<Response> {
-        send_as(client, project, path, scenario, scope, options).await
+impl StepContext<'_> {
+    async fn send(&self, path: &ProjectPath, scenario: &Scenario, scope: &Scope) -> Result<Response> {
+        if self.relogin {
+            // Boxed: logging in runs a flow, which sends steps, which is this.
+            Box::pin(send_as(self.client, self.project, path, scenario, scope, self.options)).await
+        } else {
+            send_and_record(self.client, self.project, path, scenario, scope, self.options).await
+        }
     }
 }
 
@@ -202,27 +194,33 @@ pub async fn run_flow(
     options: SendOptions,
     on_event: impl FnMut(FlowEvent<'_>) + Send,
 ) -> Result<FlowRun> {
-    super::ensure_unlocked_for(project, Some(critter))?;
-    let scope = Scope { env: env.or_else(|| env::active(project)), critter: Some(critter.into()), ..Scope::default() };
-    run_steps(&Relogin, client, project, critter, flow, &scope, options, on_event).await
+    critter::require(project, critter)?;
+    let definition = critter::load_flow(project, critter, flow)?;
+    run_flow_definition(client, project, critter, &definition, env, options, on_event).await
 }
 
-#[allow(clippy::too_many_arguments)]
-pub(super) async fn run_steps(
-    sender: &impl StepSender,
+/// [`run_flow`] for a definition the caller has already loaded, so what it
+/// decides from the definition (alert rule, env) is what runs.
+pub async fn run_flow_definition(
     client: &reqwest::Client,
     project: &Path,
     critter: &str,
-    flow: &str,
-    scope: &Scope,
+    definition: &Flow,
+    env: Option<String>,
     options: SendOptions,
+    on_event: impl FnMut(FlowEvent<'_>) + Send,
+) -> Result<FlowRun> {
+    super::ensure_unlocked_for(project, Some(critter))?;
+    let scope = Scope { env: env.or_else(|| env::active(project)), critter: Some(critter.into()), ..Scope::default() };
+    let context = StepContext { client, project, scope: &scope, options, relogin: true };
+    run_steps(&context, definition, on_event).await
+}
+
+pub(super) async fn run_steps(
+    context: &StepContext<'_>,
+    definition: &Flow,
     mut on_event: impl FnMut(FlowEvent<'_>) + Send,
 ) -> Result<FlowRun> {
-    if !critter::exists(project, critter) {
-        critter::validate_critter_id(critter)?;
-        return Err(Error::CritterNotFound(critter.into()));
-    }
-    let definition = critter::load_flow(project, critter, flow)?;
     let (at, started) = (now_unix_millis(), Instant::now());
     let mut steps = Vec::with_capacity(definition.steps.len());
     let mut failed = false;
@@ -230,82 +228,80 @@ pub(super) async fn run_steps(
         let result = if failed {
             FlowStepResult::skipped(index, step)
         } else {
-            run_step(sender, client, project, index, step, scope, options, &mut on_event).await
+            run_step(context, index, step, &mut on_event).await
         };
         failed = !result.ok;
         on_event(FlowEvent::Finished(&result));
         steps.push(result);
     }
-    let elapsed_ms = u32::try_from(started.elapsed().as_millis()).unwrap_or(u32::MAX);
-    Ok(FlowRun { at, env: scope.env.clone(), ok: !failed, elapsed_ms, steps })
+    let elapsed_ms = saturating_u32(started.elapsed().as_millis());
+    Ok(FlowRun { at, env: context.scope.env.clone(), ok: !failed, elapsed_ms, steps })
 }
 
-#[allow(clippy::too_many_arguments)]
+/// A step's request, ready to send.
+struct PreparedStep {
+    path: ProjectPath,
+    scenario: Scenario,
+    /// The run's scope plus the step's `with` values.
+    scope: Scope,
+    start: FlowStepStart,
+}
+
+fn load_step_request(project: &Path, step: &FlowStep) -> Result<(ProjectPath, Scenario)> {
+    let path = ProjectPath::parse(step.request.trim())?;
+    if !layout::is_request_file(path.as_str()) {
+        return Err(Error::InvalidPath(path.to_string()));
+    }
+    let scenario = scenario::load(project, &path)?;
+    Ok((path, scenario))
+}
+
+/// The step's `with` values, filled in from what the step sees without them,
+/// so `COURSE: '{{code}}'` passes on the value an earlier step captured.
+/// Substitution is single pass, so left raw they'd be sent as `{{code}}`.
+fn step_overrides(step: &FlowStep, visible: &env::Env) -> env::Env {
+    let mut substituter = env::Substituter::new(visible);
+    step.with.iter().map(|(name, value)| (name.clone(), substituter.apply(value))).collect()
+}
+
+fn prepare_step(context: &StepContext<'_>, index: usize, step: &FlowStep) -> Result<PreparedStep> {
+    let (path, scenario) = load_step_request(context.project, step)?;
+    let scenario = apply_step(scenario, step);
+    let base = env::resolve_for_request(context.project, context.scope, path.dir(), &scenario.runtime.variables)?;
+    let overrides = step_overrides(step, &base.vars);
+    let mut vars = base.vars;
+    vars.extend(overrides.clone());
+    let request = step.request.trim().to_string();
+    let name = scenario.info.name.trim();
+    let start = FlowStepStart {
+        index: saturating_u32(index),
+        title: if name.is_empty() { request.clone() } else { name.to_string() },
+        request,
+        method: scenario.http.method.trim().to_uppercase(),
+        url: preview_url(&scenario, &vars),
+    };
+    let scope = Scope { overrides, ..context.scope.clone() };
+    Ok(PreparedStep { path, scenario, scope, start })
+}
+
 async fn run_step(
-    sender: &impl StepSender,
-    client: &reqwest::Client,
-    project: &Path,
+    context: &StepContext<'_>,
     index: usize,
     step: &FlowStep,
-    scope: &Scope,
-    options: SendOptions,
     on_event: &mut (impl FnMut(FlowEvent<'_>) + Send),
 ) -> FlowStepResult {
-    let loaded = ProjectPath::parse(step.request.trim()).and_then(|path| {
-        if !layout::is_request_file(path.as_str()) {
-            return Err(Error::InvalidPath(path.to_string()));
-        }
-        let scenario = scenario::load(project, &path)?;
-        Ok((path, scenario))
-    });
-    let (path, scenario) = match loaded {
-        Ok(loaded) => loaded,
+    let prepared = match prepare_step(context, index, step) {
+        Ok(prepared) => prepared,
         Err(error) => return FlowStepResult::errored(index, step, &error),
     };
-    let mut result = FlowStepResult::new(index, step);
-    if !scenario.info.name.trim().is_empty() {
-        result.title = scenario.info.name.trim().to_string();
-    }
-    let scenario = apply_step(scenario, step);
-    // `with` values are filled in from what the step sees without them, so
-    // `COURSE: '{{code}}'` passes on the value an earlier step captured.
-    // Substitution is single pass, so left raw they'd be sent as `{{code}}`.
-    let base = env::resolve_for_request(project, scope, path.dir(), &scenario.runtime.variables).ok();
-    let overrides: env::Env = step
-        .with
-        .iter()
-        .map(|(name, value)| {
-            let value = match &base {
-                Some(base) => env::Substituter::new(&base.vars).apply(value),
-                None => value.0.clone(),
-            };
-            (name.clone(), value)
-        })
-        .collect();
-    result.method = scenario.http.method.trim().to_uppercase();
-    result.url = match base {
-        Some(base) => {
-            let mut vars = base.vars;
-            vars.extend(overrides.clone());
-            preview_url(&scenario, &vars)
-        }
-        None => scenario.http.url.trim().to_string(),
-    };
-    let scope = Scope { overrides, ..scope.clone() };
-    let start = FlowStepStart {
-        index: result.index,
-        request: result.request.clone(),
-        title: result.title.clone(),
-        method: result.method.clone(),
-        url: result.url.clone(),
-    };
-    on_event(FlowEvent::Started(&start));
-    match sender.send(client, project, &path, &scenario, &scope, options).await {
+    let mut result = FlowStepResult::started(&prepared.start);
+    on_event(FlowEvent::Started(&prepared.start));
+    match context.send(&prepared.path, &prepared.scenario, &prepared.scope).await {
         Ok(response) => {
             // What was actually sent, e.g. with an API key added to the query.
             result.url.clone_from(&response.url);
             let watch: Vec<String> = step.watch.iter().map(|w| w.trim().to_string()).collect();
-            result.ok = scenario_passed(&scenario, &response);
+            result.ok = scenario_passed(&prepared.scenario, &response);
             result.watched = select_values(&response, &watch);
             result.response = Some(response);
         }

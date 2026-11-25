@@ -87,7 +87,7 @@ fn demo_critters_load_and_save_unchanged() {
         fs::copy(&file, &target).unwrap();
     }
     let p = dir.path();
-    let critters = critter::list(p).unwrap();
+    let critters = critter::list(p);
     let summary: Vec<_> = critters
         .iter()
         .map(|c| (c.id.as_str(), c.flows.iter().map(|f| f.id.as_str()).collect::<Vec<_>>(), c.missing_secrets.clone()))

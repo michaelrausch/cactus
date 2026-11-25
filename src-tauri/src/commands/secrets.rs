@@ -7,15 +7,14 @@ use cactus_core::env::EnvFile;
 use cactus_core::secrets::{self, SecretFile, SecretString, SecretsInfo, UnlockReport};
 use cactus_core::{Error, Result};
 use tauri::{AppHandle, State};
-use tauri_specta::Event;
 
-use crate::events::SecretsStatusChanged;
+use crate::events::{SecretsStatusChanged, notify};
 use crate::state::AppState;
 
 /// Tell the UI the project's lock state may have changed.
 pub fn status_changed(app: &AppHandle, project: &Path) {
     if let Ok(info) = secrets::info(project) {
-        let _ = SecretsStatusChanged { status: info.status }.emit(app);
+        notify(&SecretsStatusChanged { status: info.status }, app);
     }
 }
 

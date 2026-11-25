@@ -51,6 +51,9 @@ export function uniqueCritterId(name: string, taken: Iterable<string>): string {
   }
 }
 
+/** Flow file names follow the same rules as critter ids. */
+export const uniqueFlowId = uniqueCritterId;
+
 /** Why a critter can't be called `name`, or `null` if it can. */
 export function critterNameProblem(name: string, others: readonly { name: string }[]): string | null {
   const trimmed = name.trim();

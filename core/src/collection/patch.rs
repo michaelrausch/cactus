@@ -27,6 +27,8 @@ type SyntaxNode = rowan::SyntaxNode<Lang>;
 type SyntaxElement = rowan::SyntaxElement<Lang>;
 
 /// Run `$body` with `$yaml` bound to the [`Fresh`] value as an `AsYaml`.
+/// Each variant is a different type and `AsYaml` can't be a trait object, so
+/// there is one arm per variant: add a new one here when `Fresh` grows one.
 macro_rules! with_yaml {
     ($fresh:expr, |$yaml:ident| $body:expr) => {
         match $fresh {
@@ -62,16 +64,32 @@ macro_rules! with_yaml {
     };
 }
 
+/// Why a file couldn't be patched in place.
+#[derive(Debug, thiserror::Error)]
+pub enum PatchError {
+    #[error("only a mapping at the top of the file can be patched")]
+    NotAMapping,
+    /// The YAML library refused the file, or a value to write into it.
+    #[error("{0}")]
+    Yaml(String),
+    #[error("unexpected YAML for {0}")]
+    UnexpectedShape(Value),
+}
+
+fn yaml_error(error: impl std::fmt::Display) -> PatchError {
+    PatchError::Yaml(error.to_string())
+}
+
 /// Apply the change from `old` to `new` (both JSON objects) to `text`,
 /// which `old` was read from.
-pub fn patch(text: &str, old: &Value, new: &Value) -> Result<String, String> {
+pub fn patch(text: &str, old: &Value, new: &Value) -> Result<String, PatchError> {
     let (Some(old), Some(new)) = (old.as_object(), new.as_object()) else {
-        return Err("only a mapping at the top of the file can be patched".into());
+        return Err(PatchError::NotAMapping);
     };
-    let file = YamlFile::from_str(text).map_err(|e| e.to_string())?;
+    let file = YamlFile::from_str(text).map_err(yaml_error)?;
     let Some(root) = file.documents().next().and_then(|document| document.as_mapping()) else {
         // Empty or comments only: keep what is there and add the content.
-        let fresh = to_yaml(&Value::Object(new.clone())).map_err(|e| e.to_string())?;
+        let fresh = to_yaml(&Value::Object(new.clone())).map_err(yaml_error)?;
         let kept = text.trim_end();
         return Ok(if kept.is_empty() { fresh } else { format!("{kept}\n{fresh}") });
     };
@@ -79,7 +97,7 @@ pub fn patch(text: &str, old: &Value, new: &Value) -> Result<String, String> {
     Ok(file.to_string())
 }
 
-fn patch_mapping(mapping: &Mapping, old: &Map<String, Value>, new: &Map<String, Value>) -> Result<(), String> {
+fn patch_mapping(mapping: &Mapping, old: &Map<String, Value>, new: &Map<String, Value>) -> Result<(), PatchError> {
     for key in old.keys().filter(|key| !new.contains_key(*key)) {
         remove_key(mapping, key);
     }
@@ -110,7 +128,7 @@ fn patch_mapping(mapping: &Mapping, old: &Map<String, Value>, new: &Map<String, 
     Ok(())
 }
 
-fn patch_sequence(sequence: &Sequence, old: &[Value], new: &[Value]) -> Result<(), String> {
+fn patch_sequence(sequence: &Sequence, old: &[Value], new: &[Value]) -> Result<(), PatchError> {
     // Gaps between matched items are edited from the end backwards, so the
     // indices of everything before a gap stay valid.
     for gap in gaps(old, new).into_iter().rev() {
@@ -129,7 +147,7 @@ fn patch_sequence(sequence: &Sequence, old: &[Value], new: &[Value]) -> Result<(
     Ok(())
 }
 
-fn replace_item(sequence: &Sequence, index: usize, old: &Value, new: &Value) -> Result<(), String> {
+fn replace_item(sequence: &Sequence, index: usize, old: &Value, new: &Value) -> Result<(), PatchError> {
     match (sequence.get(index), old.as_object(), new.as_object()) {
         (Some(YamlNode::Mapping(item)), Some(old), Some(new)) => patch_mapping(&item, old, new),
         (existing, ..) => {
@@ -140,7 +158,7 @@ fn replace_item(sequence: &Sequence, index: usize, old: &Value, new: &Value) -> 
     }
 }
 
-fn insert_item(sequence: &Sequence, index: usize, value: &Value) -> Result<(), String> {
+fn insert_item(sequence: &Sequence, index: usize, value: &Value) -> Result<(), PatchError> {
     let fresh = Fresh::new(value, None)?;
     with_yaml!(fresh, |yaml| sequence.insert(index, yaml));
     keep_comments_with_next_item(sequence, index);
@@ -241,7 +259,7 @@ enum Fresh {
 const MAX_EXACT_INTEGER: f64 = 9_007_199_254_740_992.0;
 
 impl Fresh {
-    fn new(value: &Value, existing: Option<&YamlNode>) -> Result<Self, String> {
+    fn new(value: &Value, existing: Option<&YamlNode>) -> Result<Self, PatchError> {
         Ok(match value {
             Value::String(text) => string_in_style(text, existing),
             Value::Bool(b) => Self::Bool(*b),
@@ -259,8 +277,8 @@ impl Fresh {
 
     /// A nested value, written as fresh YAML and parsed back into a node
     /// that can be spliced in.
-    fn tree(value: &Value) -> Result<Self, String> {
-        let mut text = to_yaml(value).map_err(|e| e.to_string())?;
+    fn tree(value: &Value) -> Result<Self, PatchError> {
+        let mut text = to_yaml(value).map_err(yaml_error)?;
         if value.is_array() {
             // yaml-edit keeps a sequence's own column when it becomes the
             // value of a top-level key; indented, it lands under the key.
@@ -269,11 +287,11 @@ impl Fresh {
                 .map(|line| if line.is_empty() { "\n".to_string() } else { format!("  {line}\n") })
                 .collect();
         }
-        let document = Document::from_str(&text).map_err(|e| e.to_string())?;
+        let document = Document::from_str(&text).map_err(yaml_error)?;
         if let Some(mapping) = document.as_mapping() {
             return Ok(Self::Mapping(mapping));
         }
-        document.as_sequence().map(Self::Sequence).ok_or_else(|| format!("unexpected YAML for {value}"))
+        document.as_sequence().map(Self::Sequence).ok_or_else(|| PatchError::UnexpectedShape(value.clone()))
     }
 }
 

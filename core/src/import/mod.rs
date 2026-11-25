@@ -109,7 +109,7 @@ fn write_scenarios(project: &Path, scenarios: &[ImportedScenario]) -> Result<Vec
 /// Best effort: the import is failing already, and these files are new.
 fn remove_all(project: &Path, created: &[ProjectPath]) {
     for path in created {
-        let _ = fs::remove_file(path.resolve(project));
+        crate::best_effort::log("remove an imported file", fs::remove_file(path.resolve(project)));
     }
 }
 

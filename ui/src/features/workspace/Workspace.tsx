@@ -32,6 +32,7 @@ function useCollapsiblePanel(visible: boolean) {
   /** Mirrors `animating` for callbacks, so a glide is never mistaken for a drag. */
   const gliding = useRef(false);
 
+  // Follow `visible`. The first run sets the pane as restored, without the glide.
   useEffect(() => {
     const panel = panelRef.current;
     const instant = firstRun.current;

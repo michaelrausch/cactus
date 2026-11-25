@@ -5,6 +5,7 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
+use crate::best_effort;
 use crate::http::Response;
 use crate::storage::{ensure_parent_dir, read_json_lenient, write_json};
 use crate::text::truncate_utf8;
@@ -49,12 +50,22 @@ pub fn push(project: &Path, scenario: &ProjectPath, entry: HistoryEntry) -> Resu
 
 /// Best effort: a scenario without history is not an error.
 pub fn clear(project: &Path, scenario: &ProjectPath) {
-    let _ = fs::remove_file(layout::history_file(project, scenario));
+    ignore_missing(fs::remove_file(layout::history_file(project, scenario)), "clear history");
 }
 
 /// Best effort, like [`clear`].
 pub fn rename(project: &Path, from: &ProjectPath, to: &ProjectPath) {
-    let _ = fs::rename(layout::history_file(project, from), layout::history_file(project, to));
+    ignore_missing(fs::rename(layout::history_file(project, from), layout::history_file(project, to)), "move history");
+}
+
+/// No history yet is normal; any other failure is logged.
+fn ignore_missing(result: std::io::Result<()>, what: &str) {
+    if let Err(error) = &result
+        && error.kind() == std::io::ErrorKind::NotFound
+    {
+        return;
+    }
+    best_effort::log(what, result);
 }
 
 fn trim_body(response: &mut Response) {

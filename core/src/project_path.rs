@@ -1,3 +1,6 @@
+//! [`ProjectPath`]: a path inside the project, checked on the way in. Take
+//! one instead of a `&str` wherever user input gets joined onto the project.
+
 use std::borrow::Cow;
 use std::fmt;
 use std::path::{Component, Path, PathBuf};

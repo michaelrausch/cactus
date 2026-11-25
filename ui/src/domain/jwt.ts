@@ -56,6 +56,7 @@ export function shortDuration(ms: number): string {
   return `${Math.floor(abs / DAY)}d`;
 }
 
+/** Both in epoch millis, like `Date.now()`. */
 export const isExpired = (expiresAt: number | null, now: number): boolean => expiresAt !== null && expiresAt <= now;
 
 /** Names of the captured values that are JWTs past their `exp`. */

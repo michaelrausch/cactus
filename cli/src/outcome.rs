@@ -1,3 +1,5 @@
+//! Pass/fail verdicts and the exit codes CI scripts rely on.
+
 use std::process::ExitCode;
 
 /// Exit code for bad usage or an error before any verdict (clap uses 2 too).

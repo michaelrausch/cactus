@@ -1,5 +1,7 @@
+//! Flows: files, the YAML editor, runs, and the critter matrix.
+
 use std::collections::{BTreeMap, BTreeSet};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use cactus_core::critter::{self, Flow, FlowParse, FlowSummary};
 use cactus_core::env::{self, Scope, VarSource};
@@ -7,10 +9,23 @@ use cactus_core::runner::{self, FlowEvent, FlowRun, MatrixCell, SendOptions};
 use cactus_core::scenario::Scenario;
 use cactus_core::{ProjectPath, Result};
 use tauri::{AppHandle, State};
-use tauri_specta::Event;
 
-use crate::events::{ContextChanged, FlowProgress, FlowStepStarted, MatrixProgress};
+use crate::events::{ContextChanged, FlowProgress, FlowStepStarted, MatrixProgress, notify};
 use crate::state::AppState;
+
+/// Make a change to a critter's flow files, then have the scheduler pick up
+/// any trigger it changed. The file watcher would too, but only after its
+/// debounce, and saving a schedule should show its next run straight away.
+fn changing_flows(
+    app: &AppHandle,
+    state: &AppState,
+    project: &Path,
+    change: impl FnOnce() -> Result<()>,
+) -> Result<()> {
+    change()?;
+    state.scheduler.reload(app, project);
+    Ok(())
+}
 
 #[tauri::command(async)]
 #[specta::specta]
@@ -36,9 +51,7 @@ pub fn save_flow(
     flow: String,
     definition: Flow,
 ) -> Result<()> {
-    critter::save_flow(&project, &critter, &flow, &definition)?;
-    state.scheduler.reload(&app, &project);
-    Ok(())
+    changing_flows(&app, &state, &project, || critter::save_flow(&project, &critter, &flow, &definition))
 }
 
 #[tauri::command(async)]
@@ -51,9 +64,7 @@ pub fn create_flow(
     flow: String,
     definition: Flow,
 ) -> Result<()> {
-    critter::create_flow(&project, &critter, &flow, &definition)?;
-    state.scheduler.reload(&app, &project);
-    Ok(())
+    changing_flows(&app, &state, &project, || critter::create_flow(&project, &critter, &flow, &definition))
 }
 
 #[tauri::command(async)]
@@ -66,9 +77,22 @@ pub fn rename_flow(
     from: String,
     to: String,
 ) -> Result<()> {
-    critter::rename_flow(&project, &critter, &from, &to)?;
-    state.scheduler.reload(&app, &project);
-    Ok(())
+    changing_flows(&app, &state, &project, || critter::rename_flow(&project, &critter, &from, &to))
+}
+
+/// Copy a flow, comments and all, as `to` named `name`.
+#[tauri::command(async)]
+#[specta::specta]
+pub fn duplicate_flow(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    project: PathBuf,
+    critter: String,
+    from: String,
+    to: String,
+    name: String,
+) -> Result<()> {
+    changing_flows(&app, &state, &project, || critter::duplicate_flow(&project, &critter, &from, &to, &name))
 }
 
 #[tauri::command(async)]
@@ -80,9 +104,7 @@ pub fn delete_flow(
     critter: String,
     flow: String,
 ) -> Result<()> {
-    critter::delete_flow(&project, &critter, &flow)?;
-    state.scheduler.reload(&app, &project);
-    Ok(())
+    changing_flows(&app, &state, &project, || critter::delete_flow(&project, &critter, &flow))
 }
 
 #[tauri::command(async)]
@@ -102,9 +124,7 @@ pub fn save_flow_text(
     flow: String,
     text: String,
 ) -> Result<()> {
-    critter::save_flow_text(&project, &critter, &flow, &text)?;
-    state.scheduler.reload(&app, &project);
-    Ok(())
+    changing_flows(&app, &state, &project, || critter::save_flow_text(&project, &critter, &flow, &text))
 }
 
 #[tauri::command(async)]
@@ -145,14 +165,14 @@ pub async fn run_flow(
     state.touch_secrets();
     let report = |event: FlowEvent<'_>| {
         let (critter, flow) = (critter.clone(), flow.clone());
-        let _ = match event {
-            FlowEvent::Started(start) => FlowStepStarted { critter, flow, start: start.clone() }.emit(&app),
-            FlowEvent::Finished(step) => FlowProgress { critter, flow, step: step.clone() }.emit(&app),
-        };
+        match event {
+            FlowEvent::Started(start) => notify(&FlowStepStarted { critter, flow, start: start.clone() }, &app),
+            FlowEvent::Finished(step) => notify(&FlowProgress { critter, flow, step: step.clone() }, &app),
+        }
     };
     let run = runner::run_flow(&state.client, &project, &critter, &flow, env, SendOptions::INTERACTIVE, report);
     let result = state.run_cancellable(run).await.transpose();
-    let _ = ContextChanged { critter: critter.clone() }.emit(&app);
+    notify(&ContextChanged { critter }, &app);
     result
 }
 
@@ -173,12 +193,12 @@ pub async fn run_matrix(
         if let (Some(critter), Some(_)) = (&cell.critter, &cell.response) {
             sent_as.insert(critter.clone());
         }
-        let _ = MatrixProgress(cell.clone()).emit(&app);
+        notify(&MatrixProgress(cell.clone()), &app);
     };
     let run = runner::run_matrix(&state.client, &project, &path, &scenario, report);
     let result = state.run_cancellable(run).await.transpose();
     for critter in sent_as {
-        let _ = ContextChanged { critter }.emit(&app);
+        notify(&ContextChanged { critter }, &app);
     }
     result
 }

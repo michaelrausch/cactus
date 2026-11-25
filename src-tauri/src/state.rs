@@ -1,3 +1,6 @@
+//! [`AppState`]: what commands share across calls, plus the cancel slot
+//! that lets a new send stop the one before it.
+
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, MutexGuard, PoisonError};
 use std::time::Instant;

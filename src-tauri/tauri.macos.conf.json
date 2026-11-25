@@ -1,0 +1,18 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "app": {
+    "windows": [
+      {
+        "title": "cactus",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 820,
+        "minHeight": 560,
+        "dragDropEnabled": false,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "trafficLightPosition": { "x": 14, "y": 10 }
+      }
+    ]
+  }
+}

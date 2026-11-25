@@ -94,6 +94,7 @@ function parsedBody(response: HttpResponse | null): JsonValue | null {
 
 type Update = (change: (step: FlowStep) => FlowStep) => void;
 
+/** Values to save for later steps, typed or picked from the last response's JSON. */
 function Captures({
   step,
   update,

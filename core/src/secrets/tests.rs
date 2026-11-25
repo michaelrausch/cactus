@@ -1,3 +1,6 @@
+//! Encryption lifecycle tests. `fail_after` makes a write fail partway, to
+//! check a crash leaves every secret readable.
+
 use std::fs;
 use std::path::Path;
 

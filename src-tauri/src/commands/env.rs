@@ -1,3 +1,5 @@
+//! Environments, secret files, and where each `{{variable}}` comes from.
+
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 

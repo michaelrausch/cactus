@@ -32,6 +32,17 @@ describe("flowStore", () => {
     store().opened({ critter: "bob", flow: "f" }, flow("a"), "name: F\n", {});
   });
 
+  it("keeps edits made while a save was in flight", () => {
+    store().edited(flow("a", "b"));
+    // Saved [a, b]; then the user added c before the save came back.
+    store().edited(flow("a", "b", "c"));
+    store().savedBehindEdits(flow("a", "b"), "name: F\nsteps: [a, b]\n");
+    expect(store().model?.steps).toHaveLength(3);
+    expect(selectFlowDirty(store())).toBe(true);
+    store().undone();
+    expect(selectFlowDirty(store())).toBe(false);
+  });
+
   it("undoes and redoes visual edits", () => {
     store().edited(flow("a", "b"));
     store().edited(flow("a", "b", "c"));

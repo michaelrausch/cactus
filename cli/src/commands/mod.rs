@@ -1,3 +1,6 @@
+//! One module per subcommand. [`execute`] unlocks secrets first where a
+//! command sends anything, then dispatches.
+
 mod flow;
 mod import;
 mod run;

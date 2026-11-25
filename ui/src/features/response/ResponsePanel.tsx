@@ -149,6 +149,7 @@ function ResponseTabs({ response }: { response: HttpResponse | null }) {
   );
 }
 
+/** The right-hand pane: the live or picked response, or why the send failed. */
 export function ResponsePanel() {
   const response = useResponseStore((s) => s.response);
   const error = useResponseStore((s) => s.error);

@@ -1,3 +1,6 @@
+//! `cactus-cli send`: the body goes to stdout and everything else to stderr,
+//! so the body can be piped into `jq` and the like.
+
 use std::path::Path;
 
 use cactus_core::env::Scope;

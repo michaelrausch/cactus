@@ -5,18 +5,19 @@ use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 
-use cactus_core::critter::{self, Interval};
+use cactus_core::best_effort;
+use cactus_core::critter::{self, FlowKey, Interval};
 use cactus_core::monitor::{self, RunRecord};
+use cactus_core::now_unix_millis;
 use cactus_core::reqwest;
 use cactus_core::runner::{self, SendOptions};
 use tauri::async_runtime::JoinHandle;
 use tauri::{AppHandle, Manager};
-use tauri_specta::Event;
 use tokio::time::{Instant, MissedTickBehavior, interval_at};
 
-use crate::events::{ContextChanged, MonitorAlert, ScheduledRunFinished};
+use crate::events::{ContextChanged, MonitorAlert, ScheduledRunFinished, notify};
 use crate::state::AppState;
 
 /// What a running task was started with; a change restarts it.
@@ -36,7 +37,7 @@ struct Task {
 #[derive(Default)]
 struct Tasks {
     project: Option<PathBuf>,
-    running: HashMap<String, Task>,
+    running: HashMap<FlowKey, Task>,
 }
 
 /// Owned by [`AppState`]. Scheduled runs don't go through
@@ -58,7 +59,7 @@ impl Scheduler {
             stop_all(&mut tasks.running);
             tasks.project = Some(project.to_path_buf());
         }
-        let current: HashMap<String, TaskSpec> =
+        let current: HashMap<FlowKey, TaskSpec> =
             tasks.running.iter().map(|(key, task)| (key.clone(), task.spec.clone())).collect();
         let wanted = wanted(project, &current);
         let changes = plan(&current, &wanted);
@@ -69,7 +70,7 @@ impl Scheduler {
         }
         for key in changes.start {
             let spec = wanted[&key].clone();
-            let task = self.spawn(app, project, &key, spec);
+            let task = self.spawn(app, project, key.clone(), spec);
             tasks.running.insert(key, task);
         }
     }
@@ -80,37 +81,38 @@ impl Scheduler {
         tasks.project = None;
     }
 
+    // The flag and the next-run time are read on their own; nothing else is
+    // published through them, so no ordering is needed.
     pub fn set_paused(&self, paused: bool) {
-        self.paused.store(paused, Ordering::SeqCst);
+        self.paused.store(paused, Ordering::Relaxed);
     }
 
     pub fn paused(&self) -> bool {
-        self.paused.load(Ordering::SeqCst)
+        self.paused.load(Ordering::Relaxed)
     }
 
     /// When the task for `key` next runs, if one is running.
-    pub fn next_at(&self, key: &str) -> Option<u64> {
-        lock(&self.tasks).running.get(key).map(|task| task.next_at.load(Ordering::SeqCst))
+    pub fn next_at(&self, key: &FlowKey) -> Option<u64> {
+        lock(&self.tasks).running.get(key).map(|task| task.next_at.load(Ordering::Relaxed))
     }
 
-    fn spawn(&self, app: &AppHandle, project: &Path, key: &str, spec: TaskSpec) -> Task {
+    fn spawn(&self, app: &AppHandle, project: &Path, key: FlowKey, spec: TaskSpec) -> Task {
         let period = Duration::from_secs(u64::from(spec.every.seconds()));
-        let next_at = Arc::new(AtomicU64::new(now_millis() + millis(period)));
+        let next_at = Arc::new(AtomicU64::new(now_unix_millis() + millis(period)));
         let (app, project, paused, next) =
             (app.clone(), project.to_path_buf(), Arc::clone(&self.paused), Arc::clone(&next_at));
-        let (critter, flow) = split_key(key).map_or_default(|(c, f)| (c.to_string(), f.to_string()));
         let handle = tauri::async_runtime::spawn(async move {
             let mut tick = interval_at(Instant::now() + period, period);
             // After sleep or a long run, carry on from now rather than catching up.
             tick.set_missed_tick_behavior(MissedTickBehavior::Skip);
             loop {
                 tick.tick().await;
-                next.store(now_millis() + millis(period), Ordering::SeqCst);
-                if paused.load(Ordering::SeqCst) || waiting_for_secrets(&project, &critter) {
+                next.store(now_unix_millis() + millis(period), Ordering::Relaxed);
+                if paused.load(Ordering::Relaxed) || waiting_for_secrets(&project, &key.critter) {
                     continue;
                 }
                 // Awaited, so a flow can't overlap itself.
-                run_once(&app, &project, &critter, &flow).await;
+                run_once(&app, &project, &key.critter, &key.flow).await;
             }
         });
         Task { spec, next_at, handle }
@@ -123,27 +125,42 @@ impl Scheduler {
 /// alerts once rather than crashing the task.
 pub async fn run_once(app: &AppHandle, project: &Path, critter: &str, flow: &str) -> RunRecord {
     let client: reqwest::Client = app.state::<AppState>().client.clone();
+    // Loaded once, so the rule and env read here are those of the version that runs.
     let definition = critter::load_flow(project, critter, flow);
+    // A flow that can't be read fails the run, and alerts with the default rule.
     let rule = definition.as_ref().ok().and_then(|f| f.alert.clone()).unwrap_or_default();
     let env = definition.as_ref().ok().and_then(|f| f.schedule()?.env.clone());
-    let started_at = now_millis();
-    let run = runner::run_flow(&client, project, critter, flow, env.clone(), SendOptions::BACKGROUND, |_| {}).await;
+    let started_at = now_unix_millis();
+    let run = match &definition {
+        Ok(definition) => {
+            let options = SendOptions::BACKGROUND;
+            runner::run_flow_definition(&client, project, critter, definition, env.clone(), options, |_| {})
+                .await
+                .map_err(|error| error.to_string())
+        }
+        Err(error) => Err(error.to_string()),
+    };
     let record = match run {
         Ok(run) => monitor::record(&run),
-        Err(error) => RunRecord::errored(started_at, env, error.to_string()),
+        Err(error) => RunRecord::errored(started_at, env, error),
     };
     let previous = monitor::load_log(project, critter, flow).pop();
     let events = monitor::compare(previous.as_ref(), &record, &rule);
-    // The log is a convenience; failing to write it shouldn't stop the schedule.
-    let _ = monitor::append(project, critter, flow, record.clone());
-    let (critter, flow) = (critter.to_string(), flow.to_string());
-    let _ = ScheduledRunFinished { critter: critter.clone(), flow: flow.clone(), record: record.clone() }.emit(app);
-    for event in events {
-        let alert = MonitorAlert { critter: critter.clone(), flow: flow.clone(), event, at: record.at };
-        let _ = alert.emit(app);
-    }
-    let _ = ContextChanged { critter }.emit(app);
+    // A log that can't be written fails no run, but the next run then
+    // compares against an older one, so say so.
+    best_effort::log("write the run log", monitor::append(project, critter, flow, record.clone()));
+    announce(app, critter, flow, &record, events);
     record
+}
+
+/// Tell the UI about a finished scheduled run and any alerts it raised.
+fn announce(app: &AppHandle, critter: &str, flow: &str, record: &RunRecord, events: Vec<monitor::AlertEvent>) {
+    let (critter, flow) = (critter.to_string(), flow.to_string());
+    notify(&ScheduledRunFinished { critter: critter.clone(), flow: flow.clone(), record: record.clone() }, app);
+    for event in events {
+        notify(&MonitorAlert { critter: critter.clone(), flow: flow.clone(), event, at: record.at }, app);
+    }
+    notify(&ContextChanged { critter }, app);
 }
 
 /// Whether the flow's secrets are locked. Such a tick runs nothing, logs
@@ -157,13 +174,12 @@ pub fn waiting_for_secrets(project: &Path, critter: &str) -> bool {
 /// The tasks the project asks for: each flow with a schedule. A flow that
 /// can't be read keeps the task it had, so it goes on running and reports
 /// itself as failing.
-fn wanted(project: &Path, current: &HashMap<String, TaskSpec>) -> BTreeMap<String, TaskSpec> {
+fn wanted(project: &Path, current: &HashMap<FlowKey, TaskSpec>) -> BTreeMap<FlowKey, TaskSpec> {
     let mut wanted = BTreeMap::new();
     for key in critter::flow_keys(project) {
-        let Some((critter, flow)) = split_key(&key) else { continue };
-        let spec = match critter::load_flow(project, critter, flow) {
+        let spec = match critter::load_flow(project, &key.critter, &key.flow) {
             Ok(flow) => flow.schedule().map(|schedule| TaskSpec { every: schedule.every, env: schedule.env.clone() }),
-            Err(_) if critter::exists(project, critter) => current.get(&key).cloned(),
+            Err(_) if critter::exists(project, &key.critter) => current.get(&key).cloned(),
             Err(_) => None,
         };
         if let Some(spec) = spec {
@@ -177,13 +193,13 @@ fn wanted(project: &Path, current: &HashMap<String, TaskSpec>) -> BTreeMap<Strin
 /// unchanged ones are left alone, changed ones restarted.
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct Changes {
-    pub stop: Vec<String>,
-    pub start: Vec<String>,
+    pub stop: Vec<FlowKey>,
+    pub start: Vec<FlowKey>,
 }
 
-pub fn plan(current: &HashMap<String, TaskSpec>, wanted: &BTreeMap<String, TaskSpec>) -> Changes {
+pub fn plan(current: &HashMap<FlowKey, TaskSpec>, wanted: &BTreeMap<FlowKey, TaskSpec>) -> Changes {
     let mut changes = Changes::default();
-    let mut current_keys: Vec<&String> = current.keys().collect();
+    let mut current_keys: Vec<&FlowKey> = current.keys().collect();
     current_keys.sort();
     for key in current_keys {
         if wanted.get(key) != current.get(key) {
@@ -198,20 +214,10 @@ pub fn plan(current: &HashMap<String, TaskSpec>, wanted: &BTreeMap<String, TaskS
     changes
 }
 
-/// `"bob/health"` → `("bob", "health")`.
-pub fn split_key(key: &str) -> Option<(&str, &str)> {
-    let (critter, flow) = key.split_once('/')?;
-    (!critter.is_empty() && !flow.is_empty()).then_some((critter, flow))
-}
-
-fn stop_all(running: &mut HashMap<String, Task>) {
+fn stop_all(running: &mut HashMap<FlowKey, Task>) {
     for (_, task) in running.drain() {
         task.handle.abort();
     }
-}
-
-fn now_millis() -> u64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, millis)
 }
 
 fn millis(duration: Duration) -> u64 {
@@ -235,23 +241,27 @@ mod tests {
         TaskSpec { every: Interval::parse(every).unwrap(), env: env.map(str::to_string) }
     }
 
+    fn bob(flow: &str) -> FlowKey {
+        FlowKey::new("bob", flow)
+    }
+
     #[test]
     fn plan_restarts_only_what_changed() {
         let current = HashMap::from([
-            ("bob/same".to_string(), spec("5m", None)),
-            ("bob/slower".to_string(), spec("5m", None)),
-            ("bob/gone".to_string(), spec("1m", None)),
-            ("bob/env".to_string(), spec("1m", Some("dev"))),
+            (bob("same"), spec("5m", None)),
+            (bob("slower"), spec("5m", None)),
+            (bob("gone"), spec("1m", None)),
+            (bob("env"), spec("1m", Some("dev"))),
         ]);
         let wanted = BTreeMap::from([
-            ("bob/same".to_string(), spec("5m", None)),
-            ("bob/slower".to_string(), spec("10m", None)),
-            ("bob/env".to_string(), spec("1m", Some("staging"))),
-            ("bob/new".to_string(), spec("30s", None)),
+            (bob("same"), spec("5m", None)),
+            (bob("slower"), spec("10m", None)),
+            (bob("env"), spec("1m", Some("staging"))),
+            (bob("new"), spec("30s", None)),
         ]);
         let changes = plan(&current, &wanted);
-        assert_eq!(changes.stop, ["bob/env", "bob/gone", "bob/slower"]);
-        assert_eq!(changes.start, ["bob/env", "bob/new", "bob/slower"]);
+        assert_eq!(changes.stop, [bob("env"), bob("gone"), bob("slower")]);
+        assert_eq!(changes.start, [bob("env"), bob("new"), bob("slower")]);
         assert_eq!(plan(&current, &current.clone().into_iter().collect()), Changes::default());
     }
 
@@ -270,18 +280,16 @@ mod tests {
         fs::write(p.join("critters/bob/flows/broken.yml"), "steps: [").unwrap();
         fs::write(p.join("critters/bob/flows/gone.yml"), "steps: [").unwrap();
 
-        let current = HashMap::from([("bob/broken".to_string(), spec("1m", None))]);
+        let current = HashMap::from([(bob("broken"), spec("1m", None))]);
         let wanted = wanted(p, &current);
         // `gone` can't be read and had no task, so there's nothing to keep.
-        assert_eq!(wanted.keys().collect::<Vec<_>>(), ["bob/broken", "bob/health"]);
-        assert_eq!(wanted["bob/broken"], spec("1m", None), "an unreadable flow keeps its task");
-        assert_eq!(wanted["bob/health"], spec("5m", None));
+        assert_eq!(wanted.keys().collect::<Vec<_>>(), [&bob("broken"), &bob("health")]);
+        assert_eq!(wanted[&bob("broken")], spec("1m", None), "an unreadable flow keeps its task");
+        assert_eq!(wanted[&bob("health")], spec("5m", None));
     }
 
     #[test]
-    fn keys_split_into_critter_and_flow() {
-        assert_eq!(split_key("bob/health"), Some(("bob", "health")));
-        assert_eq!(split_key("bob/"), None);
-        assert_eq!(split_key("bob"), None);
+    fn keys_read_as_critter_slash_flow() {
+        assert_eq!(bob("health").to_string(), "bob/health");
     }
 }

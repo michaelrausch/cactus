@@ -22,6 +22,8 @@ export interface ConfirmRequest extends ConfirmChoice {
   description: string;
   /** A second choice shown left of the main one, e.g. "Discard changes". */
   alternative?: ConfirmChoice;
+  /** Called when the dialog is cancelled or dismissed, so a caller waiting on the answer isn't left hanging. */
+  onCancel?: () => void;
 }
 
 /** What the main pane shows: the open request, the selected critter, or the open flow. */

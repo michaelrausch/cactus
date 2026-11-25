@@ -1,18 +1,24 @@
+//! Critters and their captured context.
+//!
+//! Only rename and delete reload the scheduler themselves, since they stop
+//! schedules. Commands that add flows (create, duplicate) leave it to the
+//! file watcher.
+
 use std::path::PathBuf;
 
 use cactus_core::Result;
 use cactus_core::critter::{self, Critter, CritterSummary, Species};
 use cactus_core::env::{self, Context};
 use tauri::{AppHandle, State};
-use tauri_specta::Event;
 
-use crate::events::ContextChanged;
+use crate::events::{ContextChanged, notify};
 use crate::state::AppState;
 
 #[tauri::command(async)]
 #[specta::specta]
+#[allow(clippy::unnecessary_wraps)] // The UI client expects every command to return a `Result`.
 pub fn list_critters(project: PathBuf) -> Result<Vec<CritterSummary>> {
-    critter::list(&project)
+    Ok(critter::list(&project))
 }
 
 #[tauri::command(async)]
@@ -85,7 +91,7 @@ pub fn load_context(project: PathBuf, id: String) -> Result<Context> {
 #[specta::specta]
 pub fn restore_context(app: AppHandle, project: PathBuf, id: String, entries: Context) -> Result<()> {
     env::restore_context(&project, &id, &entries)?;
-    let _ = ContextChanged { critter: id }.emit(&app);
+    notify(&ContextChanged { critter: id }, &app);
     Ok(())
 }
 
@@ -95,6 +101,6 @@ pub fn restore_context(app: AppHandle, project: PathBuf, id: String, entries: Co
 #[specta::specta]
 pub fn clear_context(app: AppHandle, project: PathBuf, id: String, names: Option<Vec<String>>) -> Result<Context> {
     let removed = env::clear_context(&project, &id, names.as_deref())?;
-    let _ = ContextChanged { critter: id }.emit(&app);
+    notify(&ContextChanged { critter: id }, &app);
     Ok(removed)
 }

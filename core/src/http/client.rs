@@ -1,3 +1,6 @@
+//! The HTTP client. Build one per process and share it, so connections are
+//! reused across sends.
+
 use std::time::Duration;
 
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);

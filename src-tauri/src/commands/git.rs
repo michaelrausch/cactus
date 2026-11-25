@@ -1,3 +1,5 @@
+//! Git: status, staging, diffs, commits and branches for the project's repo.
+
 use std::path::PathBuf;
 
 use cactus_core::git::{self, BranchInfo, CommitSummary, DiffSide, FileDiff, GitIdentity, GitStatus};

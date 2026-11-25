@@ -81,6 +81,8 @@ interface FlowState {
   textParsed: (model: Flow | null, problem: ParseProblem | null) => void;
   modeChanged: (mode: FlowMode, text?: string) => void;
   saved: (model: Flow, text: string) => void;
+  /** Saved while the user kept editing: what is on disk is the new baseline, and the edits stay. */
+  savedBehindEdits: (model: Flow, text: string) => void;
   select: (index: number | null) => void;
   panelShown: (panel: FlowPanel) => void;
   requestsLoaded: (requests: Record<string, Scenario | null>) => void;
@@ -184,6 +186,8 @@ export const useFlowStore = create<FlowState>()((set) => ({
       parseProblem: null,
       conflict: false,
     }),
+  savedBehindEdits: (model, text) =>
+    set({ savedFingerprint: flowFingerprint(model), savedText: text, conflict: false }),
   select: (selected) => set((state) => ({ selected, run: { ...state.run, following: false } })),
   panelShown: (panel) => set({ panel }),
   requestsLoaded: (requests) => set((state) => ({ requests: { ...state.requests, ...requests } })),

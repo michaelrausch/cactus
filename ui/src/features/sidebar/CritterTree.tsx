@@ -101,6 +101,7 @@ function FlowState({ critter, flow }: { critter: CritterSummary; flow: FlowSumma
 
 function FlowRow({ critter, flow }: { critter: CritterSummary; flow: FlowSummary }) {
   const menu = useContextMenu();
+  // A flow stays open in the store while the main pane shows something else.
   const selected = useFlowStore((s) => s.open?.critter === critter.id && s.open.flow === flow.id);
   const showing = useUiStore((s) => s.view === "flow") && selected;
   const isLogin = flow.id === critter.login;
@@ -261,6 +262,7 @@ export function CritterTree({ filter }: { filter: string }) {
   const [toggled, setToggled] = useState<Record<string, boolean>>({});
   const query = filter.trim();
 
+  // A critter whose name matches keeps all its flows; otherwise only matching flows show.
   const shown = critters
     .map((critter) => {
       if (!query || matches(critter.name, query)) return { critter, flows: critter.flows };

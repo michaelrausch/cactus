@@ -6,6 +6,7 @@ import { createScenarioIn } from "@/actions/scenario";
 import { withShortcut } from "@/app/shortcuts";
 import { IconButton } from "@/components/IconButton";
 import { Logo } from "@/components/Logo";
+import { isMac } from "@/lib/platform";
 import { useProjectStore } from "@/stores/projectStore";
 import { useUiStore } from "@/stores/uiStore";
 import { LockButton } from "@/features/secrets/LockButton";
@@ -59,6 +60,7 @@ function SettingsButton() {
   );
 }
 
+/** The project switcher, env and critter pickers, request list and critter tree. */
 export function Sidebar() {
   const project = useProjectStore((s) => s.project);
   const hasProject = project !== null;
@@ -66,7 +68,9 @@ export function Sidebar() {
 
   return (
     <div className="flex h-full flex-col bg-sidebar">
-      <div className="flex h-12 items-center gap-1 pr-2 pl-3">
+      {/* On macOS, a drag strip that holds the traffic lights. */}
+      {isMac && <div data-tauri-drag-region className="h-8 shrink-0" />}
+      <div data-tauri-drag-region className="flex h-12 items-center gap-1 pr-2 pl-3">
         <SettingsButton />
         <div className="min-w-0 flex-1">
           <ProjectSwitcher />

@@ -157,6 +157,7 @@ export function discard(file: FileStatus): void {
   });
 }
 
+/** Throw away every unstaged change, after asking. `count` only words the question. */
 export function discardAll(count: number): void {
   useUiStore.getState().askConfirm({
     title: "Discard all changes?",

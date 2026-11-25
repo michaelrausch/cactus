@@ -53,7 +53,7 @@ pub fn write<T: Serialize + DeserializeOwned>(path: &Path, value: &T) -> Result<
     if old == new {
         return Ok(());
     }
-    let patched = patch(&text, &old, &new).map_err(unpatchable)?;
+    let patched = patch(&text, &old, &new).map_err(|reason| unpatchable(reason.to_string()))?;
     // Never write an edit that doesn't read back as what was saved.
     let reread = parse::<T>(&patched).map(|v| serde_json::to_value(v).unwrap_or(Value::Null));
     if !reread.is_ok_and(|reread| reread == new) {

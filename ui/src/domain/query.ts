@@ -26,6 +26,7 @@ function parsePair(pair: string): Row {
 
 export const parseQuery = (url: string): Row[] => splitUrl(url).query.split("&").filter(Boolean).map(parsePair);
 
+/** Rebuild the query from `rows`. Nothing is encoded, so `{{vars}}` stay as typed. */
 export function withQuery(url: string, rows: Row[]): string {
   const { base, hash } = splitUrl(url);
   const query = rows
