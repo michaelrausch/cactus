@@ -41,6 +41,9 @@ pub enum Error {
     InvalidInterval(String),
     #[error("the request has no URL")]
     MissingUrl,
+    /// A flow tool step failed; the message says why.
+    #[error("{0}")]
+    Tool(String),
     #[error("invalid URL {url:?}: {reason}")]
     InvalidUrl { url: String, reason: String },
     #[error("invalid method: {0}")]

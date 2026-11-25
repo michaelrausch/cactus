@@ -3,6 +3,7 @@
 use cactus_core::http::Response;
 use cactus_core::import::ImportSummary;
 use cactus_core::runner::{FlowRun, FlowStepResult, RunResult};
+use cactus_core::tools::ToolOutput;
 
 const RESET: &str = "\x1b[0m";
 const GREEN: &str = "\x1b[32m";
@@ -31,7 +32,25 @@ pub fn format_step_result(step: &FlowStepResult) -> String {
     if step.skipped {
         return format!("{} {}", paint(DIM, SKIP_MARK), paint(DIM, &format!("  -        -  {location}  skipped")));
     }
-    format_outcome(step.ok, &location, step.response.as_ref(), step.error.as_deref())
+    match &step.output {
+        Some(output) if step.ok => format_tool_output(&location, output),
+        _ => format_outcome(step.ok, &location, step.response.as_ref(), step.error.as_deref()),
+    }
+}
+
+/// A tool step that ran: its status if it sent something, then what it said and set.
+fn format_tool_output(location: &str, output: &ToolOutput) -> String {
+    let status = output.status.map_or_else(|| "-".to_string(), |status| status.to_string());
+    // A dash holds the time column, as for a step with no response.
+    let mut lines = vec![format!("{} {status:>3}        -  {location}", paint(GREEN, PASS_MARK))];
+    lines.extend(output.text.iter().flat_map(|text| text.lines()).map(|line| format!("{DETAIL_INDENT}{line}")));
+    lines.extend(
+        output
+            .values
+            .iter()
+            .map(|(name, value)| format!("{DETAIL_INDENT}{}", paint(DIM, &format!("{name} = {value}")))),
+    );
+    lines.join("\n")
 }
 
 fn format_outcome(ok: bool, location: &str, response: Option<&Response>, error: Option<&str>) -> String {

@@ -1,14 +1,15 @@
 import { useRef, useState, type DragEvent, type KeyboardEvent } from "react";
 import { ArrowDown } from "lucide-react";
 import { editFlow } from "@/actions/flows";
-import type { CritterSummary, FlowStep } from "@/api/client";
+import type { CritterSummary, Step } from "@/api/client";
 import { insertionIndex, moveTarget } from "@/domain/dragInsert";
 import type { Dataflow } from "@/domain/flowDataflow";
-import { insertStep, moveStep, removeStep } from "@/domain/flowEdit";
+import { insertStep, insertTool, moveStep, removeStep, stepRequest } from "@/domain/flowEdit";
 import { cn } from "@/lib/utils";
 import { useFlowStore, type FlowRunState } from "@/stores/flowStore";
-import { REQUEST_MIME, STEP_MIME } from "./dragTypes";
+import { REQUEST_MIME, STEP_MIME, TOOL_MIME } from "./dragTypes";
 import { StepCard, type StepPhase } from "./StepCard";
+import { isToolId, TOOLS } from "./tools";
 
 function phaseOf(index: number, run: FlowRunState): StepPhase {
   if (!run.running) return run.results[index] ? "done" : "idle";
@@ -17,7 +18,7 @@ function phaseOf(index: number, run: FlowRunState): StepPhase {
 }
 
 const isOurDrag = (event: DragEvent): boolean =>
-  event.dataTransfer.types.includes(REQUEST_MIME) || event.dataTransfer.types.includes(STEP_MIME);
+  [REQUEST_MIME, TOOL_MIME, STEP_MIME].some((mime) => event.dataTransfer.types.includes(mime));
 
 /** "access_token ↓": the values one step passes on to later ones. */
 function PassingChips({ names }: { names: string[] }) {
@@ -42,7 +43,7 @@ function PassingChips({ names }: { names: string[] }) {
 
 interface StepLaneProps {
   critter: CritterSummary;
-  steps: FlowStep[];
+  steps: Step[];
   dataflow: Dataflow;
 }
 
@@ -79,6 +80,12 @@ export function StepLane({ critter, steps, dataflow }: StepLaneProps) {
     const request = event.dataTransfer.getData(REQUEST_MIME);
     if (request) {
       editFlow((flow) => insertStep(flow, at, request));
+      select(at);
+      return;
+    }
+    const tool = event.dataTransfer.getData(TOOL_MIME);
+    if (isToolId(tool)) {
+      editFlow((flow) => insertTool(flow, at, TOOLS[tool].create()));
       select(at);
       return;
     }
@@ -131,7 +138,7 @@ export function StepLane({ critter, steps, dataflow }: StepLaneProps) {
     >
       {steps.length === 0 ? (
         <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-          Drag requests here, or use + in the list, to add steps.
+          Drag requests or tools here, or use + in the list, to add steps.
         </p>
       ) : (
         steps.map((step, index) => (
@@ -141,7 +148,7 @@ export function StepLane({ critter, steps, dataflow }: StepLaneProps) {
             <StepCard
               index={index}
               step={step}
-              scenario={requests[step.request.trim()]}
+              scenario={requests[stepRequest(step)]}
               result={run.results[index] ?? null}
               phase={phaseOf(index, run)}
               problems={dataflow.problems.filter((p) => p.step === index).map((p) => p.message)}

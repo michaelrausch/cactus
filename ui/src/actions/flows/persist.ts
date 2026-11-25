@@ -2,27 +2,46 @@ import { backend } from "@/api/client";
 import { flowFilePath } from "@/domain/critterId";
 import { flowFingerprint } from "@/domain/flowEdit";
 import { reportErrors, succeeded } from "@/lib/errors";
+import { selectFlowDirty } from "@/stores/flowStore";
 import { refreshCritters } from "../critters";
 import { refreshSchedules } from "../monitors";
-import { markOwnWrite } from "../saving";
+import { writingFile } from "../saving";
 import { currentProject, fixFirst, flowStore, isOpen } from "./shared";
+
+/** How long the save button shows its tick. */
+const SAVED_FLASH_MS = 1200;
+
+let flashTimer: ReturnType<typeof setTimeout> | undefined;
 
 /** Save the open flow: the text as typed in YAML mode, or edited in place from the visual editor. */
 export async function saveOpenFlow(): Promise<boolean> {
   const project = currentProject();
-  const { open, model, mode, text, parseProblem } = flowStore();
-  if (!project || !open || !model) return false;
+  const { open } = flowStore();
+  if (!project || !open) return false;
+  const { critter, flow } = open;
+  clearTimeout(flashTimer);
+  flowStore().saveStatusChanged("saving");
+  const saved = await writingFile(flowFilePath(critter, flow), () => writeFlow(project, critter, flow));
+  if (!isOpen(critter, flow)) return saved;
+  flowStore().saveStatusChanged(saved ? "saved" : "idle");
+  if (saved) flashTimer = setTimeout(() => flowStore().saveStatusChanged("idle"), SAVED_FLASH_MS);
+  return saved;
+}
+
+/** Runs after any earlier save of the flow, so it sees the baseline that save left. */
+async function writeFlow(project: string, critter: string, flow: string): Promise<boolean> {
+  if (!isOpen(critter, flow)) return false;
+  const state = flowStore();
+  const { model, mode, text, parseProblem, conflict } = state;
+  if (!model) return false;
   if (mode === "yaml" && parseProblem) {
     fixFirst(parseProblem.line);
     return false;
   }
-  const { critter, flow } = open;
-  const path = flowFilePath(critter, flow);
+  if (!selectFlowDirty(state) && !conflict) return true;
   const saved = await succeeded(async () => {
-    markOwnWrite(path);
     if (mode === "yaml") await backend.saveFlowText(project, critter, flow, text);
     else await backend.saveFlow(project, critter, flow, model);
-    markOwnWrite(path);
     const [onDisk, diskText] = await Promise.all([
       backend.loadFlow(project, critter, flow),
       backend.loadFlowText(project, critter, flow),

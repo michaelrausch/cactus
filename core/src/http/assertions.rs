@@ -127,19 +127,31 @@ fn capture(expression: &str, response: &Response, body: Option<&Value>) -> Resul
 }
 
 fn check(assertion: &Assertion, response: &Response, body: Option<&Value>) -> Check {
+    let Some(subject) = Subject::parse(&assertion.expression) else {
+        let name = assertion.expression.trim().to_string();
+        return Check { name, ok: false, detail: "unsupported expression".into() };
+    };
+    check_value(assertion, subject.select(response, body).as_ref())
+}
+
+/// Check `actual`, a value already selected (`None` when there's nothing
+/// there), against `assertion`'s operator and value. The check is named
+/// after the assertion's expression.
+pub fn check_value(assertion: &Assertion, actual: Option<&Value>) -> Check {
     let name = assertion.expression.trim().to_string();
     let operator = assertion.operator.trim();
     let expected_text = assertion.value.as_ref().map_or("", |value| value.trim());
     let wanted = if expected_text.is_empty() { operator.to_string() } else { format!("{operator} {expected_text}") };
-    let Some(subject) = Subject::parse(&name) else {
-        return Check { name, ok: false, detail: "unsupported expression".into() };
-    };
-    let actual = subject.select(response, body);
-    let got = actual.as_ref().map_or_else(|| "nothing".into(), Value::to_string);
-    match holds(operator, actual.as_ref(), expected_text) {
+    let got = actual.map_or_else(|| "nothing".into(), Value::to_string);
+    match holds(operator, actual, expected_text) {
         Ok(ok) => Check { name, ok, detail: format!("expected {wanted}, got {got}") },
         Err(problem) => Check { name, ok: false, detail: problem },
     }
+}
+
+/// Text as a value to check: JSON when it is (`5`, `[1, 2]`, `"x"`), or else the text.
+pub fn parse_value(text: &str) -> Value {
+    parse_expected(text)
 }
 
 /// Whether `actual operator expected` holds, or why it can't be checked:

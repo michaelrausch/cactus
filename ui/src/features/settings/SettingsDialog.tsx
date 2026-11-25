@@ -1,11 +1,12 @@
 import type { ReactNode } from "react";
-import { GitBranch, Info, Palette, ShieldCheck } from "lucide-react";
+import { BookOpen, GitBranch, Info, Palette, ShieldCheck } from "lucide-react";
 import { Tabs } from "radix-ui";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { useProjectStore } from "@/stores/projectStore";
 import { useUiStore } from "@/stores/uiStore";
 import { AboutTab } from "./AboutTab";
 import { GitTab } from "./GitTab";
+import { GuideTab } from "./GuideTab";
 import { SecurityTab } from "./SecurityTab";
 import { ThemeTab } from "./ThemeTab";
 
@@ -32,7 +33,7 @@ export function SettingsDialog() {
       <DialogContent className="gap-0 p-0 sm:max-w-3xl">
         <DialogTitle className="sr-only">Settings</DialogTitle>
         <DialogDescription className="sr-only">
-          Theme, commit author, secret encryption and information about this build.
+          Theme, commit author, secret encryption, a guide and information about this build.
         </DialogDescription>
         <Tabs.Root orientation="vertical" defaultValue="theme" className="flex h-[min(520px,calc(100vh-4rem))]">
           <div className="flex w-44 shrink-0 flex-col gap-3 border-r bg-sidebar/60 p-3">
@@ -49,6 +50,9 @@ export function SettingsDialog() {
                   <ShieldCheck /> Security
                 </NavItem>
               )}
+              <NavItem value="guide">
+                <BookOpen /> Guide
+              </NavItem>
               <NavItem value="about">
                 <Info /> About
               </NavItem>
@@ -65,6 +69,9 @@ export function SettingsDialog() {
               <SecurityTab />
             </Tabs.Content>
           )}
+          <Tabs.Content value="guide" className="min-h-0 flex-1 overflow-y-auto p-5 outline-none">
+            <GuideTab />
+          </Tabs.Content>
           <Tabs.Content value="about" className="min-h-0 flex-1 overflow-y-auto p-5 outline-none">
             <AboutTab />
           </Tabs.Content>

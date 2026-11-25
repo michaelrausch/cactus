@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Scenario } from "@/api/client";
-import { flowDataflow, placeholderNames, requestCaptures, requestTemplates } from "./flowDataflow";
+import { flowDataflow, placeholderNames, requestCaptures, requestTemplates, type ToolDataflowOf } from "./flowDataflow";
 
 const request = (patch: Partial<Scenario["http"]> = {}, runtime?: Scenario["runtime"]): Scenario => ({
   info: { name: "", type: "http" },
@@ -14,6 +14,12 @@ const capture = (name: string, phase?: "before-request") => ({
   selector: { expression: "res.body.x", method: "jsonq" },
   variable: { name, scope: "runtime" },
 });
+
+/** Stands in for the tool registry: a prompt sets two names, anything else reads two. */
+const toolDataflow: ToolDataflowOf = (step) =>
+  step.tool === "prompt"
+    ? { templates: [], sets: ["id", "userId"], problems: [] }
+    : { templates: ["{{id}} {{nope}}"], sets: [], problems: ["No URL"] };
 
 describe("flow data flow", () => {
   const login = request(
@@ -61,6 +67,26 @@ describe("flow data flow", () => {
       [1, "{{id}} isn't set by anything"],
       [1, "{{userId}} isn't set by anything"],
       [2, "{{userId}} isn't set by anything"],
+    ]);
+  });
+
+  it("takes what tool steps read, set and get wrong from the tool registry", () => {
+    const flow = flowDataflow(
+      [{ tool: "prompt" }, { request: "me.yml" }, { tool: "webhook" }],
+      requests,
+      { ...scope, token: { kind: "environment", name: "staging" } },
+      "Bob",
+      toolDataflow,
+    );
+    expect(flow.captures).toEqual([["id", "userId"], [], []]);
+    expect(flow.passing).toEqual([["id", "userId"], ["id"]]);
+    expect(flow.uses[2]).toEqual([
+      { name: "id", source: { kind: "step", step: 0 } },
+      { name: "nope", source: { kind: "missing" } },
+    ]);
+    expect(flow.problems.map((p) => [p.step, p.message])).toEqual([
+      [2, "No URL"],
+      [2, "{{nope}} isn't set by anything"],
     ]);
   });
 

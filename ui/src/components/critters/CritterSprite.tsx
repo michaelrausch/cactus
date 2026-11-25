@@ -2,7 +2,7 @@ import { memo, type CSSProperties } from "react";
 import { LoaderCircle } from "lucide-react";
 import type { Species } from "@/api/client";
 import { cn } from "@/lib/utils";
-import { seedOf, spriteFrames, type CritterState } from "./species";
+import { seedOf, spriteFrames, verticalOffset, type CritterState } from "./species";
 
 export type SpriteSize = 16 | 32 | 48;
 
@@ -18,6 +18,8 @@ interface CritterSpriteProps {
   seed?: string;
   /** Paused, e.g. its schedules are; shown as a "z" and no idle motion. */
   asleep?: boolean;
+  /** Standing on the bottom edge rather than centred, so a row of critters shares a floor. */
+  grounded?: boolean;
   className?: string;
 }
 
@@ -34,8 +36,10 @@ export const CritterSprite = memo(function CritterSprite({
   label,
   seed,
   asleep = false,
+  grounded = false,
   className,
 }: CritterSpriteProps) {
+  const offset = grounded ? 0 : verticalOffset(species);
   const frames = spriteFrames(species, state);
   const style = { "--critter-size": `${size}px`, "--critter-seed": seedOf(seed ?? label) } as CSSProperties;
   return (
@@ -49,7 +53,7 @@ export const CritterSprite = memo(function CritterSprite({
     >
       <svg
         className="critter-art"
-        viewBox="0 0 16 16"
+        viewBox={`0 ${offset} 16 16`}
         width={size}
         height={size}
         shapeRendering="crispEdges"

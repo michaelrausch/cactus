@@ -5,6 +5,8 @@ interface ProjectState {
   /** Absolute path of the open project folder. */
   project: string | null;
   entries: ScenarioEntry[];
+  /** Request folders, empty ones included. */
+  folders: string[];
   recentProjects: string[];
   /** Names of the environments, from `environments/<name>.yml`. */
   envs: string[];
@@ -21,6 +23,7 @@ interface ProjectState {
 
   opened: (project: string, entries: ScenarioEntry[]) => void;
   entriesListed: (entries: ScenarioEntry[]) => void;
+  foldersListed: (folders: string[]) => void;
   recentProjectsLoaded: (recent: string[]) => void;
   envsLoaded: (envs: string[], activeEnv: string | null) => void;
   envSelected: (name: string | null) => void;
@@ -32,6 +35,7 @@ interface ProjectState {
 export const useProjectStore = create<ProjectState>()((set) => ({
   project: null,
   entries: [],
+  folders: [],
   recentProjects: [],
   envs: [],
   activeEnv: null,
@@ -39,8 +43,9 @@ export const useProjectStore = create<ProjectState>()((set) => ({
   variableSources: null,
   variableSourcesAt: 0,
 
-  opened: (project, entries) => set({ project, entries, variableNames: null, variableSources: null }),
+  opened: (project, entries) => set({ project, entries, folders: [], variableNames: null, variableSources: null }),
   entriesListed: (entries) => set({ entries }),
+  foldersListed: (folders) => set({ folders }),
   recentProjectsLoaded: (recentProjects) => set({ recentProjects }),
   envsLoaded: (envs, activeEnv) => set({ envs, activeEnv }),
   envSelected: (activeEnv) => set({ activeEnv }),

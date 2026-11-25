@@ -1,5 +1,5 @@
 //! Running a critter's flow: its steps in order, each an overlay on an
-//! existing request.
+//! existing request or a tool.
 
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -9,11 +9,12 @@ use serde::{Deserialize, Serialize};
 
 use super::{SendOptions, send_and_record, send_as};
 use crate::clock::now_unix_millis;
-use crate::critter::{self, Flow, FlowStep};
-use crate::env::{self, Scope};
+use crate::critter::{self, Flow, FlowStep, Step};
+use crate::env::{self, Env, Scope};
 use crate::http::{Response, is_status_expression, preview_url, scenario_passed, select_values};
 use crate::num::saturating_u32;
 use crate::scenario::{self, Action, Assertion, Scenario, SetVariable};
+use crate::tools::{BoxFuture, FlowRunner, ToolCx, ToolHost, ToolOutput, ToolStep};
 use crate::{Error, ProjectPath, Result, layout};
 
 /// The outcome of one step. Every step of a run gets one, so the UI and the
@@ -23,8 +24,14 @@ use crate::{Error, ProjectPath, Result, layout};
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct FlowStepResult {
     pub index: u32,
-    /// The step's `request`, as written.
+    /// The step's `request`, as written; empty for a tool.
     pub request: String,
+    /// The tool's id, for a tool step.
+    #[serde(default)]
+    pub tool: Option<String>,
+    /// What a tool step did.
+    #[serde(default)]
+    pub output: Option<ToolOutput>,
     pub title: String,
     /// The method and URL it was sent to, env applied; empty when the
     /// request couldn't be read.
@@ -60,6 +67,7 @@ pub struct FlowRun {
 pub struct FlowStepStart {
     pub index: u32,
     pub request: String,
+    pub tool: Option<String>,
     pub title: String,
     pub method: String,
     pub url: String,
@@ -78,29 +86,37 @@ impl FlowRun {
     /// check, its error, or its status.
     pub fn failure(&self) -> Option<String> {
         let step = self.steps.iter().find(|step| !step.ok && !step.skipped)?;
-        Some(format!("step {} ({}): {}", step.index + 1, step.request, step.reason()))
+        Some(format!("step {} ({}): {}", step.index + 1, step.label(), step.reason()))
     }
 }
 
 impl FlowStepResult {
-    fn skipped(index: usize, step: &FlowStep) -> Self {
+    fn skipped(index: usize, step: &Step) -> Self {
         let mut result = Self::new(index, step);
         result.skipped = true;
         result
     }
 
-    fn errored(index: usize, step: &FlowStep, error: &Error) -> Self {
+    fn errored(index: usize, step: &Step, error: &Error) -> Self {
         let mut result = Self::new(index, step);
         result.error = Some(error.to_string());
         result
     }
 
-    fn new(index: usize, step: &FlowStep) -> Self {
-        let request = step.request.trim().to_string();
+    fn new(index: usize, step: &Step) -> Self {
+        let (request, title, tool) = match step {
+            Step::Request(step) => {
+                let request = step.request.trim().to_string();
+                (request.clone(), request, None)
+            }
+            Step::Tool(tool) => (String::new(), tool.title(), Some(tool.id().to_string())),
+        };
         Self {
             index: saturating_u32(index),
-            title: request.clone(),
+            title,
             request,
+            tool,
+            output: None,
             method: String::new(),
             url: String::new(),
             ok: false,
@@ -116,6 +132,8 @@ impl FlowStepResult {
         Self {
             index: start.index,
             request: start.request.clone(),
+            tool: start.tool.clone(),
+            output: None,
             title: start.title.clone(),
             method: start.method.clone(),
             url: start.url.clone(),
@@ -125,6 +143,11 @@ impl FlowStepResult {
             error: None,
             watched: BTreeMap::new(),
         }
+    }
+
+    /// The request it sent, or the tool's title.
+    pub fn label(&self) -> &str {
+        if self.request.is_empty() { &self.title } else { &self.request }
     }
 
     /// Why this step failed.
@@ -169,7 +192,15 @@ pub(super) struct StepContext<'a> {
     /// A 401 logs the critter in again ([`send_as`]). Off for the login flow
     /// itself, so it can't loop.
     pub relogin: bool,
+    /// Who tool steps ask, notify and open URLs for.
+    pub host: &'a dyn ToolHost,
+    /// How many `run` steps deep this is, so flows running each other stop.
+    pub depth: u8,
 }
+
+/// How deep `- tool: run` may nest: plenty for setup flows, few enough that
+/// two flows running each other fail fast.
+const MAX_DEPTH: u8 = 8;
 
 impl StepContext<'_> {
     async fn send(&self, path: &ProjectPath, scenario: &Scenario, scope: &Scope) -> Result<Response> {
@@ -183,8 +214,10 @@ impl StepContext<'_> {
 }
 
 /// Run `critter`'s flow `flow` in env `env` (the active one when `None`),
-/// calling `on_event` as each step starts and finishes. A failed step stops
-/// the flow; the steps after it are reported as skipped.
+/// calling `on_event` as each step starts and finishes. Tool steps talk to
+/// `host`. A failed step stops the flow; the steps after it are reported as
+/// skipped.
+#[allow(clippy::too_many_arguments)]
 pub async fn run_flow(
     client: &reqwest::Client,
     project: &Path,
@@ -192,15 +225,17 @@ pub async fn run_flow(
     flow: &str,
     env: Option<String>,
     options: SendOptions,
+    host: &dyn ToolHost,
     on_event: impl FnMut(FlowEvent<'_>) + Send,
 ) -> Result<FlowRun> {
     critter::require(project, critter)?;
     let definition = critter::load_flow(project, critter, flow)?;
-    run_flow_definition(client, project, critter, &definition, env, options, on_event).await
+    run_flow_definition(client, project, critter, &definition, env, options, host, on_event).await
 }
 
 /// [`run_flow`] for a definition the caller has already loaded, so what it
 /// decides from the definition (alert rule, env) is what runs.
+#[allow(clippy::too_many_arguments)]
 pub async fn run_flow_definition(
     client: &reqwest::Client,
     project: &Path,
@@ -208,11 +243,12 @@ pub async fn run_flow_definition(
     definition: &Flow,
     env: Option<String>,
     options: SendOptions,
+    host: &dyn ToolHost,
     on_event: impl FnMut(FlowEvent<'_>) + Send,
 ) -> Result<FlowRun> {
     super::ensure_unlocked_for(project, Some(critter))?;
     let scope = Scope { env: env.or_else(|| env::active(project)), critter: Some(critter.into()), ..Scope::default() };
-    let context = StepContext { client, project, scope: &scope, options, relogin: true };
+    let context = StepContext { client, project, scope: &scope, options, relogin: true, host, depth: 0 };
     run_steps(&context, definition, on_event).await
 }
 
@@ -224,11 +260,14 @@ pub(super) async fn run_steps(
     let (at, started) = (now_unix_millis(), Instant::now());
     let mut steps = Vec::with_capacity(definition.steps.len());
     let mut failed = false;
+    // What tools set: seen by every later step, below its own `with`, and
+    // never written to disk.
+    let mut run_vars = Env::new();
     for (index, step) in definition.steps.iter().enumerate() {
-        let result = if failed {
-            FlowStepResult::skipped(index, step)
-        } else {
-            run_step(context, index, step, &mut on_event).await
+        let result = match step {
+            _ if failed => FlowStepResult::skipped(index, step),
+            Step::Request(request) => run_step(context, index, request, &run_vars, &mut on_event).await,
+            Step::Tool(tool) => run_tool(context, index, tool, &mut run_vars, &mut on_event).await,
         };
         failed = !result.ok;
         on_event(FlowEvent::Finished(&result));
@@ -264,35 +303,127 @@ fn step_overrides(step: &FlowStep, visible: &env::Env) -> env::Env {
     step.with.iter().map(|(name, value)| (name.clone(), substituter.apply(value))).collect()
 }
 
-fn prepare_step(context: &StepContext<'_>, index: usize, step: &FlowStep) -> Result<PreparedStep> {
+/// The run's scope with what tools set so far as overrides.
+fn scope_with(context: &StepContext<'_>, run_vars: &Env) -> Scope {
+    let mut overrides = context.scope.overrides.clone();
+    overrides.extend(run_vars.clone());
+    Scope { overrides, ..context.scope.clone() }
+}
+
+fn prepare_step(context: &StepContext<'_>, index: usize, step: &FlowStep, run_vars: &Env) -> Result<PreparedStep> {
     let (path, scenario) = load_step_request(context.project, step)?;
     let scenario = apply_step(scenario, step);
-    let base = env::resolve_for_request(context.project, context.scope, path.dir(), &scenario.runtime.variables)?;
-    let overrides = step_overrides(step, &base.vars);
+    let scope = scope_with(context, run_vars);
+    let base = env::resolve_for_request(context.project, &scope, path.dir(), &scenario.runtime.variables)?;
+    let with = step_overrides(step, &base.vars);
     let mut vars = base.vars;
-    vars.extend(overrides.clone());
+    vars.extend(with.clone());
     let request = step.request.trim().to_string();
     let name = scenario.info.name.trim();
     let start = FlowStepStart {
         index: saturating_u32(index),
         title: if name.is_empty() { request.clone() } else { name.to_string() },
         request,
+        tool: None,
         method: scenario.http.method.trim().to_uppercase(),
         url: preview_url(&scenario, &vars),
     };
-    let scope = Scope { overrides, ..context.scope.clone() };
+    let mut scope = scope;
+    scope.overrides.extend(with);
     Ok(PreparedStep { path, scenario, scope, start })
+}
+
+/// Run a tool step: fill in its templates, run it, and keep what it set
+/// for later steps.
+async fn run_tool(
+    context: &StepContext<'_>,
+    index: usize,
+    tool: &ToolStep,
+    run_vars: &mut Env,
+    on_event: &mut (impl FnMut(FlowEvent<'_>) + Send),
+) -> FlowStepResult {
+    let step = Step::Tool(tool.clone());
+    let visible = match env::resolve_for_request(context.project, &scope_with(context, run_vars), "", &[]) {
+        Ok(resolved) => resolved.vars,
+        Err(error) => return FlowStepResult::errored(index, &step, &error),
+    };
+    let mut tool = tool.clone();
+    let mut substituter = env::Substituter::new(&visible);
+    for text in tool.templates() {
+        *text = substituter.apply(text);
+    }
+    let start = FlowStepStart {
+        index: saturating_u32(index),
+        request: String::new(),
+        tool: Some(tool.id().to_string()),
+        title: tool.title(),
+        method: String::new(),
+        url: String::new(),
+    };
+    let mut result = FlowStepResult::started(&start);
+    on_event(FlowEvent::Started(&start));
+    let runner = RunAccess { context, run_vars: run_vars.clone() };
+    let mut cx = ToolCx::new(context.client, context.host, &runner, &visible);
+    match tool.run(&mut cx).await {
+        Ok(mut output) => {
+            let (set, shown) = cx.finish();
+            run_vars.extend(set);
+            output.values = shown;
+            result.ok = true;
+            result.output = Some(output);
+        }
+        Err(error) => result.error = Some(error.to_string()),
+    }
+    result
+}
+
+/// What a tool step can do with its run ([`FlowRunner`]): as the run is
+/// when the step starts.
+struct RunAccess<'c> {
+    context: &'c StepContext<'c>,
+    run_vars: Env,
+}
+
+impl FlowRunner for RunAccess<'_> {
+    fn send<'a>(&'a self, step: &'a FlowStep) -> BoxFuture<'a, Result<(Response, bool)>> {
+        Box::pin(async move {
+            let prepared = prepare_step(self.context, 0, step, &self.run_vars)?;
+            let response = self.context.send(&prepared.path, &prepared.scenario, &prepared.scope).await?;
+            let passed = scenario_passed(&prepared.scenario, &response);
+            Ok((response, passed))
+        })
+    }
+
+    fn run_flow<'a>(&'a self, critter: Option<&'a str>, flow: &'a str) -> BoxFuture<'a, Result<FlowRun>> {
+        Box::pin(async move {
+            let context = self.context;
+            if context.depth >= MAX_DEPTH {
+                return Err(Error::Tool(format!("Flows run each other more than {MAX_DEPTH} deep")));
+            }
+            let critter = match critter {
+                Some(critter) => critter.to_string(),
+                None => context.scope.critter.clone().unwrap_or_default(),
+            };
+            critter::require(context.project, &critter)?;
+            super::ensure_unlocked_for(context.project, Some(&critter))?;
+            let definition = critter::load_flow(context.project, &critter, flow)?;
+            let scope = Scope { env: context.scope.env.clone(), critter: Some(critter), ..Scope::default() };
+            let child = StepContext { scope: &scope, relogin: true, depth: context.depth + 1, ..*context };
+            run_steps(&child, &definition, |_| {}).await
+        })
+    }
 }
 
 async fn run_step(
     context: &StepContext<'_>,
     index: usize,
     step: &FlowStep,
+    run_vars: &Env,
     on_event: &mut (impl FnMut(FlowEvent<'_>) + Send),
 ) -> FlowStepResult {
-    let prepared = match prepare_step(context, index, step) {
+    let prepared = match prepare_step(context, index, step, run_vars) {
         Ok(prepared) => prepared,
-        Err(error) => return FlowStepResult::errored(index, step, &error),
+        Err(error) => return FlowStepResult::errored(index, &Step::Request(step.clone()), &error),
     };
     let mut result = FlowStepResult::started(&prepared.start);
     on_event(FlowEvent::Started(&prepared.start));

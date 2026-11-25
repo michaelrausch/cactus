@@ -2,7 +2,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import { ExternalLink, MousePointerClick, Plus, X } from "lucide-react";
 import { editFlow } from "@/actions/flows";
 import { selectScenario } from "@/actions/scenario";
-import type { CritterSummary, FlowStep, HttpResponse, JsonValue, ProjectPath } from "@/api/client";
+import type { CritterSummary, FlowStep, HttpResponse, JsonValue, ProjectPath, ToolStep } from "@/api/client";
 import { KeyValueTable } from "@/components/KeyValueTable";
 import { KnownNamesContext } from "@/components/template/knownNames";
 import { TemplateField } from "@/components/template/TemplateField";
@@ -10,9 +10,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { Dataflow, UseSource } from "@/domain/flowDataflow";
 import {
+  isToolStep,
   stepAssertRows,
   stepMapRows,
   updateStep,
+  updateTool,
   withCapture,
   withExpect,
   withOverride,
@@ -25,6 +27,8 @@ import { expressionSuggester, operatorSuggester, type Suggester } from "@/domain
 import { JsonTree } from "@/features/response/JsonTree";
 import { cn } from "@/lib/utils";
 import { useFlowStore } from "@/stores/flowStore";
+import { useProjectStore } from "@/stores/projectStore";
+import { toolOf } from "./tools";
 
 /** Statuses offered for Expect. */
 const COMMON_STATUSES = [200, 201, 204, 401, 403, 404];
@@ -54,8 +58,11 @@ function sourceText(source: UseSource): string {
   }
 }
 
-/** Each `{{name}}` the step uses and where its value comes from; a missing one can be added to With. */
-function Uses({ dataflow, index, update }: { dataflow: Dataflow; index: number; update: Update }) {
+/**
+ * Each `{{name}}` the step uses and where its value comes from. With
+ * `update` (request steps), a missing one can be added to With.
+ */
+function Uses({ dataflow, index, update }: { dataflow: Dataflow; index: number; update?: Update }) {
   const uses = dataflow.uses[index] ?? [];
   if (uses.length === 0) return <p className="text-xs text-muted-foreground">No {"{{variables}}"}.</p>;
   return (
@@ -63,7 +70,8 @@ function Uses({ dataflow, index, update }: { dataflow: Dataflow; index: number; 
       {uses.map(({ name, source }) => (
         <li key={name} className="flex items-center gap-2">
           <span className="font-mono">{`{{${name}}}`}</span>
-          {source.kind === "missing" ? (
+          {source.kind === "missing" && !update && <span className="text-warning">not set</span>}
+          {source.kind === "missing" && update && (
             <button
               type="button"
               onClick={() => update((step) => withOverride(step, name))}
@@ -71,7 +79,8 @@ function Uses({ dataflow, index, update }: { dataflow: Dataflow; index: number; 
             >
               not set · add to With
             </button>
-          ) : (
+          )}
+          {source.kind !== "missing" && (
             <span className={cn("text-muted-foreground", source.kind === "step" && "text-captured")}>
               {sourceText(source)}
             </span>
@@ -118,17 +127,18 @@ function Captures({
         valueColumn={{ suggest }}
         onChange={(next) => update((s) => withStepMapRows(s, "capture", next))}
       />
-      <Button
-        size="sm"
-        variant="ghost"
-        className="self-start"
-        disabled={body === null}
-        title={body === null ? "Run the flow to pick from this step's response" : undefined}
-        aria-pressed={picking}
-        onClick={() => setPicking(!picking)}
-      >
-        <MousePointerClick /> {picking ? "Done picking" : "Pick from last response"}
-      </Button>
+      {/* Only once there's a JSON response to pick from. */}
+      {body !== null && (
+        <Button
+          size="sm"
+          variant="ghost"
+          className="self-start"
+          aria-pressed={picking}
+          onClick={() => setPicking(!picking)}
+        >
+          <MousePointerClick /> {picking ? "Done picking" : "Pick from last response"}
+        </Button>
+      )}
       {picking && body !== null && (
         <div className="max-h-64 overflow-auto rounded-md border p-2">
           <JsonTree
@@ -218,6 +228,28 @@ function Watches({ step, update, suggest }: { step: FlowStep; update: Update; su
   );
 }
 
+/** A step whose request is gone; if one of the same name is elsewhere (it was moved), offer it. */
+function MissingRequest({ path, update }: { path: string; update: Update }) {
+  const entries = useProjectStore((s) => s.entries);
+  const file = path.split("/").at(-1) ?? "";
+  const moved = entries.filter((e) => e.relPath !== path && e.relPath.split("/").at(-1) === file);
+  return (
+    <div className="flex flex-col gap-1 text-xs">
+      <p className="text-warning">This request doesn't exist or doesn't parse.</p>
+      {moved.map((entry) => (
+        <button
+          key={entry.relPath}
+          type="button"
+          onClick={() => update((s) => ({ ...s, request: entry.relPath }))}
+          className="self-start rounded font-mono text-brand-2 underline-offset-2 focus-ring hover:underline"
+        >
+          Use {entry.relPath}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function StepDetails({ index, step, dataflow }: { index: number; step: FlowStep; dataflow: Dataflow }) {
   const scenario = useFlowStore((s) => s.requests[step.request.trim()]);
   const response = useFlowStore((s) => s.run.results[index]?.response ?? null);
@@ -243,7 +275,7 @@ function StepDetails({ index, step, dataflow }: { index: number; step: FlowStep;
               </Button>
             )}
           </div>
-          {scenario === null && <p className="text-xs text-warning">This request doesn't exist or doesn't parse.</p>}
+          {scenario === null && <MissingRequest path={step.request.trim()} update={update} />}
         </Section>
 
         <Section title="Expect">
@@ -294,17 +326,37 @@ function StepDetails({ index, step, dataflow }: { index: number; step: FlowStep;
   );
 }
 
+/** A tool step: its own editor, from the tool registry, and the names it uses. */
+function ToolDetails({ index, step, dataflow }: { index: number; step: ToolStep; dataflow: Dataflow }) {
+  const scope = useFlowStore((s) => s.scope);
+  const known = useMemo(() => [...new Set([...Object.keys(scope), ...dataflow.captures.flat()])], [scope, dataflow]);
+  const tool = toolOf(step);
+  const update = (change: (step: ToolStep) => ToolStep) => editFlow((flow) => updateTool(flow, index, change));
+  return (
+    <KnownNamesContext value={known}>
+      <div className="flex flex-col gap-5 p-4">
+        <Section title={`Step ${index + 1} · ${tool.label}`}>
+          <tool.Editor step={step} update={update} />
+        </Section>
+        <Section title="Uses">
+          <Uses dataflow={dataflow} index={index} />
+        </Section>
+      </div>
+    </KnownNamesContext>
+  );
+}
+
 /** Everything about the selected step. */
 export function StepInspector({ dataflow }: { critter: CritterSummary; dataflow: Dataflow }) {
   const selected = useFlowStore((s) => s.selected);
   const step = useFlowStore((s) => (s.selected === null ? undefined : s.model?.steps[s.selected]));
-  return (
-    <div className="h-full overflow-y-auto">
-      {selected === null || !step ? (
-        <p className="p-4 text-sm text-muted-foreground">Select a step to edit it.</p>
-      ) : (
-        <StepDetails key={selected} index={selected} step={step} dataflow={dataflow} />
-      )}
-    </div>
-  );
+  let details: ReactNode = <p className="p-4 text-sm text-muted-foreground">Select a step to edit it.</p>;
+  if (selected !== null && step) {
+    details = isToolStep(step) ? (
+      <ToolDetails key={selected} index={selected} step={step} dataflow={dataflow} />
+    ) : (
+      <StepDetails key={selected} index={selected} step={step} dataflow={dataflow} />
+    );
+  }
+  return <div className="h-full overflow-y-auto">{details}</div>;
 }

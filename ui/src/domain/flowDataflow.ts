@@ -1,4 +1,5 @@
-import type { Action, FlowStep, Scenario, VarSource } from "@/api/client";
+import type { Action, FlowStep, Scenario, Step, ToolStep, VarSource } from "@/api/client";
+import { isToolStep } from "./flowEdit";
 import { ownVariableNames } from "./scenario";
 import { templateParts } from "./template";
 import { varSourceLabel } from "./varSources";
@@ -85,17 +86,46 @@ export function placeholderNames(texts: readonly string[]): string[] {
   return [...names];
 }
 
+/** What a tool step reads, sets and gets wrong, as its editor in the tool registry says. */
+export interface ToolDataflow {
+  /** Texts that may hold `{{names}}`. */
+  templates: string[];
+  /** Names it sets for later steps. */
+  sets: string[];
+  problems: string[];
+}
+
+export type ToolDataflowOf = (step: ToolStep) => ToolDataflow;
+
+const noToolDataflow: ToolDataflowOf = () => ({ templates: [], sets: [], problems: [] });
+
+/** The parts of a request step that matter here, in the shape tools give theirs. */
+function requestDataflow(step: FlowStep, index: number, requests: LoadedRequests, problems: FlowProblem[]) {
+  const path = step.request.trim();
+  const scenario = path ? requests[path] : null;
+  if (!path) problems.push({ step: index, message: "No request chosen" });
+  else if (scenario === null) problems.push({ step: index, message: `${path} doesn't exist or doesn't parse` });
+  return {
+    scenario,
+    templates: [...(scenario ? requestTemplates(scenario) : []), ...Object.values(step.with ?? {})],
+    sets: [...Object.keys(step.capture ?? {}), ...(scenario ? requestCaptures(scenario) : [])],
+    own: new Set(scenario ? ownVariableNames(scenario.runtime?.variables) : []),
+    overrides: new Set(Object.keys(step.with ?? {})),
+  };
+}
+
 /**
  * Follow values through a flow: what each step uses and captures, what
  * passes between steps, and what's wrong (a request that's gone, a name
  * nothing sets). `scope` is what the flow's critter sees before any step
- * runs; `critter` names it in labels.
+ * runs; `critter` names it in labels. `toolDataflow` describes tool steps.
  */
 export function flowDataflow(
-  steps: readonly FlowStep[],
+  steps: readonly Step[],
   requests: LoadedRequests,
   scope: Readonly<Record<string, VarSource>>,
   critter?: string,
+  toolDataflow: ToolDataflowOf = noToolDataflow,
 ): Dataflow {
   const uses: StepUse[][] = [];
   const captures: string[][] = [];
@@ -105,14 +135,18 @@ export function flowDataflow(
   const capturedBy = new Map<string, number>();
 
   steps.forEach((step, index) => {
-    const path = step.request.trim();
-    const scenario = path ? requests[path] : null;
-    if (!path) problems.push({ step: index, message: "No request chosen" });
-    else if (scenario === null) problems.push({ step: index, message: `${path} doesn't exist or doesn't parse` });
-
-    const overrides = new Set(Object.keys(step.with ?? {}));
-    const own = new Set(scenario ? ownVariableNames(scenario.runtime?.variables) : []);
-    const texts = [...(scenario ? requestTemplates(scenario) : []), ...Object.values(step.with ?? {})];
+    let scenario: Scenario | null | undefined = null;
+    let texts: string[];
+    let sets: string[];
+    let own = new Set<string>();
+    let overrides = new Set<string>();
+    if (isToolStep(step)) {
+      const tool = toolDataflow(step);
+      for (const message of tool.problems) problems.push({ step: index, message });
+      ({ templates: texts, sets } = tool);
+    } else {
+      ({ scenario, templates: texts, sets, own, overrides } = requestDataflow(step, index, requests, problems));
+    }
     const stepUses = placeholderNames(texts).map((name): StepUse => {
       if (overrides.has(name)) return { name, source: { kind: "with" } };
       const from = capturedBy.get(name);
@@ -129,9 +163,7 @@ export function flowDataflow(
     });
     uses.push(stepUses);
 
-    const stepCaptures = [
-      ...new Set([...Object.keys(step.capture ?? {}), ...(scenario ? requestCaptures(scenario) : [])]),
-    ];
+    const stepCaptures = [...new Set(sets.map((name) => name.trim()).filter(Boolean))];
     captures.push(stepCaptures);
     for (const name of stepCaptures) capturedBy.set(name, index);
   });

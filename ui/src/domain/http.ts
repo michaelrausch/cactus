@@ -1,5 +1,25 @@
 export const HTTP_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"] as const;
 
+/** A path segment that names nothing: a `{{variable}}`, a `:param`, or an id. */
+const isPlaceholderSegment = (segment: string): boolean =>
+  /^\{\{.*\}\}$/.test(segment) || segment.startsWith(":") || /^[\d-]+$/.test(segment) || /^\{.*\}$/.test(segment);
+
+/**
+ * A title for a request nobody named, from its method and the last
+ * meaningful part of its URL: `GET {{baseUrl}}/users/{{id}}` → "Get users".
+ */
+export function suggestedTitle(method: string, url: string): string {
+  const path = url
+    .trim()
+    .replace(/[?#].*$/, "")
+    .replace(/^[a-z][a-z\d+.-]*:\/\/[^/]*/i, "")
+    .replace(/^\{\{[^}]*\}\}/, "");
+  const segment = path.split("/").findLast((part) => part && !isPlaceholderSegment(part));
+  if (!segment) return "";
+  const verb = method.charAt(0).toUpperCase() + method.slice(1).toLowerCase();
+  return `${verb} ${decodeURIComponent(segment).replace(/[-_]+/g, " ")}`;
+}
+
 /** Body kinds the editor offers, by their OpenCollection `type`. */
 export const BODY_KINDS = ["none", "json", "text", "xml", "form-urlencoded", "multipart-form"] as const;
 export type BodyKind = (typeof BODY_KINDS)[number];

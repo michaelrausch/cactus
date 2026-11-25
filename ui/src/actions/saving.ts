@@ -15,23 +15,53 @@ import { useProjectStore } from "@/stores/projectStore";
 const OWN_WRITE_WINDOW_MS = 1000;
 
 const lastWrittenAt = new Map<string, number>();
-/** Paths being written and read back; the buffer's baseline isn't settled yet. */
-const savesInFlight = new Set<string>();
+/** Per path: saves queued or running, whose baseline isn't settled yet. */
+const pendingSaves = new Map<string, number>();
+/** Per path: how many saves were ever queued, to spot one that started while the disk was being read. */
+const saveCounts = new Map<string, number>();
+/** Per path: the last save queued, which the next one waits for. */
+const saveTails = new Map<string, Promise<unknown>>();
 
 /**
  * Whether we just wrote `path`, so its change event is probably our own echo.
- * Only a hint, for skipping work: an outside edit in the same second matches too.
+ * Only a hint, for skipping work: an outside edit in the same second matches too,
+ * and a slow echo misses it. Never use it to decide whether a buffer is stale.
  */
 export const isOwnRecentWrite = (path: string): boolean =>
   Date.now() - (lastWrittenAt.get(path) ?? -Infinity) < OWN_WRITE_WINDOW_MS;
 
-/** Record that we're writing `path` (a flow, say), so its change event is taken as our own echo. */
-export const markOwnWrite = (path: string): void => {
-  lastWrittenAt.set(path, Date.now());
-};
+/** Whether a save of `path` is queued or under way. */
+export const isSaving = (path: string): boolean => (pendingSaves.get(path) ?? 0) > 0;
 
-/** Whether a save of `path` is under way. */
-export const isSaving = (path: string): boolean => savesInFlight.has(path);
+/** Changes whenever a save of `path` is queued: read it before and after reading the disk. */
+export const saveGeneration = (path: string): number => saveCounts.get(path) ?? 0;
+
+/**
+ * Run `write`, a save (or delete) of `path`, once any earlier one has
+ * finished, so a second Ctrl+S never races the first and mistakes its write
+ * for an outside edit.
+ */
+export function writingFile<T>(path: string, write: () => Promise<T>): Promise<T> {
+  saveCounts.set(path, saveGeneration(path) + 1);
+  pendingSaves.set(path, (pendingSaves.get(path) ?? 0) + 1);
+  const run = (saveTails.get(path) ?? Promise.resolve()).then(async () => {
+    lastWrittenAt.set(path, Date.now());
+    try {
+      return await write();
+    } finally {
+      lastWrittenAt.set(path, Date.now());
+      const left = (pendingSaves.get(path) ?? 1) - 1;
+      if (left > 0) pendingSaves.set(path, left);
+      else pendingSaves.delete(path);
+    }
+  });
+  const tail = run.catch(() => undefined);
+  saveTails.set(path, tail);
+  void tail.then(() => {
+    if (saveTails.get(path) === tail) saveTails.delete(path);
+  });
+  return run;
+}
 
 const buffers = () => useEditorStore.getState().buffers;
 const currentProject = (): string | null => useProjectStore.getState().project;
@@ -47,6 +77,14 @@ export async function saveScenario(path: ProjectPath | null = useEditorStore.get
   const project = currentProject();
   const buffer = path ? buffers()[path] : undefined;
   if (!project || !path || !buffer) return false;
+  if (!isDirty(buffer) && !buffer.conflict && !isSaving(path)) return true;
+  return writingFile(path, () => writeScenario(project, path));
+}
+
+/** Runs after any earlier save of `path`, so it sees the baseline that save left. */
+async function writeScenario(project: string, path: ProjectPath): Promise<boolean> {
+  const buffer = buffers()[path];
+  if (!buffer) return false;
   if (!isDirty(buffer) && !buffer.conflict) return true;
 
   const snapshot = buffer.scenario;
@@ -59,19 +97,12 @@ export async function saveScenario(path: ProjectPath | null = useEditorStore.get
         return false;
       }
     }
-    savesInFlight.add(path);
-    try {
-      lastWrittenAt.set(path, Date.now());
-      await backend.saveScenario(project, path, snapshot);
-      lastWrittenAt.set(path, Date.now());
-      // The backend normalises on save (query params are synced with the URL), so
-      // the file reads back slightly different from what was sent. Compare future
-      // changes against what is really on disk, or every save looks like a clash.
-      const written = await backend.loadScenario(project, path).catch(() => snapshot);
-      useEditorStore.getState().saved(path, snapshot, written);
-    } finally {
-      savesInFlight.delete(path);
-    }
+    await backend.saveScenario(project, path, snapshot);
+    // The backend normalises on save (query params are synced with the URL), so
+    // the file reads back slightly different from what was sent. Compare future
+    // changes against what is really on disk, or every save looks like a clash.
+    const written = await backend.loadScenario(project, path).catch(() => snapshot);
+    useEditorStore.getState().saved(path, snapshot, written);
     useProjectStore.getState().entrySaved(path, snapshot);
     if (buffer.conflict === "deleted") {
       useProjectStore.getState().entriesListed(await backend.listScenarios(project));
@@ -109,14 +140,19 @@ export async function reloadIfChangedOnDisk(changedPaths: string[]): Promise<voi
 }
 
 async function followDisk(project: string, path: ProjectPath): Promise<void> {
+  // A save's own read-back settles the baseline, and is newer than anything read here.
+  if (isSaving(path)) return;
+  const generation = saveGeneration(path);
+  const savedMeanwhile = () => isSaving(path) || saveGeneration(path) !== generation;
   let onDisk: Scenario;
   try {
     onDisk = await backend.loadScenario(project, path);
   } catch {
     // Deleted or mid-write. Unsaved work is worth flagging; otherwise the list refresh covers deletion.
-    if (isDirty(buffers()[path])) useEditorStore.getState().conflicted(path, "deleted");
+    if (!savedMeanwhile() && isDirty(buffers()[path])) useEditorStore.getState().conflicted(path, "deleted");
     return;
   }
+  if (savedMeanwhile()) return;
   const buffer = buffers()[path]; // May have changed while loading.
   if (!buffer || sameScenario(onDisk, buffer.baseline)) return;
   const editor = useEditorStore.getState();

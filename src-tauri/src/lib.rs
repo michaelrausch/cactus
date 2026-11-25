@@ -6,6 +6,7 @@ mod commands;
 mod events;
 mod scheduler;
 mod state;
+mod tool_host;
 mod watcher;
 
 use tauri::{Manager, RunEvent};
@@ -24,6 +25,8 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
+        // Flows' `open` tool, from Rust only: the UI gets no opener permission.
+        .plugin(tauri_plugin_opener::init())
         .invoke_handler(bindings.invoke_handler())
         .setup(move |app| {
             bindings.mount_events(app);

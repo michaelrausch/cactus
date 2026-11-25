@@ -11,4 +11,6 @@ pub use model::{
     MultipartField, Param, ParamKind, PartKind, PartValue, RequestInfo, RequestType, Runtime, Scenario, Script,
     Selector, SetVariable, SetVariableType, Settings, Timeout, TypedBody,
 };
-pub use store::{create, create_blank, delete, duplicate, load, rename, save};
+pub use store::{
+    create, create_blank, create_folder, create_request, delete, duplicate, list_folders, load, rename, retitle, save,
+};

@@ -8,6 +8,8 @@ const store = () => useFlowStore.getState();
 const result = (index: number, ok = true): FlowStepResult => ({
   index,
   request: "a.yml",
+  tool: null,
+  output: null,
   title: "A",
   method: "GET",
   url: "http://h/a",
@@ -21,6 +23,7 @@ const result = (index: number, ok = true): FlowStepResult => ({
 const start = (index: number): FlowStepStart => ({
   index,
   request: "a.yml",
+  tool: null,
   title: "A",
   method: "GET",
   url: `http://h/${index}`,

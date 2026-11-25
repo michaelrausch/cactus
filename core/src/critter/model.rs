@@ -7,6 +7,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::collection::{LenientString, Variable};
 use crate::scenario::Assertion;
+use crate::tools::ToolStep;
 use crate::{Error, Result};
 
 /// `critters/<id>/critter.yml`.
@@ -84,7 +85,43 @@ pub struct Flow {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub alert: Option<AlertRule>,
     #[serde(default)]
-    pub steps: Vec<FlowStep>,
+    pub steps: Vec<Step>,
+}
+
+/// One step of a flow: a request, or a tool (`- tool: prompt`).
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(untagged)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub enum Step {
+    Tool(ToolStep),
+    Request(FlowStep),
+}
+
+impl Step {
+    pub fn request(request: impl Into<LenientString>) -> Self {
+        Self::Request(FlowStep { request: request.into(), ..FlowStep::default() })
+    }
+
+    pub fn as_request(&self) -> Option<&FlowStep> {
+        match self {
+            Self::Request(step) => Some(step),
+            Self::Tool(_) => None,
+        }
+    }
+}
+
+/// A map with a `tool` key is a tool step; anything else is a request step,
+/// so flows written before tools read unchanged.
+impl<'de> Deserialize<'de> for Step {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> std::result::Result<Self, D::Error> {
+        let value = serde_json::Value::deserialize(deserializer)?;
+        let parsed = if value.get("tool").is_some() {
+            serde_json::from_value(value).map(Self::Tool)
+        } else {
+            serde_json::from_value(value).map(Self::Request)
+        };
+        parsed.map_err(serde::de::Error::custom)
+    }
 }
 
 impl Flow {
@@ -299,17 +336,29 @@ steps:
         value: ok
     watch:
       - res.body.version
+  - tool: wait
+    seconds: 5
 ";
         let flow: Flow = serde_yaml_ng::from_str(yaml).unwrap();
         assert_eq!(flow.schedule().unwrap().env.as_deref(), Some("staging"));
         let written = serde_yaml_ng::to_string(&flow.triggers).unwrap();
         assert_eq!(written, "- type: schedule\n  every: 5m\n  env: staging\n");
         assert_eq!(flow.alert.unwrap().on, [AlertOn::Failure, AlertOn::Change]);
-        assert_eq!(flow.steps[0].with["count"], "5");
-        assert_eq!(flow.steps[1].expect, Some(403));
-        assert_eq!(flow.steps[2].watch, [LenientString::from("res.body.version")]);
+        let request = |i: usize| flow.steps[i].as_request().unwrap();
+        assert_eq!(request(0).with["count"], "5");
+        assert_eq!(request(1).expect, Some(403));
+        assert_eq!(request(2).watch, [LenientString::from("res.body.version")]);
+        assert!(matches!(&flow.steps[3], Step::Tool(tool) if tool.id() == "wait"));
+        let steps = serde_yaml_ng::to_string(&flow.steps[3]).unwrap();
+        assert_eq!(steps, "tool: wait\nseconds: 5\n");
         let default_alert: AlertRule = serde_yaml_ng::from_str("{}").unwrap();
         assert_eq!(default_alert.on, [AlertOn::Failure]);
+    }
+
+    #[test]
+    fn an_unknown_tool_is_an_error_naming_it() {
+        let error = serde_yaml_ng::from_str::<Flow>("steps:\n  - tool: teleport\n").unwrap_err().to_string();
+        assert!(error.contains("teleport"), "{error}");
     }
 
     #[test]

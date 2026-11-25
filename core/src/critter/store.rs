@@ -6,10 +6,11 @@ use std::path::Path;
 
 use serde::Serialize;
 
-use super::model::{Critter, Flow, Species, Trigger, validate_critter_id, validate_flow_id};
+use super::model::{Critter, Flow, Species, Step, Trigger, validate_critter_id, validate_flow_id};
 use super::secrets::missing_secrets;
 use crate::num::saturating_u32;
 use crate::storage::write_atomic;
+use crate::tools::ToolStep;
 use crate::{Error, Result, best_effort, collection, layout, state};
 
 /// What the UI lists for a critter, in one call.
@@ -260,6 +261,31 @@ pub fn flow_keys(project: &Path) -> Vec<FlowKey> {
         .collect()
 }
 
+/// A request moved from `from` to `to`: point every flow step that sent it
+/// (request steps, and `poll`'s request) at its new path. Each flow is
+/// edited in place; one that doesn't parse is left for its owner to fix.
+pub fn follow_moved_request(project: &Path, from: &str, to: &str) -> Result<()> {
+    for FlowKey { critter, flow } in flow_keys(project) {
+        let Ok(mut definition) = load_flow(project, &critter, &flow) else { continue };
+        let mut moved = false;
+        for step in &mut definition.steps {
+            let request = match step {
+                Step::Request(step) => &mut step.request,
+                Step::Tool(ToolStep::Poll(poll)) => &mut poll.request,
+                Step::Tool(_) => continue,
+            };
+            if request.trim() == from {
+                *request = to.into();
+                moved = true;
+            }
+        }
+        if moved {
+            save_flow(project, &critter, &flow, &definition)?;
+        }
+    }
+    Ok(())
+}
+
 /// The critter's flows, sorted by id. A flow that doesn't parse is listed
 /// with its error.
 pub fn list_flows(project: &Path, id: &str) -> Result<Vec<FlowSummary>> {
@@ -473,7 +499,7 @@ fn remove_dir_if_exists(dir: &Path) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::critter::FlowStep;
+    use crate::critter::Step;
     use crate::env::{self, Env, EnvFile};
 
     fn save_secret(project: &Path, id: &str) {
@@ -485,11 +511,7 @@ mod tests {
     }
 
     fn one_step(request: &str) -> Flow {
-        Flow {
-            name: "F".into(),
-            steps: vec![FlowStep { request: request.into(), ..FlowStep::default() }],
-            ..Flow::default()
-        }
+        Flow { name: "F".into(), steps: vec![Step::request(request)], ..Flow::default() }
     }
 
     #[test]
@@ -567,10 +589,19 @@ mod tests {
         assert_eq!(load_flow_text(p, "bob", "h").unwrap(), text);
 
         let mut flow = load_flow(p, "bob", "h").unwrap();
-        flow.steps[0].expect = Some(200);
+        let Step::Request(first) = &mut flow.steps[0] else { panic!("expected a request step") };
+        first.expect = Some(200);
         save_flow(p, "bob", "h", &flow).unwrap();
         let saved = load_flow_text(p, "bob", "h").unwrap();
         assert!(saved.starts_with("# health check\n") && saved.contains("request: a.yml # first"), "{saved}");
+
+        // A tool step is saved in place like any other.
+        let mut with_tool = flow.clone();
+        with_tool.steps.push(serde_yaml_ng::from_str("tool: display\ntext: hi\n").unwrap());
+        save_flow(p, "bob", "h", &with_tool).unwrap();
+        let saved = load_flow_text(p, "bob", "h").unwrap();
+        assert!(saved.contains("# first") && saved.ends_with("  - tool: display\n    text: hi\n"), "{saved}");
+        assert_eq!(load_flow(p, "bob", "h").unwrap(), with_tool);
 
         assert!(matches!(parse_flow(text), FlowParse::Ok { .. }));
         let emitted = flow_yaml(&flow).unwrap();

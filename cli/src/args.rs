@@ -68,6 +68,9 @@ pub enum Command {
         /// Also write a `JUnit` XML report to this file.
         #[arg(long, value_name = "FILE")]
         junit: Option<PathBuf>,
+        /// Answer a prompt step's `name`, e.g. `--var code=123`; repeatable.
+        #[arg(long = "var", value_name = "NAME=VALUE", value_parser = crate::tool_host::parse_var)]
+        vars: Vec<(String, String)>,
         /// Read the secrets password from stdin (one line).
         #[arg(long, hide = !cactus_core::secrets::ENABLED)]
         password_stdin: bool,
@@ -136,6 +139,14 @@ mod tests {
         assert!(Cli::try_parse_from(["cactus-cli", "flow", "proj", "bob"]).is_err());
         assert!(Cli::try_parse_from(["cactus-cli", "flow", "proj"]).is_err());
         assert!(Cli::try_parse_from(["cactus-cli", "flow", "proj", "bob", "health", "--all"]).is_err());
+    }
+
+    #[test]
+    fn flow_takes_vars_for_prompts() {
+        let args = ["cactus-cli", "flow", "proj", "bob", "login", "--var", "code=123", "--var", "otp=9"];
+        let Command::Flow { vars, .. } = Cli::try_parse_from(args).unwrap().command else { panic!("expected flow") };
+        assert_eq!(vars, [("code".into(), "123".into()), ("otp".into(), "9".into())]);
+        assert!(Cli::try_parse_from(["cactus-cli", "flow", "proj", "--all", "--var", "nope"]).is_err());
     }
 
     #[test]

@@ -28,11 +28,15 @@ impl ProjectWatcher {
         let mut debouncer = new_debouncer(WATCH_DEBOUNCE, move |result: DebounceEventResult| {
             let Ok(events) = result else { return };
             let changed = changed_relative_paths(&root, events.iter().map(|e| e.path.as_path()));
-            if touches_critters(&changed) {
-                app.state::<AppState>().scheduler.reload(&app, &root);
+            if changed.is_empty() {
+                return;
             }
-            if !changed.is_empty() {
-                notify(&FsChanged(changed), &app);
+            // Tell the UI first: reloading parses every flow, waiting on the
+            // scheduler's lock, and would otherwise hold the event back.
+            let critters = touches_critters(&changed);
+            notify(&FsChanged(changed), &app);
+            if critters {
+                app.state::<AppState>().scheduler.reload(&app, &root);
             }
         })
         .ok()?;

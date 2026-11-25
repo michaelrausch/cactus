@@ -10,6 +10,7 @@ use tokio::net::TcpListener;
 pub struct Request {
     pub method: String,
     pub path: String,
+    pub body: String,
     head: String,
 }
 
@@ -48,7 +49,7 @@ pub async fn serve(route: impl Fn(&Request) -> (u16, String) + Send + Sync + 'st
     base
 }
 
-/// The request head, with its body read and dropped.
+/// The request: its head, then its body.
 async fn read_request(socket: &mut tokio::net::TcpStream) -> Option<Request> {
     let mut buffer = Vec::new();
     let mut chunk = [0; 4096];
@@ -64,19 +65,20 @@ async fn read_request(socket: &mut tokio::net::TcpStream) -> Option<Request> {
     };
     let head = String::from_utf8_lossy(&buffer[..head_end]).into_owned();
     let mut request_line = head.lines().next()?.split(' ');
-    let request = Request {
+    let mut request = Request {
         method: request_line.next()?.to_string(),
         path: request_line.next()?.to_string(),
+        body: String::new(),
         head: head.clone(),
     };
     let length: usize = request.header("content-length").and_then(|n| n.parse().ok()).unwrap_or(0);
-    let mut body_read = buffer.len() - head_end;
-    while body_read < length {
+    while buffer.len() - head_end < length {
         let read = socket.read(&mut chunk).await.ok()?;
         if read == 0 {
             break;
         }
-        body_read += read;
+        buffer.extend_from_slice(&chunk[..read]);
     }
+    request.body = String::from_utf8_lossy(&buffer[head_end..]).into_owned();
     Some(request)
 }

@@ -14,6 +14,7 @@ cactus-core = { path = "../core", features = ["specta", "git"] }
 tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
 tauri-plugin-notification = "2"
+tauri-plugin-opener = "2"
 serde.workspace = true
 serde_json.workspace = true
 tokio = { version = "1", features = ["sync", "macros", "time"] }

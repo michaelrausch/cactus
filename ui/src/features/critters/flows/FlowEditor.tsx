@@ -1,5 +1,5 @@
 import { useMemo, type KeyboardEvent } from "react";
-import { Play, Redo2, Save, TriangleAlert, Undo2 } from "lucide-react";
+import { Check, Loader2, Play, Redo2, Save, TriangleAlert, Undo2 } from "lucide-react";
 import { showCritter } from "@/actions/critters";
 import {
   editFlow,
@@ -20,12 +20,13 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/componen
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { flowDataflow, type Dataflow } from "@/domain/flowDataflow";
 import { cn } from "@/lib/utils";
-import { selectFlowDirty, useFlowStore, type FlowMode, type FlowPanel } from "@/stores/flowStore";
+import { selectFlowDirty, useFlowStore, type FlowMode, type FlowPanel, type SaveStatus } from "@/stores/flowStore";
 import { FlowYamlEditor } from "./FlowYamlEditor";
 import { RequestPalette } from "./RequestPalette";
 import { RunPanel } from "./RunPanel";
 import { StepInspector } from "./StepInspector";
 import { StepLane } from "./StepLane";
+import { toolDataflow } from "./tools";
 import { Triggers } from "./Triggers";
 
 const MODES: { mode: FlowMode; label: string }[] = [
@@ -61,12 +62,19 @@ function ModeSwitch() {
   );
 }
 
+function SaveIcon({ status }: { status: SaveStatus }) {
+  if (status === "saving") return <Loader2 className="animate-spin" />;
+  if (status === "saved") return <Check className="text-success" />;
+  return <Save />;
+}
+
 function FlowHeader({ model, critter, flowId }: { model: Flow; critter: CritterSummary; flowId: string }) {
   const dirty = useFlowStore(selectFlowDirty);
   const visual = useFlowStore((s) => s.mode === "visual");
   const canUndo = useFlowStore((s) => s.undo.length > 0);
   const canRedo = useFlowStore((s) => s.redo.length > 0);
   const running = useFlowStore((s) => s.run.running);
+  const saveStatus = useFlowStore((s) => s.saveStatus);
   return (
     <div className="flex items-center gap-2 border-b px-3 py-2">
       <button
@@ -101,7 +109,7 @@ function FlowHeader({ model, critter, flowId }: { model: Flow; critter: CritterS
         <Redo2 />
       </IconButton>
       <IconButton label={withShortcut("Save", "save")} onClick={() => void saveOpenFlow()} active={dirty}>
-        <Save />
+        <SaveIcon status={saveStatus} />
       </IconButton>
       <Button size="sm" onClick={runOpenFlow} disabled={running} title={withShortcut("Run", "send")}>
         <Play /> {running ? "Running…" : "Run"}
@@ -182,7 +190,7 @@ export function FlowEditor({ critter }: { critter: CritterSummary }) {
   const requests = useFlowStore((s) => s.requests);
   const scope = useFlowStore((s) => s.scope);
   const dataflow = useMemo(
-    () => (model ? flowDataflow(model.steps, requests, scope, critter.name) : null),
+    () => (model ? flowDataflow(model.steps, requests, scope, critter.name, toolDataflow) : null),
     [model, requests, scope, critter.name],
   );
   if (!model || !dataflow || !flowId) return null;

@@ -3,10 +3,11 @@
 use std::fs;
 use std::path::Path;
 
-use super::listing::next_seq;
+use super::listing::{is_ignored, next_seq, walk};
 use super::model::Scenario;
+use crate::collection::model::LenientString;
 use crate::text::slugify;
-use crate::{Error, ProjectPath, Result, collection, history, layout};
+use crate::{Error, ProjectPath, Result, best_effort, collection, critter, history, layout};
 
 const UNTITLED: &str = "untitled";
 const COPY_SUFFIX: &str = " copy";
@@ -29,7 +30,7 @@ pub fn save(project: &Path, path: &ProjectPath, scenario: &Scenario) -> Result<(
 pub fn create(project: &Path, dir: &str, scenario: &Scenario) -> Result<ProjectPath> {
     collection::ensure_root(project)?;
     collection::ensure_folder(project, dir)?;
-    let path = next_free_path(project, dir, &slug_for(&scenario.info.name))?;
+    let path = next_free_path(project, dir, &slug_for(&scenario.info.name), None)?;
     let mut scenario = scenario.clone();
     scenario.info.seq = Some(next_seq(project, dir));
     scenario.sync_query_params();
@@ -39,6 +40,62 @@ pub fn create(project: &Path, dir: &str, scenario: &Scenario) -> Result<ProjectP
 
 pub fn create_blank(project: &Path, dir: &str, title: &str) -> Result<ProjectPath> {
     create(project, dir, &Scenario::titled(title))
+}
+
+/// A new request titled `title` that sends `method` to `url`.
+pub fn create_request(project: &Path, dir: &str, title: &str, method: &str, url: &str) -> Result<ProjectPath> {
+    let mut scenario = Scenario::titled(title);
+    if !method.trim().is_empty() {
+        scenario.http.method = LenientString(method.trim().to_uppercase());
+    }
+    scenario.http.url = LenientString(url.trim().to_string());
+    create(project, dir, &scenario)
+}
+
+/// Give a request a new title, editing the file in place, then move it to a
+/// file named after the title in the same folder, if it isn't already. Returns
+/// where the request ends up.
+pub fn retitle(project: &Path, path: &ProjectPath, title: &str) -> Result<ProjectPath> {
+    let mut scenario = load(project, path)?;
+    scenario.info.name = LenientString(title.trim().to_string());
+    save(project, path, &scenario)?;
+    let target = next_free_path(project, path.dir(), &slug_for(title), Some(path))?;
+    if target != *path {
+        rename(project, path, &target)?;
+    }
+    Ok(target)
+}
+
+/// Make folder `dir` and its `folder.yml`, for requests to be created in or
+/// moved into. Refuses folders the listing wouldn't show as request folders.
+pub fn create_folder(project: &Path, dir: &str) -> Result<()> {
+    let path = ProjectPath::parse(dir.trim().trim_matches('/'))?;
+    if !is_request_folder(path.as_str()) || is_ignored(path.as_str()) {
+        return Err(Error::InvalidPath(dir.to_string()));
+    }
+    if layout::folder_file(project, path.as_str()).exists() {
+        return Err(Error::AlreadyExists(path.to_string()));
+    }
+    collection::ensure_root(project)?;
+    collection::ensure_folder(project, path.as_str())
+}
+
+/// Request folders with a `folder.yml`, empty ones included, sorted.
+pub fn list_folders(project: &Path) -> Vec<String> {
+    let mut folders: Vec<String> = walk(project)
+        .filter(|entry| entry.file_type().is_file() && entry.file_name() == layout::FOLDER_FILE)
+        .filter_map(|entry| ProjectPath::from_absolute(project, entry.path().parent()?))
+        .map(|dir| dir.as_str().to_string())
+        .filter(|dir| is_request_folder(dir))
+        .collect();
+    folders.sort();
+    folders
+}
+
+/// Whether requests may live in `dir`: not the environments or critters folders.
+fn is_request_folder(dir: &str) -> bool {
+    let top = dir.split('/').next().unwrap_or(dir);
+    top != layout::ENVIRONMENTS_DIR && top != layout::CRITTERS_DIR
 }
 
 /// Copy a request next to the original, titled "<title> copy". The copy is
@@ -72,6 +129,12 @@ pub fn rename(project: &Path, from: &ProjectPath, to: &ProjectPath) -> Result<()
     collection::ensure_folder(project, to.dir())?;
     fs::rename(&source, &target).map_err(Error::file(&source))?;
     history::rename(project, from, to);
+    // The request has moved either way; a flow left pointing at the old
+    // path shows that as a problem rather than failing the move.
+    best_effort::log(
+        "point flows at the moved request",
+        critter::follow_moved_request(project, from.as_str(), to.as_str()),
+    );
     Ok(())
 }
 
@@ -87,13 +150,14 @@ fn slug_for(title: &str) -> String {
 }
 
 /// `slug.yml`, else `slug-2.yml`, `slug-3.yml`, … whichever is free first.
-fn next_free_path(project: &Path, dir: &str, slug: &str) -> Result<ProjectPath> {
+/// `current`, the file being renamed, counts as free.
+fn next_free_path(project: &Path, dir: &str, slug: &str, current: Option<&ProjectPath>) -> Result<ProjectPath> {
     let extension = layout::REQUEST_EXTENSION;
     let candidates =
         std::iter::once(format!("{slug}{extension}")).chain((2..).map(|n| format!("{slug}-{n}{extension}")));
     for file_name in candidates {
         let candidate = ProjectPath::in_dir(dir, &file_name)?;
-        if !is_taken(project, &candidate) {
+        if Some(&candidate) == current || !is_taken(project, &candidate) {
             return Ok(candidate);
         }
     }
@@ -191,6 +255,49 @@ examples:
     }
 
     #[test]
+    fn retitle_edits_the_title_in_place_and_follows_with_the_file_name() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path();
+        fs::create_dir_all(p.join("auth")).unwrap();
+        fs::write(p.join("auth/a.yml"), HAND_WRITTEN).unwrap();
+        let moved = retitle(p, &path("auth/a.yml"), " Log in ").unwrap();
+        assert_eq!(moved.as_str(), "auth/log-in.yml");
+        let text = fs::read_to_string(moved.resolve(p)).unwrap();
+        assert!(text.contains("name: Log in # the title") && text.contains("# Always JSON."), "{text}");
+        assert!(!p.join("auth/a.yml").exists());
+
+        // Its own name doesn't count as taken; a sibling's does.
+        assert_eq!(retitle(p, &moved, "log in").unwrap(), moved);
+        create_blank(p, "auth", "Other").unwrap();
+        assert_eq!(retitle(p, &moved, "Other").unwrap().as_str(), "auth/other-2.yml");
+    }
+
+    #[test]
+    fn create_request_sets_method_and_url() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path();
+        let created = create_request(p, "users", "Get user", "post", " https://x/u ").unwrap();
+        assert_eq!(created.as_str(), "users/get-user.yml");
+        let s = load(p, &created).unwrap();
+        assert_eq!((s.http.method.as_str(), s.http.url.as_str()), ("POST", "https://x/u"));
+    }
+
+    #[test]
+    fn folders_are_created_and_listed_empty_or_not() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path();
+        create_folder(p, "users/admin").unwrap();
+        create_blank(p, "auth", "a").unwrap();
+        fs::create_dir_all(p.join("environments")).unwrap();
+        fs::write(p.join("environments/folder.yml"), "").unwrap();
+        assert_eq!(list_folders(p), ["auth", "users", "users/admin"]);
+        assert!(matches!(create_folder(p, "users"), Err(Error::AlreadyExists(_))));
+        for refused in ["environments", "critters/x", "../up", ".hidden", "node_modules"] {
+            assert!(create_folder(p, refused).is_err(), "{refused}");
+        }
+    }
+
+    #[test]
     fn rename_refuses_to_overwrite() {
         let dir = tempfile::tempdir().unwrap();
         let p = dir.path();
@@ -200,6 +307,23 @@ examples:
         assert!(matches!(rename(p, &a, &path("x/folder.yml")), Err(Error::InvalidPath(_))));
         rename(p, &a, &path("moved/a.yml")).unwrap();
         assert!(p.join("moved/a.yml").exists() && p.join("moved/folder.yml").exists());
+    }
+
+    #[test]
+    fn flows_follow_a_request_that_moves() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path();
+        let a = create_blank(p, "", "a").unwrap();
+        crate::critter::create(p, "bob", &crate::critter::Critter::default()).unwrap();
+        let text = "steps:\n  - request: a.yml # first\n  - tool: poll\n    request: a.yml\n  - request: other.yml\n";
+        crate::critter::save_flow_text(p, "bob", "f", text).unwrap();
+
+        rename(p, &a, &path("Test/a.yml")).unwrap();
+        let moved = crate::critter::load_flow_text(p, "bob", "f").unwrap();
+        assert_eq!(
+            moved,
+            "steps:\n  - request: Test/a.yml # first\n  - tool: poll\n    request: Test/a.yml\n  - request: other.yml\n"
+        );
     }
 
     #[test]

@@ -2,11 +2,14 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/componen
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AlertsBanner } from "@/features/critters/AlertsBanner";
+import { FlowAskDialog } from "@/features/critters/flows/FlowAskDialog";
 import { NewCritterDialog } from "@/features/critters/NewCritterDialog";
 import { ConfirmDialog } from "@/features/dialogs/ConfirmDialog";
 import { PromptDialog } from "@/features/dialogs/PromptDialog";
+import { NewRequestDialog } from "@/features/sidebar/NewRequestDialog";
 import { EnvDialog } from "@/features/env/EnvDialog";
 import { GitDialog } from "@/features/git/GitDialog";
+import { OnboardingDialog } from "@/features/onboarding/OnboardingDialog";
 import { ScenarioSwitcher } from "@/features/palette/ScenarioSwitcher";
 import { RunDialog } from "@/features/run/RunDialog";
 import { SecretsDialogs } from "@/features/secrets/SecretsDialogs";
@@ -41,8 +44,11 @@ export default function App() {
         {import.meta.env.SECRETS_ENCRYPTION && <SecretsDialogs />}
         <RunDialog />
         <NewCritterDialog />
+        <NewRequestDialog />
+        <FlowAskDialog />
         <AlertsBanner />
         <ScenarioSwitcher />
+        <OnboardingDialog />
         <Toaster position="bottom-right" />
         {/* Theme effects drawn over everything, e.g. scanlines. */}
         <div aria-hidden className="pointer-events-none absolute inset-0 z-40 bg-(image:--app-overlay)" />

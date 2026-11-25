@@ -1,12 +1,13 @@
 import { Check, CircleDashed, ExternalLink, Minus, X } from "lucide-react";
 import { showStepResponse } from "@/actions/flows";
-import type { CritterSummary, FlowStep, FlowStepResult, FlowStepStart, HttpResponse } from "@/api/client";
+import type { CritterSummary, FlowStepResult, FlowStepStart, HttpResponse, Step } from "@/api/client";
 import { CountBadge } from "@/components/Badges";
 import { CritterSprite } from "@/components/critters/CritterSprite";
 import { MethodBadge } from "@/components/MethodBadge";
 import { StatusCode } from "@/components/StatusCode";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { isToolStep } from "@/domain/flowEdit";
 import { flowRunSummary, stepFailure } from "@/domain/flowRun";
 import { BodyViewer } from "@/features/response/BodyViewer";
 import { ChecksList } from "@/features/response/ChecksList";
@@ -15,6 +16,8 @@ import { ResponseSummary } from "@/features/response/ResponseSummary";
 import { formatDuration } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useFlowStore } from "@/stores/flowStore";
+import { ToolResult } from "./StepCard";
+import { toolOf } from "./tools";
 
 /** Where a step is in the run shown. */
 type RowState = "idle" | "queued" | "running" | "passed" | "failed" | "skipped";
@@ -47,7 +50,7 @@ function StateIcon({ state, critter }: { state: RowState; critter: CritterSummar
 
 interface RowProps {
   index: number;
-  step: FlowStep;
+  step: Step;
   start: FlowStepStart | null;
   result: FlowStepResult | null;
   state: RowState;
@@ -55,12 +58,32 @@ interface RowProps {
   critter: CritterSummary;
 }
 
-/** One request of the run: method, URL as sent, status and time. */
+/** A request step's file, or a tool step's label and summary. */
+function stepText(step: Step): string {
+  if (!isToolStep(step)) return step.request;
+  const tool = toolOf(step);
+  const summary = tool.summary?.(step).trim();
+  return summary ? `${tool.label} · ${summary}` : tool.label;
+}
+
+/** A tool step's icon, in the method column. */
+function ToolIcon({ step }: { step: Step }) {
+  if (!isToolStep(step)) return null;
+  const Icon = toolOf(step).icon;
+  return (
+    <span className="grid w-12 shrink-0 place-items-center text-muted-foreground">
+      <Icon className="size-3.5" />
+    </span>
+  );
+}
+
+/** One step of the run: method, URL as sent (or the tool), status and time. */
 function RunRow({ index, step, start, result, state, selected, critter }: RowProps) {
   const select = useFlowStore((s) => s.select);
   const method = result?.method || start?.method || "";
-  const url = result?.url || start?.url || "";
+  const url = result?.url || start?.url || stepText(step);
   const response = result?.response ?? null;
+  const toolStatus = result?.output?.status;
   return (
     <li>
       <button
@@ -76,10 +99,12 @@ function RunRow({ index, step, start, result, state, selected, critter }: RowPro
         <StateIcon state={state} critter={critter} />
         <span className="w-4 shrink-0 text-muted-foreground tabular-nums">{index + 1}</span>
         {method && <MethodBadge method={method} className="w-12 shrink-0 text-2xs" />}
-        <span className="min-w-0 flex-1 truncate font-mono" title={url || step.request}>
-          {url || step.request}
+        <ToolIcon step={step} />
+        <span className={cn("min-w-0 flex-1 truncate", !isToolStep(step) && "font-mono")} title={url}>
+          {url}
         </span>
         {response && <StatusCode status={response.status} className="shrink-0 font-semibold tabular-nums" />}
+        {toolStatus !== undefined && <StatusCode status={toolStatus} className="shrink-0 font-semibold tabular-nums" />}
         {response && (
           <span className="w-14 shrink-0 text-right text-muted-foreground tabular-nums">
             {formatDuration(response.timeMs)}
@@ -147,12 +172,13 @@ function StepResult({ step, start, result, state }: Omit<RowProps, "index" | "se
   const method = result?.method || start?.method || "";
   const url = result?.url || start?.url || "";
   const response = result?.response ?? null;
+  const tool = isToolStep(step);
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3 border-t p-3">
       <div className="flex items-start gap-2">
-        <p className="min-w-0 flex-1 font-mono text-xs break-all select-text">
+        <p className={cn("min-w-0 flex-1 text-xs break-all select-text", !tool && "font-mono")}>
           {method && <MethodBadge method={method} className="mr-2" />}
-          {url || step.request || "No request"}
+          {url || stepText(step) || "No request"}
         </p>
         {response && result && (
           <Button size="sm" variant="ghost" className="h-7 shrink-0" onClick={() => void showStepResponse(result)}>
@@ -161,9 +187,10 @@ function StepResult({ step, start, result, state }: Omit<RowProps, "index" | "se
         )}
       </div>
       {state === "queued" && <p className="text-xs text-muted-foreground">Queued</p>}
-      {state === "running" && <p className="text-xs text-muted-foreground">Sending…</p>}
+      {state === "running" && <p className="text-xs text-muted-foreground">{tool ? "Running…" : "Sending…"}</p>}
       {state === "skipped" && <p className="text-xs text-muted-foreground">Skipped</p>}
-      {result && !response && !result.skipped && (
+      {result?.output && <ToolResult output={result.output} />}
+      {result && !response && !result.output && !result.skipped && (
         <pre className="rounded-md border border-danger/30 bg-danger/5 p-2 font-mono text-xs whitespace-pre-wrap text-danger">
           {stepFailure(result)}
         </pre>
@@ -203,7 +230,7 @@ function RunHeading({ steps }: { steps: number }) {
 }
 
 /** The interactive run as it happens: each request's URL, status and time, and the selected one's response. */
-export function RunPanel({ critter, steps }: { critter: CritterSummary; steps: FlowStep[] }) {
+export function RunPanel({ critter, steps }: { critter: CritterSummary; steps: Step[] }) {
   const run = useFlowStore((s) => s.run);
   const selected = useFlowStore((s) => s.selected);
   const shown = selected === null ? undefined : steps[selected];

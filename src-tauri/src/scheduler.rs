@@ -19,6 +19,7 @@ use tokio::time::{Instant, MissedTickBehavior, interval_at};
 
 use crate::events::{ContextChanged, MonitorAlert, ScheduledRunFinished, notify};
 use crate::state::AppState;
+use crate::tool_host::DesktopHost;
 
 /// What a running task was started with; a change restarts it.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -134,7 +135,9 @@ pub async fn run_once(app: &AppHandle, project: &Path, critter: &str, flow: &str
     let run = match &definition {
         Ok(definition) => {
             let options = SendOptions::BACKGROUND;
-            runner::run_flow_definition(&client, project, critter, definition, env.clone(), options, |_| {})
+            // No one to ask, but a `notify` step still notifies.
+            let host = DesktopHost { app: app.clone(), critter: critter.into(), flow: flow.into(), interactive: false };
+            runner::run_flow_definition(&client, project, critter, definition, env.clone(), options, &host, |_| {})
                 .await
                 .map_err(|error| error.to_string())
         }

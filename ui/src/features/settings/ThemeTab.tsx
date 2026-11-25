@@ -49,7 +49,15 @@ function ThemePreview({ theme }: { theme: ThemeEntry }) {
   );
 }
 
-function ThemeCard({ theme, selected, onSelect }: { theme: ThemeEntry; selected: boolean; onSelect: () => void }) {
+export function ThemeCard({
+  theme,
+  selected,
+  onSelect,
+}: {
+  theme: ThemeEntry;
+  selected: boolean;
+  onSelect: () => void;
+}) {
   return (
     <button
       type="button"

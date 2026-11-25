@@ -21,6 +21,12 @@ fn the_editor_offers_every_operator_core_checks() {
 }
 
 #[test]
+fn the_set_tool_offers_every_generator_core_has() {
+    const UI_GENERATORS: &str = include_str!("../../ui/src/domain/generators.ts");
+    assert_eq!(quoted_list(UI_GENERATORS, "export const GENERATORS = ["), cactus_core::tools::GENERATORS);
+}
+
+#[test]
 fn the_ui_names_the_files_core_uses() {
     let root = std::path::Path::new("");
     let workspace_file = |path: std::path::PathBuf| path.to_string_lossy().replace('\\', "/");

@@ -12,6 +12,7 @@ use tauri::{AppHandle, State};
 
 use crate::events::{ContextChanged, FlowProgress, FlowStepStarted, MatrixProgress, notify};
 use crate::state::AppState;
+use crate::tool_host::DesktopHost;
 
 /// Make a change to a critter's flow files, then have the scheduler pick up
 /// any trigger it changed. The file watcher would too, but only after its
@@ -170,10 +171,19 @@ pub async fn run_flow(
             FlowEvent::Finished(step) => notify(&FlowProgress { critter, flow, step: step.clone() }, &app),
         }
     };
-    let run = runner::run_flow(&state.client, &project, &critter, &flow, env, SendOptions::INTERACTIVE, report);
+    let host = DesktopHost { app: app.clone(), critter: critter.clone(), flow: flow.clone(), interactive: true };
+    let run = runner::run_flow(&state.client, &project, &critter, &flow, env, SendOptions::INTERACTIVE, &host, report);
     let result = state.run_cancellable(run).await.transpose();
     notify(&ContextChanged { critter }, &app);
     result
+}
+
+/// Answer a running flow's question ([`FlowAsked`](crate::events::FlowAsked)):
+/// the values, or `None` to stop the run.
+#[tauri::command]
+#[specta::specta]
+pub fn answer_flow_ask(state: State<'_, AppState>, id: u32, values: Option<BTreeMap<String, String>>) {
+    state.asks.answer(id, values);
 }
 
 /// Send the request as edited as no critter and as each critter,

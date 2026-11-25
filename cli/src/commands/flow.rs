@@ -4,6 +4,7 @@ use std::fs;
 use std::path::Path;
 
 use cactus_core::runner::{self, FlowEvent, FlowRun, SendOptions};
+use cactus_core::tools::ToolHost;
 use cactus_core::{Error, critter};
 use serde_json::json;
 
@@ -32,6 +33,7 @@ pub async fn flow(
     env: Option<String>,
     format: Format,
     junit_file: Option<&Path>,
+    host: &dyn ToolHost,
 ) -> cactus_core::Result<Outcome> {
     let mut runs = Vec::new();
     for (critter, flow) in selected(project, selection) {
@@ -43,8 +45,8 @@ pub async fn flow(
                 println!("{}", format_step_result(step));
             }
         };
-        let run =
-            runner::run_flow(client, project, &critter, &flow, env.clone(), SendOptions::INTERACTIVE, report).await?;
+        let options = SendOptions::INTERACTIVE;
+        let run = runner::run_flow(client, project, &critter, &flow, env.clone(), options, host, report).await?;
         runs.push((critter, flow, run));
     }
     match format {
