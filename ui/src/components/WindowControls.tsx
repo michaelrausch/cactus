@@ -41,7 +41,7 @@ export function WindowControls() {
       <ControlButton label="Maximize" onClick={() => void win.toggleMaximize()}>
         <Square className="size-3.5!" />
       </ControlButton>
-      <ControlButton label="Close" onClick={() => void win.close()} className="hover:bg-[#e81123] hover:text-white">
+      <ControlButton label="Close" onClick={() => void win.close()} className="hover:bg-danger hover:text-background">
         <X />
       </ControlButton>
     </div>
