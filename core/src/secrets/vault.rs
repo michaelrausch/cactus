@@ -280,7 +280,8 @@ fn staged_files(project: &Path) -> Result<Vec<PathBuf>> {
     dirs.extend(entries_of(&workspace.join(layout::CRITTERS_DIR))?.into_iter().filter(|d| d.is_dir()));
     let mut files = Vec::new();
     for dir in dirs {
-        files.extend(entries_of(&dir)?.into_iter().filter(|f| f.as_os_str().to_string_lossy().ends_with(STAGED_SUFFIX)));
+        files
+            .extend(entries_of(&dir)?.into_iter().filter(|f| f.as_os_str().to_string_lossy().ends_with(STAGED_SUFFIX)));
     }
     Ok(files)
 }
