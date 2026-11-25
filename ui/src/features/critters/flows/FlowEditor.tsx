@@ -12,7 +12,7 @@ import {
   undoFlowEdit,
 } from "@/actions/flows";
 import type { CritterSummary, Flow } from "@/api/client";
-import { withShortcut } from "@/app/shortcuts";
+import { withKeys, withShortcut } from "@/app/shortcuts";
 import { CritterSprite } from "@/components/critters/CritterSprite";
 import { IconButton } from "@/components/IconButton";
 import { Button } from "@/components/ui/button";
@@ -102,10 +102,10 @@ function FlowHeader({ model, critter, flowId }: { model: Flow; critter: CritterS
       )}
       <Triggers critter={critter} flowId={flowId} model={model} editable={visual} />
       <ModeSwitch />
-      <IconButton label="Undo (Ctrl+Z)" onClick={undoFlowEdit} disabled={!visual || !canUndo}>
+      <IconButton label={withKeys("Undo", "z")} onClick={undoFlowEdit} disabled={!visual || !canUndo}>
         <Undo2 />
       </IconButton>
-      <IconButton label="Redo (Ctrl+Shift+Z)" onClick={redoFlowEdit} disabled={!visual || !canRedo}>
+      <IconButton label={withKeys("Redo", "Shift", "z")} onClick={redoFlowEdit} disabled={!visual || !canRedo}>
         <Redo2 />
       </IconButton>
       <IconButton label={withShortcut("Save", "save")} onClick={() => void saveOpenFlow()} active={dirty}>

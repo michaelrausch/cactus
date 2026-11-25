@@ -6,9 +6,7 @@ import { scheduledRunFinished, showAlert, showFlowNotification } from "@/actions
 import { refreshContext } from "@/actions/critters";
 import { flowAskClosed, flowAsked, flowDisplayed, flowStepFinished, flowStepStarted } from "@/actions/flows";
 import { refreshGitStatus } from "@/actions/git";
-import { refreshSchedules } from "@/actions/monitors";
 import { restoreLastProject } from "@/actions/project";
-import { refreshSecrets } from "@/actions/secrets";
 import { hasUnsavedChanges, saveAll } from "@/actions/saving";
 import { refreshVariableNames } from "@/actions/variables";
 import { reportErrors } from "@/lib/errors";
@@ -99,12 +97,6 @@ export function useAppLifecycle(): void {
       backendEvents.flowAskClosed.listen(({ payload }) => flowAskClosed(payload.id)),
       backendEvents.flowDisplayed.listen(({ payload }) => flowDisplayed(payload)),
       backendEvents.flowNotified.listen(({ payload }) => void showFlowNotification(payload.title, payload.body)),
-      // Unlocked, locked (also after idling) or turned on or off. Schedules
-      // wait while locked, so their states change too.
-      backendEvents.secretsStatusChanged.listen(() => {
-        void refreshSecrets();
-        void refreshSchedules();
-      }),
     ];
     return () => unlisteners.forEach((unlisten) => void unlisten.then((stop) => stop()));
   }, []);

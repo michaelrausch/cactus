@@ -549,29 +549,3 @@ async fn pick_sets_the_chosen_item() {
     let run = run_flow(&client, p, "bob", "main", None, SendOptions::BACKGROUND, &Headless, |_| {}).await.unwrap();
     assert_eq!(run.steps[1].reason(), "Needs a choice");
 }
-
-#[cfg(feature = "encryption")]
-#[tokio::test]
-async fn locked_secrets_stop_runs_before_anything_is_sent() {
-    let (dir, me_calls) = project().await;
-    let p = dir.path();
-    critter::create(p, "bob", &Critter::default()).unwrap();
-    critter::create_flow(p, "bob", "main", &flow(vec![step("me.yml")])).unwrap();
-    env::save(p, &EnvFile::Secrets, &Env::from([("token".into(), "fresh".into())])).unwrap();
-    crate::secrets::enable(p, &"password1".to_string().into(), None).unwrap();
-    crate::secrets::lock(p);
-
-    let client = build_client();
-    let scenario = scenario::load(p, &path("me.yml")).unwrap();
-    let locked = |e: Option<Error>| matches!(e, Some(Error::SecretsLocked));
-    let sent = send_as(&client, p, &path("me.yml"), &scenario, &Scope::default(), SendOptions::INTERACTIVE).await;
-    assert!(locked(sent.err()));
-    assert!(locked(run(&client, p, "", &Scope::default(), |_| {}).await.err()));
-    assert!(locked(run_flow(&client, p, "bob", "main", None, SendOptions::BACKGROUND, &Headless, |_| {}).await.err()));
-    assert!(locked(run_matrix(&client, p, &path("me.yml"), &scenario, |_| {}).await.err()));
-    assert_eq!(me_calls.load(Ordering::SeqCst), 0);
-
-    crate::secrets::unlock(p, &"password1".to_string().into()).unwrap();
-    let response = send_as(&client, p, &path("me.yml"), &scenario, &Scope::default(), SendOptions::INTERACTIVE).await;
-    assert_eq!(response.unwrap().status, 200);
-}

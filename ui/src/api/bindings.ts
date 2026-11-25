@@ -8,13 +8,22 @@ import * as __TAURI_EVENT from "@tauri-apps/api/event";
 export const commands = {
 	/**
 	 *  List the project's scenarios, remember it as recent, start its enabled
-	 *  schedules and start watching it. Switching projects locks the previous
-	 *  one's secrets.
+	 *  schedules and start watching it.
 	 */
 	openProject: (project: string, options?: InvokeOptions) => __TAURI_INVOKE<ScenarioEntry[]>("open_project", { project }, options),
 	/**  Re-list, and re-watch so folders created since opening are covered. */
 	listScenarios: (project: string, options?: InvokeOptions) => __TAURI_INVOKE<ScenarioEntry[]>("list_scenarios", { project }, options),
 	recentProjects: (options?: InvokeOptions) => __TAURI_INVOKE<string[]>("recent_projects", undefined, options),
+	vaultStatus: (project: string, options?: InvokeOptions) => __TAURI_INVOKE<VaultStatus>("vault_status", { project }, options),
+	unlockVault: (project: string, password: string, code: string | null, options?: InvokeOptions) => __TAURI_INVOKE<Unlocked>("unlock_vault", { project, password, code }, options),
+	/**  Delete the project's secrets, context and password. */
+	wipeVault: (project: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("wipe_vault", { project }, options),
+	totpEnabled: (project: string, options?: InvokeOptions) => __TAURI_INVOKE<boolean>("totp_enabled", { project }, options),
+	startTotp: (project: string, options?: InvokeOptions) => __TAURI_INVOKE<TotpSetup>("start_totp", { project }, options),
+	enableTotp: (project: string, secret: string, code: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("enable_totp", { project, secret, code }, options),
+	disableTotp: (project: string, code: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("disable_totp", { project, code }, options),
+	/**  Set, change or (with no `next`) remove the project's password. */
+	setVaultPassword: (project: string, current: string | null, next: string | null, options?: InvokeOptions) => __TAURI_INVOKE<null>("set_vault_password", { project, current, next }, options),
 	loadScenario: (project: string, path: ProjectPath, options?: InvokeOptions) => __TAURI_INVOKE<Scenario_Serialize>("load_scenario", { project, path }, options),
 	saveScenario: (project: string, path: ProjectPath, scenario: Scenario_Deserialize, options?: InvokeOptions) => __TAURI_INVOKE<null>("save_scenario", { project, path, scenario }, options),
 	createScenario: (project: string, dir: string, title: string, method: string, url: string, options?: InvokeOptions) => __TAURI_INVOKE<ProjectPath>("create_scenario", { project, dir, title, method, url }, options),
@@ -109,8 +118,7 @@ export const commands = {
 	loadRunLog: (project: string, critter: string, flow: string, options?: InvokeOptions) => __TAURI_INVOKE<RunRecord_Serialize[]>("load_run_log", { project, critter, flow }, options),
 	/**
 	 *  Run a scheduled flow once now, outside its timer, the same way the timer
-	 *  does: recorded, compared and alerted on. While its secrets are locked
-	 *  it's refused rather than recorded as a failing run.
+	 *  does: recorded, compared and alerted on.
 	 */
 	runScheduledNow: (project: string, critter: string, flow: string, options?: InvokeOptions) => __TAURI_INVOKE<RunRecord_Serialize>("run_scheduled_now", { project, critter, flow }, options),
 	/**  `None` when the project isn't in a git repository. */
@@ -148,18 +156,6 @@ export const commands = {
 	 */
 	runFolder: (project: string, dir: string, options?: InvokeOptions) => __TAURI_INVOKE<RunResult_Serialize[] | null>("run_folder", { project, dir }, options),
 	cancelRequest: (options?: InvokeOptions) => __TAURI_INVOKE<void>("cancel_request", undefined, options),
-	secretsStatus: (project: string, options?: InvokeOptions) => __TAURI_INVOKE<SecretsInfo_Serialize>("secrets_status", { project }, options),
-	enableSecretsEncryption: (project: string, password: string, autoLockMinutes: number | null, options?: InvokeOptions) => __TAURI_INVOKE<null>("enable_secrets_encryption", { project, password, autoLockMinutes }, options),
-	disableSecretsEncryption: (project: string, password: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("disable_secrets_encryption", { project, password }, options),
-	changeSecretsPassword: (project: string, current: string, next: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("change_secrets_password", { project, current, next }, options),
-	/**  Argon2id takes about half a second, so it runs off the async workers. */
-	unlockSecrets: (project: string, password: string, options?: InvokeOptions) => __TAURI_INVOKE<UnlockReport>("unlock_secrets", { project, password }, options),
-	lockSecrets: (project: string, options?: InvokeOptions) => __TAURI_INVOKE<void>("lock_secrets", { project }, options),
-	/**  For a forgotten password: sealed values are removed, plain ones kept. */
-	resetSecrets: (project: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("reset_secrets", { project }, options),
-	setAutoLock: (project: string, minutes: number | null, options?: InvokeOptions) => __TAURI_INVOKE<null>("set_auto_lock", { project, minutes }, options),
-	/**  The names in a secrets layer, which work while locked. */
-	secretNames: (project: string, file: EnvFile, options?: InvokeOptions) => __TAURI_INVOKE<string[]>("secret_names", { project, file }, options),
 };
 
 /** Events */
@@ -176,7 +172,6 @@ export const events = {
 	monitorAlert: makeEvent<MonitorAlert_Serialize, MonitorAlert_Deserialize>("monitor-alert"),
 	runProgress: makeEvent<RunProgress_Serialize, RunProgress_Deserialize>("run-progress"),
 	scheduledRunFinished: makeEvent<ScheduledRunFinished_Serialize, ScheduledRunFinished_Deserialize>("scheduled-run-finished"),
-	secretsStatusChanged: makeEvent<SecretsStatusChanged, SecretsStatusChanged>("secrets-status-changed"),
 };
 
 /* Types */
@@ -1457,8 +1452,6 @@ export type ScheduleState_Deserialize = {
 	nextAt?: number | null,
 	/**  The most recent run. */
 	last?: RunRecord_Deserialize | null,
-	/**  Why the flow isn't running at its ticks, if something holds it. */
-	waiting?: ScheduleWaiting | null,
 };
 
 export type ScheduleState_Serialize = {
@@ -1471,8 +1464,6 @@ export type ScheduleState_Serialize = {
 	nextAt: number | null,
 	/**  The most recent run. */
 	last: RunRecord_Serialize | null,
-	/**  Why the flow isn't running at its ticks, if something holds it. */
-	waiting: ScheduleWaiting | null,
 };
 
 /**  Every scheduled flow and how it's doing. */
@@ -1491,10 +1482,6 @@ export type ScheduleStates_Serialize = {
 	paused: boolean,
 	schedules: ScheduleState_Serialize[],
 };
-
-export type ScheduleWaiting = 
-/**  Its secrets are locked; it runs again once they're unlocked. */
-"secretsLocked";
 
 /**  Run every so often while cactus is open, on machines it's turned on for. */
 export type Schedule_Deserialize = {
@@ -1540,47 +1527,6 @@ export type Script_Deserialize = {
 export type Script_Serialize = {
 	type: LenientString,
 	code: LenientString,
-};
-
-/**  What the UI shows about encryption. */
-export type SecretsInfo = SecretsInfo_Serialize | SecretsInfo_Deserialize;
-
-/**  What the UI shows about encryption. */
-export type SecretsInfo_Deserialize = {
-	status: SecretsStatus,
-	/**  Lock after this many idle minutes; `None` is never. */
-	autoLockMinutes?: number | null,
-	/**
-	 *  Whether any value is sealed. Without one, unlocking can't check the
-	 *  password, so it sets it instead.
-	 */
-	hasSealedValues: boolean,
-};
-
-/**  What the UI shows about encryption. */
-export type SecretsInfo_Serialize = {
-	status: SecretsStatus,
-	/**  Lock after this many idle minutes; `None` is never. */
-	autoLockMinutes: number | null,
-	/**
-	 *  Whether any value is sealed. Without one, unlocking can't check the
-	 *  password, so it sets it instead.
-	 */
-	hasSealedValues: boolean,
-};
-
-export type SecretsStatus = 
-/**  Secrets are stored as plain text, as before. */
-"off" | 
-/**  On, and this process doesn't hold the key for every sealed value. */
-"locked" | "unlocked";
-
-/**
- *  Secrets were unlocked, locked (by hand or after idling), or encryption
- *  was turned on or off.
- */
-export type SecretsStatusChanged = {
-	status: SecretsStatus,
 };
 
 /**
@@ -1782,6 +1728,14 @@ export type ToolStep_Serialize = {
 	tool: "pick",
 } & Pick_Serialize;
 
+/**  A new secret to add to an authenticator app, before it's turned on. */
+export type TotpSetup = {
+	/**  Base32, for typing in by hand. */
+	secret: string,
+	/**  The `otpauth://` link as an SVG QR code. */
+	qrSvg: string,
+};
+
 /**
  *  Something that runs a flow on its own, named by `type` so other kinds
  *  can join `schedule` later: `- {type: schedule, every: 5m}`.
@@ -1817,10 +1771,9 @@ export type TypedBody_Serialize =
 /**  JSON text, sent as written after `{{var}}` substitution. */
 { type: "json"; data: LenientString } | { type: "text"; data: LenientString } | { type: "xml"; data: LenientString } | { type: "sparql"; data: LenientString } | { type: "form-urlencoded"; data: FormField_Serialize[] } | { type: "multipart-form"; data: MultipartField_Serialize[] } | { type: "file"; data: FileVariant_Serialize[] };
 
-export type UnlockReport = {
-	/**  Values that were stored as plain text and are now sealed. */
-	sealedPlainValues: number,
-};
+export type Unlocked = "unlocked" | 
+/**  The password is right; ask for the authenticator code and try again with it. */
+"codeRequired";
 
 /**  Where a variable's value comes from: the highest layer that sets it. */
 export type VarSource = { kind: "collection" } | { kind: "environment"; name: string } | { kind: "folder"; dir: string } | { kind: "request" } | { kind: "secret" } | { kind: "captured" } | { kind: "critter" } | { kind: "critterSecret" } | { kind: "critterContext"; from: string; at: number } | { kind: "step" };
@@ -1861,6 +1814,8 @@ export type Variable_Serialize = {
 	secret?: boolean,
 	disabled?: boolean,
 };
+
+export type VaultStatus = "noPassword" | "locked" | "unlocked";
 
 export type Wait = Wait_Serialize | Wait_Deserialize;
 

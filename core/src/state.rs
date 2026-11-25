@@ -15,26 +15,6 @@ pub struct WorkspaceState {
     /// The critter requests are sent as.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub critter: Option<String>,
-    /// Set while secret encryption is on; see `crate::secrets`.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub secrets: Option<SecretSettings>,
-}
-
-/// Secret encryption on this machine. Settings only: no key material.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SecretSettings {
-    /// Lock after this many idle minutes; `null` means never.
-    #[serde(default = "default_auto_lock")]
-    pub auto_lock_minutes: Option<u32>,
-}
-
-/// What a project locks after when encryption is turned on, in minutes.
-pub const DEFAULT_AUTO_LOCK_MINUTES: u32 = 15;
-
-#[allow(clippy::unnecessary_wraps)]
-fn default_auto_lock() -> Option<u32> {
-    Some(DEFAULT_AUTO_LOCK_MINUTES)
 }
 
 pub fn load(project: &Path) -> WorkspaceState {

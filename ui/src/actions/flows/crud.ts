@@ -47,7 +47,7 @@ export function renameFlow(critter: string, flow: string): void {
   const project = currentProject();
   if (!project) return;
   useUiStore.getState().askPrompt({
-    title: "Rename flow file",
+    title: "Rename file",
     description: "Letters, digits, - and _ only. Its schedule and run log move with it.",
     initial: flow,
     onSubmit: async (to) => {

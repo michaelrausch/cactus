@@ -9,7 +9,8 @@ export const isEnvFile = (path: string): boolean => path === COLLECTION_FILE || 
 
 export interface EnvLayerInfo {
   label: string;
-  path: string;
+  /** The file, for layers stored as plain YAML; null for the encrypted ones in `.cactus/`. */
+  path: string | null;
 }
 
 type NamedLayer = Extract<EnvFile, { name: string }>;
@@ -19,22 +20,16 @@ const FIXED_LAYERS: Record<Exclude<EnvFile["kind"], NamedLayer["kind"]>, EnvLaye
     label: "Shared",
     path: COLLECTION_FILE,
   },
-  secrets: {
-    label: "Secrets",
-    path: ".cactus/secrets.json",
-  },
-  captured: {
-    label: "Captured",
-    path: ".cactus/captured.json",
-  },
+  secrets: { label: "Secrets", path: null },
+  captured: { label: "Captured", path: null },
 };
 
 /** Mirrors `layout::critter_file` and friends in Rust. */
 const NAMED_LAYERS: Record<NamedLayer["kind"], (name: string) => EnvLayerInfo> = {
   named: (name) => ({ label: name, path: `environments/${name}.yml` }),
   critter: (name) => ({ label: "Variables", path: `critters/${name}/critter.yml` }),
-  critterSecrets: (name) => ({ label: "Secrets", path: `.cactus/critters/${name}/secrets.json` }),
-  critterContext: (name) => ({ label: "Captured", path: `.cactus/critters/${name}/context.json` }),
+  critterSecrets: () => ({ label: "Secrets", path: null }),
+  critterContext: () => ({ label: "Captured", path: null }),
 };
 
 const hasName = (file: EnvFile): file is NamedLayer => "name" in file;

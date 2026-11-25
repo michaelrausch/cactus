@@ -90,7 +90,7 @@ export const ScenarioListItem = memo(function ScenarioListItem({
         <RowAction label="Rename request" onClick={() => renameScenario(path)}>
           <Pencil className="size-3.5" />
         </RowAction>
-        <RowAction label="Delete" onClick={() => deleteScenario(path)}>
+        <RowAction label="Delete request" onClick={() => deleteScenario(path)}>
           <Trash2 className="size-3.5 hover:text-danger" />
         </RowAction>
       </span>

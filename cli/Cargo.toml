@@ -6,14 +6,10 @@ edition.workspace = true
 [dependencies]
 cactus-core = { path = "../core" }
 clap = { version = "4.6.9", features = ["derive"] }
-# The secrets password, and secret values a flow's prompt asks for.
+# Secret values a flow's prompt asks for.
 rpassword = "7.5.5"
 serde_json.workspace = true
 tokio = { version = "1", features = ["rt", "macros"] }
-
-[features]
-# Secret encryption: `--password-stdin` and the `secrets` command.
-encryption = ["cactus-core/encryption"]
 
 [lints]
 workspace = true

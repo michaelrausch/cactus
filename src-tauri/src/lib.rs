@@ -1,6 +1,5 @@
 //! The cactus desktop app: Tauri commands over `cactus_core`.
 
-mod auto_lock;
 mod bindings;
 mod commands;
 mod events;
@@ -32,7 +31,6 @@ pub fn run() {
             bindings.mount_events(app);
             let recent_projects_file = app.path().app_config_dir()?.join(RECENT_PROJECTS_FILE);
             app.manage(AppState::new(recent_projects_file));
-            auto_lock::start(app.handle());
             Ok(())
         })
         .build(tauri::generate_context!())

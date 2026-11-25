@@ -1,6 +1,6 @@
 //! Command-line arguments. Doc comments here are the `--help` text.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use clap::{Parser, Subcommand};
 
@@ -29,9 +29,6 @@ pub enum Command {
         /// Send as this critter: its variables, secrets and context.
         #[arg(long = "as", value_name = "CRITTER")]
         critter: Option<String>,
-        /// Read the secrets password from stdin (one line).
-        #[arg(long, hide = !cactus_core::secrets::ENABLED)]
-        password_stdin: bool,
     },
     /// Send one request and print its response body.
     Send {
@@ -43,9 +40,6 @@ pub enum Command {
         /// Send as this critter: its variables, secrets and context.
         #[arg(long = "as", value_name = "CRITTER")]
         critter: Option<String>,
-        /// Read the secrets password from stdin (one line).
-        #[arg(long, hide = !cactus_core::secrets::ENABLED)]
-        password_stdin: bool,
     },
     /// Run a critter's flow, or with --all every flow of every critter.
     Flow {
@@ -71,36 +65,20 @@ pub enum Command {
         /// Answer a prompt step's `name`, e.g. `--var code=123`; repeatable.
         #[arg(long = "var", value_name = "NAME=VALUE", value_parser = crate::tool_host::parse_var)]
         vars: Vec<(String, String)>,
-        /// Read the secrets password from stdin (one line).
-        #[arg(long, hide = !cactus_core::secrets::ENABLED)]
-        password_stdin: bool,
     },
     /// Import a Postman collection or OpenAPI spec into the project.
     Import { project: PathBuf, file: PathBuf },
-    /// Turn secret encryption on or off, or change its password.
-    #[cfg(feature = "encryption")]
-    Secrets {
-        project: PathBuf,
-        #[command(subcommand)]
-        action: SecretsAction,
-        /// Read passwords from stdin, one per line, instead of prompting.
-        #[arg(long, global = true)]
-        password_stdin: bool,
-    },
 }
 
-/// What `secrets` does.
-#[cfg(feature = "encryption")]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Subcommand)]
-pub enum SecretsAction {
-    /// Whether secrets are encrypted.
-    Status,
-    /// Encrypt every secret with a new password.
-    Enable,
-    /// Decrypt every secret back to plain text.
-    Disable,
-    /// Encrypt every secret again under a new password (current, then new).
-    ChangePassword,
+impl Command {
+    pub fn project(&self) -> &Path {
+        match self {
+            Self::Run { project, .. }
+            | Self::Send { project, .. }
+            | Self::Flow { project, .. }
+            | Self::Import { project, .. } => project,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -147,32 +125,5 @@ mod tests {
         let Command::Flow { vars, .. } = Cli::try_parse_from(args).unwrap().command else { panic!("expected flow") };
         assert_eq!(vars, [("code".into(), "123".into()), ("otp".into(), "9".into())]);
         assert!(Cli::try_parse_from(["cactus-cli", "flow", "proj", "--all", "--var", "nope"]).is_err());
-    }
-
-    #[test]
-    fn sends_take_password_stdin() {
-        let run = Cli::try_parse_from(["cactus-cli", "run", "proj", "--password-stdin"]).unwrap();
-        assert!(matches!(run.command, Command::Run { password_stdin: true, .. }));
-        let send = Cli::try_parse_from(["cactus-cli", "send", "proj", "me.yml"]).unwrap();
-        assert!(matches!(send.command, Command::Send { password_stdin: false, .. }));
-        let flow = Cli::try_parse_from(["cactus-cli", "flow", "proj", "--all", "--password-stdin"]).unwrap();
-        assert!(matches!(flow.command, Command::Flow { password_stdin: true, .. }));
-    }
-
-    #[cfg(feature = "encryption")]
-    #[test]
-    fn secrets_subcommands() {
-        let parse = |args: &[&str]| Cli::try_parse_from([&["cactus-cli", "secrets", "proj"], args].concat());
-        let enable = parse(&["enable", "--password-stdin"]).unwrap();
-        assert!(matches!(enable.command, Command::Secrets { action: SecretsAction::Enable, password_stdin: true, .. }));
-        let change = parse(&["change-password"]).unwrap();
-        assert!(matches!(change.command, Command::Secrets { action: SecretsAction::ChangePassword, .. }));
-        assert!(matches!(parse(&["status"]).unwrap().command, Command::Secrets { action: SecretsAction::Status, .. }));
-        assert!(matches!(
-            parse(&["disable"]).unwrap().command,
-            Command::Secrets { action: SecretsAction::Disable, .. }
-        ));
-        assert!(parse(&["unknown"]).is_err());
-        assert!(parse(&[]).is_err());
     }
 }

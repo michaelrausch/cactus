@@ -112,7 +112,7 @@ function stageAfterSaving(paths: ProjectPath[], proceed: () => Promise<void>): v
     return;
   }
   useUiStore.getState().askConfirm({
-    title: "Unsaved changes",
+    title: "Save changes?",
     description: "Some requests have unsaved edits, which staging won't include unless they are saved.",
     action: "Save and stage",
     onConfirm: async () => {
@@ -242,7 +242,7 @@ export function switchBranch(name: string): void {
     return;
   }
   useUiStore.getState().askConfirm({
-    title: "Unsaved changes",
+    title: "Save changes?",
     description: `Some requests have unsaved edits. Save them to take them to ${name}, or switch and keep them as unsaved edits.`,
     action: "Save all and switch",
     onConfirm: async () => {
@@ -259,7 +259,7 @@ export function deleteBranch(branch: BranchInfo): void {
     description: branch.merged
       ? "Its commits are all on the current branch, so nothing is lost."
       : "It has commits that aren't on the current branch. Deleting it loses them.",
-    action: "Delete branch",
+    action: "Delete",
     onConfirm: async () => {
       const project = currentProject();
       if (!project) return;

@@ -2,10 +2,10 @@
 
 use tauri_specta::{Builder, collect_commands, collect_events};
 
-use crate::commands::{critter, env, flow, git, import, project, request, scenario, schedule, secrets};
+use crate::commands::{critter, env, flow, git, import, project, request, scenario, schedule};
 use crate::events::{
     ContextChanged, FlowAskClosed, FlowAsked, FlowDisplayed, FlowNotified, FlowProgress, FlowStepStarted, FsChanged,
-    MatrixProgress, MonitorAlert, RunProgress, ScheduledRunFinished, SecretsStatusChanged,
+    MatrixProgress, MonitorAlert, RunProgress, ScheduledRunFinished,
 };
 
 #[cfg(debug_assertions)]
@@ -17,6 +17,14 @@ pub fn builder() -> Builder<tauri::Wry> {
             project::open_project,
             project::list_scenarios,
             project::recent_projects,
+            project::vault_status,
+            project::unlock_vault,
+            project::wipe_vault,
+            project::totp_enabled,
+            project::start_totp,
+            project::enable_totp,
+            project::disable_totp,
+            project::set_vault_password,
             scenario::load_scenario,
             scenario::save_scenario,
             scenario::create_scenario,
@@ -86,15 +94,6 @@ pub fn builder() -> Builder<tauri::Wry> {
             request::send_request,
             request::run_folder,
             request::cancel_request,
-            secrets::secrets_status,
-            secrets::enable_secrets_encryption,
-            secrets::disable_secrets_encryption,
-            secrets::change_secrets_password,
-            secrets::unlock_secrets,
-            secrets::lock_secrets,
-            secrets::reset_secrets,
-            secrets::set_auto_lock,
-            secrets::secret_names,
         ])
         .events(collect_events![
             FsChanged,
@@ -107,7 +106,6 @@ pub fn builder() -> Builder<tauri::Wry> {
             FlowNotified,
             MatrixProgress,
             ScheduledRunFinished,
-            SecretsStatusChanged,
             MonitorAlert,
             ContextChanged
         ])

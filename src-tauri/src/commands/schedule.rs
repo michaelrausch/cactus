@@ -5,7 +5,6 @@ use std::path::PathBuf;
 use cactus_core::Result;
 use cactus_core::critter::{self, Interval, validate_critter_id, validate_flow_id};
 use cactus_core::monitor::{self, RunRecord};
-use cactus_core::runner;
 use serde::Serialize;
 use specta::Type;
 use tauri::{AppHandle, State};
@@ -35,15 +34,6 @@ pub struct ScheduleState {
     pub next_at: Option<u64>,
     /// The most recent run.
     pub last: Option<RunRecord>,
-    /// Why the flow isn't running at its ticks, if something holds it.
-    pub waiting: Option<ScheduleWaiting>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub enum ScheduleWaiting {
-    /// Its secrets are locked; it runs again once they're unlocked.
-    SecretsLocked,
 }
 
 /// Pause or resume every schedule; nothing runs while paused.
@@ -71,8 +61,6 @@ pub fn schedule_states(state: State<'_, AppState>, project: PathBuf) -> Schedule
                 env: schedule.and_then(|s| s.env.clone()),
                 next_at,
                 last: monitor::load_log(&project, &key.critter, &key.flow).pop(),
-                waiting: scheduler::waiting_for_secrets(&project, &key.critter)
-                    .then_some(ScheduleWaiting::SecretsLocked),
                 critter: key.critter,
                 flow: key.flow,
             })
@@ -89,20 +77,11 @@ pub fn load_run_log(project: PathBuf, critter: String, flow: String) -> Vec<RunR
 }
 
 /// Run a scheduled flow once now, outside its timer, the same way the timer
-/// does: recorded, compared and alerted on. While its secrets are locked
-/// it's refused rather than recorded as a failing run.
+/// does: recorded, compared and alerted on.
 #[tauri::command]
 #[specta::specta]
-pub async fn run_scheduled_now(
-    app: AppHandle,
-    state: State<'_, AppState>,
-    project: PathBuf,
-    critter: String,
-    flow: String,
-) -> Result<RunRecord> {
+pub async fn run_scheduled_now(app: AppHandle, project: PathBuf, critter: String, flow: String) -> Result<RunRecord> {
     validate_critter_id(&critter)?;
     validate_flow_id(&flow)?;
-    runner::ensure_unlocked_for(&project, Some(&critter))?;
-    state.touch_secrets();
     Ok(scheduler::run_once(&app, &project, &critter, &flow).await)
 }

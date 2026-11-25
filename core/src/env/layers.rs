@@ -10,7 +10,6 @@ use super::capture::{load_context, replace_captured, replace_context_values};
 use crate::collection::{self, Environment, RequestDefaults, Variable, VariableValue};
 use crate::critter;
 use crate::secrets::{self, SecretFile};
-use crate::storage::read_json;
 use crate::{Error, Result, layout, state};
 
 pub type Env = BTreeMap<String, String>;
@@ -106,7 +105,7 @@ pub fn load(project: &Path, file: &EnvFile) -> Result<Env> {
         EnvFile::Base => active_values(&collection::load_root(project)?.request.variables),
         EnvFile::Named(name) => active_values(&load_environment(project, name)?.variables),
         EnvFile::Secrets => secrets::read(project, &SecretFile::Project)?,
-        EnvFile::Captured => read_json(&layout::captured_file(project))?,
+        EnvFile::Captured => secrets::read_sealed(project, &layout::captured_file(project))?,
         EnvFile::Critter(id) => active_values(&critter::load(project, id)?.variables),
         EnvFile::CritterSecrets(id) => secrets::read(project, &SecretFile::Critter(id.clone()))?,
         EnvFile::CritterContext(id) => load_context(project, id)?.into_iter().map(|(k, e)| (k, e.value)).collect(),
@@ -236,17 +235,7 @@ pub fn set_active(project: &Path, name: Option<String>) -> Result<()> {
 /// the active one.
 pub fn resolve(project: &Path, named: Option<&str>) -> Result<Env> {
     let root = collection::load_root(project)?;
-    Ok(merge(layers(project, &Scope::env(project, named), &root.request.variables, &[], &[], Need::Values)?))
-}
-
-/// What [`layers`] must read from secrets files.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Need {
-    /// The values, which fails with [`Error::SecretsLocked`] while a sealed
-    /// value can't be opened.
-    Values,
-    /// Only the names, with empty values: works while locked.
-    Names,
+    Ok(merge(layers(project, &Scope::env(project, named), &root.request.variables, &[], &[])?))
 }
 
 /// What a request in folder `dir` inherits and the variables it sees.
@@ -258,9 +247,7 @@ pub struct RequestScope {
 }
 
 /// The variables of one request in folder `dir`, merged from every layer of
-/// `scope` (see [`layers`]). While secrets are locked and a layer holds a
-/// sealed value this is [`Error::SecretsLocked`], so nothing is sent with a
-/// secret missing.
+/// `scope` (see [`layers`]).
 pub fn resolve_for_request(
     project: &Path,
     scope: &Scope,
@@ -269,14 +256,13 @@ pub fn resolve_for_request(
 ) -> Result<RequestScope> {
     let root = collection::load_root(project)?.request;
     let folders = collection::folder_defaults(project, dir)?;
-    let vars = merge(layers(project, scope, &root.variables, &folders, request_variables, Need::Values)?);
+    let vars = merge(layers(project, scope, &root.variables, &folders, request_variables)?);
     let inherited = std::iter::once(root).chain(folders.into_iter().map(|(_, defaults)| defaults)).collect();
     Ok(RequestScope { inherited, vars })
 }
 
 /// Where each variable a request in `dir` sees comes from. The same layers
-/// as [`resolve_for_request`], so the two always agree, but secrets are
-/// read by name only, so this works while they are locked.
+/// as [`resolve_for_request`], so the two always agree.
 pub fn sources_for_request(
     project: &Path,
     scope: &Scope,
@@ -286,7 +272,7 @@ pub fn sources_for_request(
     let root = collection::load_root(project)?.request;
     let folders = collection::folder_defaults(project, dir)?;
     let mut sources = BTreeMap::new();
-    for (source, env) in layers(project, scope, &root.variables, &folders, request_variables, Need::Names)? {
+    for (source, env) in layers(project, scope, &root.variables, &folders, request_variables)? {
         for name in env.into_keys() {
             sources.insert(name, source.clone());
         }
@@ -312,14 +298,7 @@ fn layers(
     collection_variables: &[Variable],
     folders: &[(String, RequestDefaults)],
     request_variables: &[Variable],
-    need: Need,
 ) -> Result<Vec<(VarSource, Env)>> {
-    let secret_layer = |file: SecretFile| -> Result<Env> {
-        match need {
-            Need::Values => secrets::read(project, &file),
-            Need::Names => Ok(secrets::names(project, &file)?.into_iter().map(|name| (name, String::new())).collect()),
-        }
-    };
     let mut layers = vec![(VarSource::Collection, active_values(collection_variables))];
     if let Some(name) = &scope.env {
         layers.push((VarSource::Environment { name: name.clone() }, load(project, &EnvFile::Named(name.clone()))?));
@@ -328,12 +307,12 @@ fn layers(
         layers.push((VarSource::Folder { dir: dir.clone() }, active_values(&folder.variables)));
     }
     layers.push((VarSource::Request, active_values(request_variables)));
-    layers.push((VarSource::Secret, secret_layer(SecretFile::Project)?));
+    layers.push((VarSource::Secret, secrets::read(project, &SecretFile::Project)?));
     match &scope.critter {
         None => layers.push((VarSource::Captured, load(project, &EnvFile::Captured)?)),
         Some(id) => {
             layers.push((VarSource::Critter, load(project, &EnvFile::Critter(id.clone()))?));
-            layers.push((VarSource::CritterSecret, secret_layer(SecretFile::Critter(id.clone()))?));
+            layers.push((VarSource::CritterSecret, secrets::read(project, &SecretFile::Critter(id.clone()))?));
             for (name, entry) in load_context(project, id)? {
                 let source = VarSource::CritterContext { from: entry.from, at: entry.at };
                 layers.push((source, Env::from([(name, entry.value)])));

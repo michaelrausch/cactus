@@ -36,7 +36,7 @@ export function HistoryList() {
   const critters = useCritterStore((s) => s.critters);
   const [filter, setFilter] = useState(ALL);
 
-  if (history.length === 0) return <p className="text-xs text-muted-foreground">No history yet.</p>;
+  if (history.length === 0) return <p className="text-xs text-muted-foreground">No history yet</p>;
   const senders = [...new Set(history.map(senderOf))];
   const shown = filter === ALL ? history : history.filter((entry) => senderOf(entry) === filter);
   const nameOf = (sender: string) =>

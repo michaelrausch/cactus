@@ -22,7 +22,7 @@ function EditableName({ critter }: { critter: CritterSummary }) {
         type="button"
         title="Rename"
         onClick={() => setDraft(critter.name)}
-        className="-mx-1 truncate rounded px-1 text-left text-lg font-semibold focus-ring hover:bg-accent/50"
+        className="-mx-1 truncate rounded px-1 text-left text-lg font-semibold tracking-tight focus-ring hover:bg-accent/50"
       >
         {critter.name}
       </button>
@@ -50,7 +50,7 @@ function EditableName({ critter }: { critter: CritterSummary }) {
         if (event.key === "Enter") commit();
         if (event.key === "Escape") setDraft(null);
       }}
-      className="-mx-1 rounded border bg-background px-1 text-lg font-semibold outline-none focus:ring-1 focus:ring-ring aria-invalid:border-danger"
+      className="-mx-1 rounded border bg-background px-1 text-lg font-semibold tracking-tight outline-none focus:ring-1 focus:ring-ring aria-invalid:border-danger"
     />
   );
 }
@@ -71,10 +71,10 @@ function CritterHeader({ critter }: { critter: CritterSummary }) {
       </div>
       {active ? (
         <Button variant="outline" onClick={() => void actAs(null)}>
-          <UserRound /> Stop acting as
+          <UserRound /> Stop sending as
         </Button>
       ) : (
-        <Button onClick={() => void actAs(critter.id)}>Act as {critter.name}</Button>
+        <Button onClick={() => void actAs(critter.id)}>Send as {critter.name}</Button>
       )}
     </header>
   );

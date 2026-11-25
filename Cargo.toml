@@ -20,14 +20,6 @@ module_name_repetitions = "allow"
 missing_errors_doc = "allow"
 must_use_candidate = "allow"
 
-# Argon2 at 64 MiB takes seconds unoptimised; unlocking in debug builds
-# and tests should feel like release.
-[profile.dev.package.argon2]
-opt-level = 3
-
-[profile.dev.package.blake2]
-opt-level = 3
-
 [profile.release]
 lto = true
 codegen-units = 1

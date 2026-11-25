@@ -9,7 +9,6 @@ import { useRunStore } from "@/stores/runStore";
 import { useUiStore } from "@/stores/uiStore";
 import { selectScenario } from "./scenario";
 import { saveAll } from "./saving";
-import { ensureUnlocked } from "./secrets";
 import { refreshVariableNames } from "./variables";
 
 /** A capture that found nothing leaves the variable stale, which is easy to miss. */
@@ -29,7 +28,6 @@ export async function sendCurrentScenario(): Promise<void> {
   const { path, scenario } = useEditorStore.getState();
   const responses = useResponseStore.getState();
   if (!project || !path || !scenario || responses.sending) return;
-  if (!(await ensureUnlocked())) return;
 
   responses.sendStarted();
   try {
@@ -64,7 +62,7 @@ export async function runFolder(dir: string): Promise<void> {
   if (unsaved.length === 0) return runSaved(dir);
   // Runs read from disk, so unsaved edits would silently not take part.
   useUiStore.getState().askConfirm({
-    title: "Unsaved changes",
+    title: "Save changes?",
     description: `${unsaved.length === 1 ? unsaved[0] : `${unsaved.length} requests`} ha${unsaved.length === 1 ? "s" : "ve"} unsaved edits. A run uses the saved files.`,
     action: "Save and run",
     onConfirm: async () => {
@@ -82,7 +80,6 @@ async function runSaved(dir: string): Promise<void> {
     toast.info("Nothing to run");
     return;
   }
-  if (!(await ensureUnlocked())) return;
 
   useRunStore.getState().started(dir, total);
   const unlisten = await backendEvents.runProgress.listen((event) => recordRunResult(event.payload));

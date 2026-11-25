@@ -5,8 +5,6 @@ mod commands;
 mod junit;
 mod outcome;
 mod output;
-#[cfg(feature = "encryption")]
-mod password;
 mod tool_host;
 
 use std::process::ExitCode;

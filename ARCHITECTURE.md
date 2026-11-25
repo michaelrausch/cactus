@@ -22,12 +22,12 @@ ui/         React front end for the desktop app.
 | `critters/<id>/critter.yml`              | A critter (persona): name, species, notes, login flow, variables              | yes       |
 | `critters/<id>/flows/<flow>.yml`         | A critter's flow: steps (requests, tools), optionally `triggers` and `alert`  | yes       |
 | `**/*.yml`                               | Requests (every other `.yml`)                                                 | yes       |
-| `.cactus/secrets.json`                   | Local secrets, the values of `secret: true` variables; sealed when encrypted  | no        |
+| `.cactus/secrets.json`                   | Local secrets, the values of `secret: true` variables                         | no        |
 | `.cactus/captured.json`                  | Values written by set-variable actions with no critter active                 | no        |
 | `.cactus/critters/<id>/secrets.json`     | A critter's own secrets                                                       | no        |
 | `.cactus/critters/<id>/context.json`     | What a critter's requests captured, with where and when                       | no        |
 | `.cactus/critters/<id>/runs/<flow>.json` | The last 50 scheduled runs of a flow                                          | no        |
-| `.cactus/state.json`                     | Active environment and critter; whether secrets are encrypted, and auto-lock  | no        |
+| `.cactus/state.json`                     | Active environment and critter                                                | no        |
 | `.cactus/history/*.json`                 | Last responses per request (`a/b.yml` → `a%2Fb.json`)                         | no        |
 
 All path rules live in `core/src/layout.rs`. Paths in the project (requests,
@@ -71,23 +71,18 @@ the desktop asks via the `FlowAsked` event and `answer_flow_ask`, the CLI asks
 on the terminal (or takes `--var name=value`), and scheduled runs and
 re-logins are `Headless`, so a prompt falls back to its defaults.
 
-**Encrypted secrets** are built only with the `encryption` Cargo feature
-(core, CLI and desktop) and the `CACTUS_ENCRYPTION=1` UI build flag; both
-are off by default. Without them secrets are plain text, the commands and
-bindings are unchanged and report encryption as off, and a sealed value is
-refused rather than sent. With them, encryption is opt-in per project, per machine. Every secrets file
-(the project's and each critter's) is read and written only through
-`crate::secrets` (`read`, `names`, `write`); the path functions are private
-there, so nothing can bypass it. With encryption on, each value is sealed
-inline as `enc:v1:<salt>:<nonce‖ciphertext‖tag>` (Argon2id key,
-XChaCha20-Poly1305, the variable name as associated data); names stay
-readable, and an older build still reads the file. Unlocked keys live in a
-process-wide keyring keyed by canonical project path. While locked,
-resolving a layer with a sealed value is `Error::SecretsLocked`, so nothing
-is sent with a secret missing; anything that needs only names
-(`sources_for_request` via `Need::Names`, `missing_secrets`) still works.
-Plain values are valid while on, so every crash point leaves secrets
-readable. See `docs/secrets-encryption-plan.md` §13.
+**Secrets files** (the project's and each critter's) are read and written
+only through `crate::secrets` (`read`, `names`, `write`). They and the context
+files (`captured.json`, each critter's `context.json`) are sealed whole by
+`secrets::vault` (XChaCha20-Poly1305). With no password the key is built in,
+so they're obscured rather than protected. A password (`.cactus/vault`: salt
+and check value) switches to an Argon2id key; the app asks for it when a
+project opens, the CLI reads `CACTUS_PASSWORD` or prompts. An optional TOTP
+secret (`secrets::totp`, RFC 6238) is sealed inside `.cactus/vault`, so
+unlocking also takes an authenticator code (`CACTUS_TOTP_CODE` in the CLI);
+it's local, a second step rather than a true second factor. Changing the
+password re-seals every file. Plain JSON from before is read as-is and
+sealed on its next write.
 
 **Saving never rewrites a file.** `collection::write` reads the file into its
 model, diffs that against the model being saved and applies only the
@@ -113,7 +108,7 @@ says so in the response's `warnings`.
 | `import`                                          | Postman and OpenAPI → requests                                                                                                                     |
 | `git`                                             | Status, stage/unstage, discard, diffs, commits and local branches in the project's repository (`git` feature)                                      |
 | `runner`                                          | Send + persist captures + record history, re-login (`send_as`); folder runs; `flow` (step overlay, flow runs); `matrix`                            |
-| `secrets`                                         | Secret encryption: `cipher`, `keyring`, `store` (the only reader/writer of secrets files), `lifecycle` (enable, disable, unlock, password, reset)   |
+| `secrets`                                         | Secrets files; `vault` seals them and context                                                                                                      |
 | `monitor`                                         | Scheduled runs: compact `RunRecord`s, alerts on changes of state (`compare`), the run log                                                          |
 | `tools`                                           | Flow tool steps: the `Tool` trait, the `tools!` registry (`ToolStep`), `ToolHost` (asking, notifying, opening URLs), one file per tool             |
 | `history`, `recent`, `state`, `storage`, `layout` | Persistence                                                                                                                                        |
@@ -143,13 +138,7 @@ watched; the UI refreshes the status on file changes and on window focus.
   overlaps itself) and skips missed ticks after sleep. Scheduled runs don't
   use the cancellable slot, so they and interactive sends never cancel each
   other. Each run is recorded, compared with the last and appended to the log,
-  then reported as `ScheduledRunFinished` and `MonitorAlert` events. A tick
-  whose flow's secrets are locked runs, logs and alerts nothing; the
-  schedule reports `waiting: "secretsLocked"` until they're unlocked.
-- `auto_lock.rs`: locks the open project's secrets after its idle time.
-  Interactive sends and runs reset the timer (`AppState::touch_secrets`);
-  scheduled runs don't, so a schedule can't keep secrets unlocked. Opening
-  another project locks the previous one's.
+  then reported as `ScheduledRunFinished` and `MonitorAlert` events.
 - `bindings.rs`: registers commands and events with tauri-specta.
 
 `ui/src/api/bindings.ts` is **generated** from the Rust types. Regenerate with
@@ -206,6 +195,9 @@ page `/#sprites` shows them all.
 
 ## Common changes
 
+Step-by-step guides with code for these and more are in
+[docs/how-to/](docs/README.md#how-to-guides).
+
 **Add a backend command.** Add the function in `core`, then an adapter in
 `src-tauri/src/commands/`, then register it in `bindings.rs`. Run
 `cargo test -p cactus` to regenerate the bindings, then call it via
@@ -239,9 +231,6 @@ checked by `core/tests/ui_contract.rs`.
 
 ```sh
 cargo fmt --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace
-# Secret encryption is behind a feature; check it builds and passes too.
-F=cactus-core/encryption,cactus-cli/encryption,cactus/encryption
-cargo clippy --workspace --all-targets --features $F -- -D warnings && cargo test --workspace --features $F
 cd ui && npm run typecheck && npm run lint && npm run format:check && npm test && npm run build
 ```
 

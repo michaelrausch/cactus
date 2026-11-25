@@ -246,7 +246,6 @@ pub async fn run_flow_definition(
     host: &dyn ToolHost,
     on_event: impl FnMut(FlowEvent<'_>) + Send,
 ) -> Result<FlowRun> {
-    super::ensure_unlocked_for(project, Some(critter))?;
     let scope = Scope { env: env.or_else(|| env::active(project)), critter: Some(critter.into()), ..Scope::default() };
     let context = StepContext { client, project, scope: &scope, options, relogin: true, host, depth: 0 };
     run_steps(&context, definition, on_event).await
@@ -405,7 +404,6 @@ impl FlowRunner for RunAccess<'_> {
                 None => context.scope.critter.clone().unwrap_or_default(),
             };
             critter::require(context.project, &critter)?;
-            super::ensure_unlocked_for(context.project, Some(&critter))?;
             let definition = critter::load_flow(context.project, &critter, flow)?;
             let scope = Scope { env: context.scope.env.clone(), critter: Some(critter), ..Scope::default() };
             let child = StepContext { scope: &scope, relogin: true, depth: context.depth + 1, ..*context };

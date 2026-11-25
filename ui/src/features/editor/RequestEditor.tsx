@@ -83,7 +83,7 @@ export function RequestEditor(props: ScenarioTabProps) {
                 <CountBadge count={varCount(scenario)} />
               </TabsTrigger>
               <TabsTrigger value="assertions">
-                Assertions
+                Checks
                 <CountBadge count={activeAssertionCount(scenario)} />
               </TabsTrigger>
               {scriptCount > 0 && (

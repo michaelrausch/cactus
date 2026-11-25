@@ -9,7 +9,6 @@ import { Logo } from "@/components/Logo";
 import { isMac } from "@/lib/platform";
 import { useProjectStore } from "@/stores/projectStore";
 import { useUiStore } from "@/stores/uiStore";
-import { LockButton } from "@/features/secrets/LockButton";
 import { CritterPicker } from "./CritterPicker";
 import { CritterTree } from "./CritterTree";
 import { EnvPicker } from "./EnvPicker";
@@ -78,7 +77,6 @@ export function Sidebar() {
         <div className="min-w-0 flex-1">
           <ProjectSwitcher />
         </div>
-        {hasProject && <LockButton />}
         {hasProject && (
           <IconButton label="Import Postman / OpenAPI" tone="sidebar" onClick={() => void importCollection()}>
             <FileDown />

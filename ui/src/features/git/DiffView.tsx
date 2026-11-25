@@ -52,8 +52,8 @@ export function DiffView() {
         </span>
       </div>
       <div className="min-h-0 flex-1 overflow-auto py-2 font-mono text-xs leading-5">
-        {diff?.binary && <Notice>Binary file.</Notice>}
-        {diff && !diff.binary && diff.hunks.length === 0 && <Notice>No textual changes.</Notice>}
+        {diff?.binary && <Notice>Binary file</Notice>}
+        {diff && !diff.binary && diff.hunks.length === 0 && <Notice>No textual changes</Notice>}
         {diff?.hunks.map((hunk) => (
           // Hunk ranges never repeat within a file.
           <div key={hunk.header} className="mb-2 min-w-fit">

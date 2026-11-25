@@ -163,7 +163,6 @@ pub async fn run_flow(
     flow: String,
     env: Option<String>,
 ) -> Result<Option<FlowRun>> {
-    state.touch_secrets();
     let report = |event: FlowEvent<'_>| {
         let (critter, flow) = (critter.clone(), flow.clone());
         match event {
@@ -197,7 +196,6 @@ pub async fn run_matrix(
     path: ProjectPath,
     scenario: Scenario,
 ) -> Result<Option<Vec<MatrixCell>>> {
-    state.touch_secrets();
     let mut sent_as = BTreeSet::new();
     let report = |cell: &MatrixCell| {
         if let (Some(critter), Some(_)) = (&cell.critter, &cell.response) {
