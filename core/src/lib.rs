@@ -31,6 +31,7 @@ pub mod runner;
 pub mod scenario;
 pub mod secrets;
 pub mod tools;
+pub mod update;
 
 pub use clock::now_unix_millis;
 pub use error::{Error, Result};

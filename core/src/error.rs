@@ -47,6 +47,9 @@ pub enum Error {
     /// Getting or refreshing an OAuth2 token failed; the message says why.
     #[error("OAuth2: {0}")]
     OAuth2(String),
+    /// The system browser couldn't be opened; the message says why.
+    #[error("couldn't open the browser: {0}")]
+    Browser(String),
     #[error("invalid URL {url:?}: {reason}")]
     InvalidUrl { url: String, reason: String },
     #[error("invalid method: {0}")]

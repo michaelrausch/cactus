@@ -177,6 +177,10 @@ export const commands = {
 	setMcpSettings: (enabled: boolean, allowEdits: boolean, port: number, options?: InvokeOptions) => __TAURI_INVOKE<McpStatus_Serialize>("set_mcp_settings", { enabled, allowEdits, port }, options),
 	/**  A new token; agents using the old one are turned away. */
 	regenerateMcpToken: (options?: InvokeOptions) => __TAURI_INVOKE<McpStatus_Serialize>("regenerate_mcp_token", undefined, options),
+	/**  The website's latest version, if it is newer than this build. */
+	checkForUpdate: (options?: InvokeOptions) => __TAURI_INVOKE<string | null>("check_for_update", undefined, options),
+	/**  Open the website's downloads in the browser. */
+	openWebsite: (options?: InvokeOptions) => __TAURI_INVOKE<null>("open_website", undefined, options),
 };
 
 /** Events */

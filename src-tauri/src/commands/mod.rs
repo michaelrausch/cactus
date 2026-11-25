@@ -12,3 +12,4 @@ pub mod project;
 pub mod request;
 pub mod scenario;
 pub mod schedule;
+pub mod update;

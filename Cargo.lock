@@ -558,7 +558,7 @@ dependencies = [
 
 [[package]]
 name = "cactus"
-version = "0.1.0"
+version = "1.2.0"
 dependencies = [
  "axum",
  "cactus-core",
@@ -583,7 +583,7 @@ dependencies = [
 
 [[package]]
 name = "cactus-cli"
-version = "0.1.0"
+version = "1.2.0"
 dependencies = [
  "cactus-core",
  "clap",
@@ -594,7 +594,7 @@ dependencies = [
 
 [[package]]
 name = "cactus-core"
-version = "0.1.0"
+version = "1.2.0"
 dependencies = [
  "argon2",
  "chacha20poly1305",
