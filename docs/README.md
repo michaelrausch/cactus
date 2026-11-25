@@ -1,5 +1,13 @@
 # cactus docs
 
+This folder holds two things: these contributor notes, and the user docs
+site (Astro Starlight; pages in `src/content/docs/`). To work on the site:
+
+```sh
+cd docs && npm ci && npm run dev    # http://localhost:4321
+npm run build                       # static output in docs/dist
+```
+
 Start with [ARCHITECTURE.md](../ARCHITECTURE.md): the crates, what lives on disk,
 variable precedence, how saving works, and the UI's layering rules. The guides
 below assume it.

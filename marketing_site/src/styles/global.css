@@ -144,3 +144,4 @@ footer {
 }
 footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 footer a:hover { color: var(--foreground); }
+.footer-links { display: flex; gap: 24px; }

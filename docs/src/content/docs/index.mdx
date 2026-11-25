@@ -1,0 +1,26 @@
+---
+title: cactus
+description: Documentation for cactus, a fast, lightweight API client.
+template: splash
+hero:
+  image:
+    file: ../../assets/request.png
+  actions:
+    - text: Getting started
+      link: /start/getting-started/
+      icon: right-arrow
+    - text: What cactus is
+      link: /start/introduction/
+      variant: minimal
+---
+
+import { LinkCard, CardGrid } from "@astrojs/starlight/components";
+
+<CardGrid>
+  <LinkCard title="Requests" href="/guides/requests/" description="URL, params, headers, body, auth." />
+  <LinkCard title="Variables" href="/guides/variables/" description="Environments, secrets, precedence." />
+  <LinkCard title="Checks and captures" href="/guides/checks-and-captures/" description="Assert on responses. Save values for later." />
+  <LinkCard title="Flows" href="/guides/flows/" description="Requests, prompts, pick lists, polling, Slack." />
+  <LinkCard title="CI" href="/recipes/ci/" description="cactus-cli with JUnit output." />
+  <LinkCard title="AI agents" href="/guides/mcp/" description="Run requests and flows over MCP." />
+</CardGrid>

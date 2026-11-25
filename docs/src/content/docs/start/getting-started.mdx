@@ -1,0 +1,146 @@
+---
+title: Getting started
+description: Build a small project against httpbin.org, from one request to a flow run in the CLI.
+---
+
+import { Steps } from "@astrojs/starlight/components";
+
+The examples call [httpbin.org](https://httpbin.org), which echoes back what you send.
+
+<Steps>
+
+1. ### Create the project
+
+   Make an empty folder and open it with <kbd>Ctrl</kbd>+<kbd>O</kbd>. cactus writes `opencollection.yml`. Add a base URL:
+
+   ```yaml title="opencollection.yml"
+   opencollection: "1.0.0"
+   info:
+     name: httpbin
+   request:
+     variables:
+       - name: baseUrl
+         value: https://httpbin.org
+   ```
+
+2. ### Send a request
+
+   <kbd>Ctrl</kbd>+<kbd>N</kbd> creates a request. Set the URL to `{{baseUrl}}/anything?q=hello`, send with <kbd>Ctrl</kbd>+<kbd>Enter</kbd>, and save with <kbd>Ctrl</kbd>+<kbd>S</kbd>.
+
+   ```yaml title="get-anything.yml"
+   info:
+     name: Get anything
+     type: http
+     seq: 1
+   http:
+     method: GET
+     url: "{{baseUrl}}/anything?q=hello"
+     params:
+       - name: q
+         value: hello
+         type: query
+     auth: inherit
+   ```
+
+3. ### Add checks
+
+   On the **Checks** tab:
+
+   ```yaml title="get-anything.yml"
+   runtime:
+     assertions:
+       - expression: res.status
+         operator: eq
+         value: "200"
+       - expression: res.body.args.q
+         operator: eq
+         value: hello
+   ```
+
+4. ### Capture a token
+
+   Add `auth/login.yml`. Its action, on the **Outputs** tab, saves `res.body.json.username` as `token`:
+
+   ```yaml title="auth/login.yml"
+   info:
+     name: Login
+     type: http
+     seq: 1
+   http:
+     method: POST
+     url: "{{baseUrl}}/post"
+     body:
+       type: json
+       data: |-
+         { "username": "{{user}}" }
+   runtime:
+     actions:
+       - type: set-variable
+         phase: after-response
+         selector:
+           expression: res.body.json.username
+           method: jsonq
+         variable:
+           name: token
+           scope: runtime
+   ```
+
+   Use the token in `get-anything.yml`:
+
+   ```yaml
+   http:
+     auth:
+       type: bearer
+       token: "{{token}}"
+   ```
+
+5. ### Add an environment
+
+   `{{user}}` isn't set yet, so the response lists it as unresolved.
+
+   ```yaml title="environments/staging.yml"
+   name: staging
+   variables:
+     - name: user
+       value: staging-bot
+     - name: password
+       secret: true
+   ```
+
+   Pick **staging** in the sidebar. Enter the `password` value under **Variables** (<kbd>Ctrl</kbd>+<kbd>E</kbd>). Secret values are stored in `.cactus/`, which git ignores.
+
+6. ### Make a flow
+
+   <kbd>Ctrl</kbd>+<kbd>B</kbd> opens Critters. Add a critter `bot` with a flow `smoke`:
+
+   ```yaml title="critters/bot/flows/smoke.yml"
+   name: Smoke test
+   steps:
+     - request: auth/login.yml
+     - request: get-anything.yml
+       expect: 200
+       assert:
+         - expression: res.body.headers.Authorization
+           operator: eq
+           value: Bearer staging-bot
+   ```
+
+   Click **Run**.
+
+7. ### Run it from the CLI
+
+   ```sh
+   cactus-cli flow . bot smoke -e staging
+   ```
+
+   ```
+   bot › smoke
+   ✓ 200    312ms  1. Login  auth/login.yml
+   ✓ 200    280ms  2. Get anything  get-anything.yml
+
+   1/1 flow passed
+   ```
+
+   Exit code `0` means everything passed and `1` means something failed.
+
+</Steps>

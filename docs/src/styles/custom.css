@@ -1,0 +1,23 @@
+@import "@fontsource-variable/geist";
+@import "@fontsource-variable/geist-mono";
+
+/* Colours from the app's default "cactus" theme, as on the marketing site. */
+:root {
+  --sl-font: "Geist Variable", system-ui, sans-serif;
+  --sl-font-mono: "Geist Mono Variable", ui-monospace, monospace;
+}
+
+:root[data-theme="dark"] {
+  --sl-color-accent-low: #052e16;
+  --sl-color-accent: #16a34a;
+  --sl-color-accent-high: #86efac;
+  --sl-color-black: oklch(0.13 0.003 286);
+  --sl-color-gray-6: oklch(0.165 0.004 286);
+  --sl-color-gray-5: oklch(0.22 0.004 286);
+}
+
+:root[data-theme="light"] {
+  --sl-color-accent-low: #dcfce7;
+  --sl-color-accent: #15803d;
+  --sl-color-accent-high: #14532d;
+}

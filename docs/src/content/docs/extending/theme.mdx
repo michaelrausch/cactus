@@ -1,0 +1,116 @@
+---
+title: Add a theme
+description: Add a colour theme to the desktop app.
+---
+
+import { Steps, FileTree } from "@astrojs/starlight/components";
+
+A theme is only CSS. It's a block of custom properties (tokens) selected by a `data-theme` attribute on the root element. Components only use tokens, so a new theme never needs component changes.
+
+This page adds a dark theme called Mesquite.
+
+<FileTree>
+- ui/src/theme/
+  - **themes.css** the tokens
+  - **themes.ts** list it in the picker
+  - themes.test.ts checks the other files agree; no changes needed
+- ui/src/components/critters/
+  - **critters.css** light themes only
+</FileTree>
+
+<Steps>
+
+1. ### Write the tokens
+
+   At the top of `ui/src/theme/themes.css` is a base block, `[data-theme] { … }`. It defines every token with the default dark values. A theme overrides only the tokens it changes.
+
+   Add a block for the new theme. Copying the closest existing theme is the quickest start: `synthwave` for a dark one, `desert-day` for a light one.
+
+   ```css title="ui/src/theme/themes.css"
+   /* mesquite: warm brown wood, dark. */
+   [data-theme="mesquite"] {
+     --background: oklch(0.17 0.02 55);
+     --foreground: oklch(0.93 0.02 75);
+     --card: oklch(0.2 0.025 55);
+     --muted-foreground: oklch(0.7 0.04 65);
+     --border: oklch(0.9 0.05 70 / 12%);
+     --sidebar: oklch(0.15 0.02 55);
+
+     --brand-1: #e0a96d;
+     --brand-2: #c0703a;
+     --brand-3: #7a9e5f;
+     --flower: #f4d35e;
+   }
+   ```
+
+   The tokens, by group:
+
+   | Tokens | Colour of |
+   | --- | --- |
+   | `--background`, `--foreground`, `--card`, `--popover`, `--muted`, `--accent`, `--border`, `--input`, `--ring`, `--sidebar*` | Surfaces and text |
+   | `--brand-1..3`, `--brand-foreground`, `--flower` | Logo, primary highlights, the cactus flower |
+   | `--glow-1`, `--glow-2`, `--glow-intensity` | Glows behind the logo and active elements |
+   | `--success`, `--warning`, `--danger`, `--info` | Pass/fail, status codes, alerts |
+   | `--method-get` … `--method-delete` | HTTP method badges |
+   | `--syntax-key`, `--syntax-string`, `--syntax-number`, `--syntax-literal` | JSON highlighting |
+   | `--template-resolved`, `--captured` | `{{variable}}` highlighting |
+   | `--radius`, `--app-font` | Corner radius and UI font |
+   | `--app-backdrop`, `--app-overlay` | Optional background and overlay effects |
+
+   Rules (`themes.test.ts` checks them):
+
+   - **Only set tokens the base block defines.** A typo like `--sucess` fails the test.
+   - **A light theme must set `color-scheme: light;`**, because the base block is dark.
+   - **Only tokens go in the block.** Extra styling (scrollbars, gloss) goes in the **Extras** section at the end of `themes.css`, scoped to `[data-theme="mesquite"]`.
+   - Use `oklch()` colours, like the rest of the file.
+
+   Check that `--muted-foreground` is readable on `--background`, and that `--danger` and `--success` are easy to tell apart.
+
+2. ### List it in the picker
+
+   Add it to `THEMES` in `ui/src/theme/themes.ts`. The picker shows themes in this order.
+
+   ```ts title="ui/src/theme/themes.ts"
+   { id: "mesquite", name: "Mesquite", scheme: "dark" },
+   ```
+
+   | Key | |
+   | --- | --- |
+   | `id` | Must match `data-theme="…"` in the CSS |
+   | `name` | Shown in Settings → Theme |
+   | `scheme` | `dark` or `light`. Switches the `.dark` class and the sprite outline. |
+
+3. ### Light themes: outline the critters
+
+   Skip this step for a dark theme.
+
+   Pale critter sprites disappear on light backgrounds, so light themes give them a 1px outline. In `ui/src/components/critters/critters.css`, add the theme to the selector list under the `/* Light themes` comment:
+
+   ```css title="ui/src/components/critters/critters.css" ins={4}
+   /* Light themes: … */
+   [data-theme="desert-day"],
+   [data-theme="salt-flat"],
+   [data-theme="my-light-theme"],
+   /* … */
+   ```
+
+   A test checks that every light theme is in this list and no dark theme is.
+
+4. ### Run the tests
+
+   ```sh
+   cd ui && npm test -- themes species && npm run format:check
+   ```
+
+5. ### Look at it
+
+   Run the app and pick it under **Settings → Theme**. Check:
+
+   - a request with a JSON response (syntax colours)
+   - a failing check (danger vs. success)
+   - the git diff view (<kbd>Ctrl</kbd>+<kbd>G</kbd>)
+   - the Critters window (<kbd>Ctrl</kbd>+<kbd>B</kbd>)
+
+   In a debug build, `/#sprites` shows every critter on the current theme.
+
+</Steps>

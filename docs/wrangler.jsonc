@@ -1,0 +1,8 @@
+{
+  // Cloudflare Workers: serve the built Astro site as static files.
+  "name": "cactus-docs",
+  "compatibility_date": "2026-11-25",
+  "assets": {
+    "directory": "./dist"
+  }
+}

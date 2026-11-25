@@ -1,0 +1,302 @@
+---
+title: Write a flow tool
+description: Add a new `- tool:` step, from the Rust struct to the editor in the app.
+---
+
+import { Steps, FileTree } from "@astrojs/starlight/components";
+
+A flow tool is any step that isn't a request: `prompt`, `wait`, `slack` and so on. This page adds a new one, `teams`, which posts a message to a Microsoft Teams incoming webhook. When it's finished, this works in a flow file:
+
+```yaml
+- tool: teams
+  webhook: "{{TEAMS_WEBHOOK}}"
+  text: Created order {{orderId}}
+```
+
+## How a tool is put together
+
+Every tool has two halves:
+
+| Half | Language | Decides |
+| --- | --- | --- |
+| `core/src/tools/<id>.rs` | Rust | Which fields the YAML has, and what happens when the step runs |
+| `ui/src/features/critters/flows/tools/<id>.tsx` | TypeScript | How the step looks in the flow editor |
+
+They're joined by a generated file, `ui/src/api/bindings.ts`, which gives the UI the Rust struct as a TypeScript type.
+
+You'll touch these files:
+
+<FileTree>
+- core/src/tools/
+  - **teams.rs** new: the tool
+  - **mod.rs** register it
+- ui/src/features/critters/flows/tools/
+  - **teams.tsx** new: the editor
+  - **index.ts** register it
+- core/src/runner/tests.rs a test
+</FileTree>
+
+Keep `core/src/tools/slack.rs` and `ui/src/features/critters/flows/tools/slack.tsx` open while you work. Slack is the smallest existing tool, and Teams is almost identical to it.
+
+## Steps
+
+<Steps>
+
+1. ### Create the Rust file
+
+   Create `core/src/tools/teams.rs`. The file name matters: the module name is the id written after `tool:`.
+
+   Start with a struct that holds the step's fields. Each field is one key in the YAML.
+
+   ```rust title="core/src/tools/teams.rs"
+   //! `- tool: teams`: post a message to a Microsoft Teams incoming webhook.
+
+   use serde::{Deserialize, Serialize};
+
+   use super::webhook::post_json;
+   use super::{Tool, ToolCx, ToolOutput};
+   use crate::Result;
+   use crate::collection::LenientString;
+
+   #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+   #[serde(default)]
+   #[cfg_attr(feature = "specta", derive(specta::Type))]
+   pub struct Teams {
+       #[serde(skip_serializing_if = "LenientString::is_empty")]
+       pub webhook: LenientString,
+       #[serde(skip_serializing_if = "LenientString::is_empty")]
+       pub text: LenientString,
+   }
+   ```
+
+   What each attribute does:
+
+   | Attribute | Why |
+   | --- | --- |
+   | `#[serde(default)]` | A step with missing keys still loads. `- tool: teams` on its own is valid. |
+   | `skip_serializing_if` on every field | Empty fields aren't written back when the editor saves. A test checks this for every tool. |
+   | `specta::Type` | Exports the struct to TypeScript in step 4. |
+   | `LenientString` | Text typed in YAML as `8080` or `true` still reads as a string. |
+
+2. ### Implement `Tool`
+
+   Add this below the struct, in the same file. The trait has three methods.
+
+   ```rust title="core/src/tools/teams.rs"
+   impl Tool for Teams {
+       fn title(&self) -> String {
+           "Teams".into()
+       }
+
+       fn templates(&mut self) -> Vec<&mut String> {
+           vec![&mut self.webhook.0, &mut self.text.0]
+       }
+
+       async fn run(&self, cx: &mut ToolCx<'_>) -> Result<ToolOutput> {
+           post_json(cx, &self.webhook, &serde_json::json!({ "text": self.text.0 })).await?;
+           Ok(ToolOutput::text(self.text.0.clone()))
+       }
+   }
+   ```
+
+   **`title`** is the step's name in run results, the CLI report and the run log.
+
+   **`templates`** returns every field that can contain `{{variables}}`. Before `run` is called, cactus fills in the variables in these fields. By the time `run` reads `self.webhook`, it's already a real URL. A field not listed here keeps its `{{name}}` text as written.
+
+   **`run`** does the work. Here, `post_json` (shared with `slack` and `webhook`) POSTs `{"text": "…"}` and returns an error for any non-2xx status. The `ToolOutput` it returns is shown under the step: `text` for a message, `status` for an HTTP status, `values` for variables it set.
+
+   To fail the step, return an error with a short message. It appears on the step card and in the CLI as written:
+
+   ```rust
+   if self.webhook.trim().is_empty() {
+       return Err(Error::MissingUrl);
+   }
+   return Err(Error::Tool("Teams rejected the message".into()));
+   ```
+
+   **What `cx` gives you.** `ToolCx` is how a tool reaches everything outside itself:
+
+   | To | Call |
+   | --- | --- |
+   | Make an HTTP request | `cx.client` (shared `reqwest::Client`) |
+   | Read a variable | `cx.vars().get("name")` |
+   | Give later steps a `{{name}}` | `cx.set("name", value)`, or `cx.set_secret` to mask it in results |
+   | Ask the person running the flow | `cx.host.ask(Ask::Fields { … })` |
+   | Show a message or notification | `cx.host.show(…)`, `cx.host.notify(…)` |
+   | Send a project request | `cx.runner.send(&step)` |
+   | Run another flow | `cx.runner.run_flow(critter, flow)` |
+
+   Values from `cx.set` last until the end of the run and are never saved to disk.
+
+   **When nobody is there to answer.** Scheduled runs, re-logins and CI have no one to ask. In those cases `ask` returns `Answer::Unattended`, so handle it with a default or a clear error:
+
+   ```rust
+   let answers = match cx.host.ask(Ask::Fields { title: self.title(), fields }).await {
+       Answer::Given(answers) => answers,
+       Answer::Stopped => return Err(Error::Tool("Stopped".into())),
+       Answer::Unattended => Env::new(), // fall back to defaults
+   };
+   ```
+
+   If a tool can wait (sleeping, polling), give it an upper limit so a typo can't stall a schedule. `wait` uses `MAX_SECONDS = 600`.
+
+3. ### Register it
+
+   In `core/src/tools/mod.rs`, declare the module and add it to the `tools!` list:
+
+   ```rust title="core/src/tools/mod.rs" ins={2,9}
+   mod slack;
+   mod teams;
+   mod wait;
+
+   // …
+
+   tools! {
+       // …
+       slack::Slack,
+       teams::Teams,
+       wait::Wait,
+       // …
+   }
+   ```
+
+   `tools!` generates the `ToolStep` enum that a flow file is read into, along with the `match` that calls your `run`. The CLI, the desktop app and the MCP server all run steps through `ToolStep`, so none of them need changes.
+
+   **Check:**
+
+   ```sh
+   cargo test -p cactus-core tools
+   ```
+
+   `each_tool_reads_as_its_id` now covers `teams`. It reads `{ tool: teams }` and checks that it's written back unchanged. If it fails, a field is missing `skip_serializing_if`, or the struct is missing `#[serde(default)]`.
+
+4. ### Regenerate the TypeScript types
+
+   ```sh
+   cargo test -p cactus
+   ```
+
+   This rewrites `ui/src/api/bindings.ts`. It now includes a `teams` variant of `ToolStep`:
+
+   ```ts
+   { tool: "teams"; webhook?: string; text?: string }
+   ```
+
+   Don't edit `bindings.ts` by hand; CI fails if it doesn't match the Rust.
+
+   **Check:** `cd ui && npm run typecheck` now **fails** in `tools/index.ts`. That's expected: the UI needs an editor for every tool, and `teams` doesn't have one yet.
+
+5. ### Write the editor
+
+   Create `ui/src/features/critters/flows/tools/teams.tsx`:
+
+   ```tsx title="ui/src/features/critters/flows/tools/teams.tsx"
+   import { MessageSquare } from "lucide-react";
+   import { bind, Fields, TextInput } from "./fields";
+   import { defineTool } from "./types";
+
+   export const teams = defineTool<"teams">({
+     label: "Teams",
+     icon: MessageSquare,
+     create: () => ({ tool: "teams", webhook: "{{TEAMS_WEBHOOK}}" }),
+     summary: (step) => step.text ?? "",
+     dataflow: (step) => ({
+       templates: [step.webhook ?? "", step.text ?? ""],
+       problems: step.webhook?.trim() ? [] : ["No webhook URL"],
+     }),
+     Editor: (props) => (
+       <Fields>
+         <TextInput label="Webhook" mono {...bind(props, "webhook")} />
+         <TextInput label="Message" multiline {...bind(props, "text")} />
+       </Fields>
+     ),
+   });
+   ```
+
+   `defineTool<"teams">` types `step` as the `teams` variant from step 4, so a misspelt field name is a type error.
+
+   | Key | Used for |
+   | --- | --- |
+   | `label` | Name in the palette and on the step card |
+   | `icon` | A `lucide-react` icon |
+   | `create` | The step inserted when it's dragged in from the palette. Leave out empty fields, as Rust would. |
+   | `summary` | The one line shown on the collapsed step card |
+   | `dataflow` | `templates`: text that may use `{{names}}`, so the editor can show which variables the step reads. `sets`: variables it creates, if any. `problems`: warnings for the flow's problem list. |
+   | `Editor` | The settings pane shown when the step is selected |
+
+   Build `Editor` from the inputs in `fields.tsx`: `TextInput` (with `{{name}}` completion), `NumberInput`, `Checkbox`, `ChoiceInput`, `ChecksInput`, `MapInput`. `bind(props, "webhook")` connects an input to a field. Edits are undoable, and clearing an input removes the key from the YAML.
+
+6. ### Add it to the palette
+
+   In `ui/src/features/critters/flows/tools/index.ts`, import it and add it to `TOOLS`. The palette lists tools in the order of this object.
+
+   ```ts title="ui/src/features/critters/flows/tools/index.ts" ins={1,6}
+   import { teams } from "./teams";
+
+   export const TOOLS = {
+     // …
+     slack,
+     teams,
+     notify,
+   };
+   ```
+
+   **Check:** `cd ui && npm run typecheck` passes again.
+
+7. ### Test that it runs
+
+   Add a test in `core/src/runner/tests.rs`. It starts a local HTTP server, runs a flow containing the step, and checks what the server received. This is modelled on `webhook_and_slack_post_and_fail_on_errors`:
+
+   ```rust title="core/src/runner/tests.rs"
+   #[tokio::test]
+   async fn teams_posts_the_message() {
+       let received = Arc::new(std::sync::Mutex::new(Vec::new()));
+       let log = Arc::clone(&received);
+       let hooks = serve(move |request| {
+           log.lock().unwrap().push(request.body.clone());
+           (200, "1".into())
+       })
+       .await;
+       let (dir, _) = project().await;
+       let p = dir.path();
+       env::save(p, &EnvFile::Base, &Env::from([("hooks".into(), hooks)])).unwrap();
+       critter::create(p, "bob", &Critter::default()).unwrap();
+       let steps = vec![tool("tool: teams\nwebhook: '{{hooks}}/teams'\ntext: Hi\n")];
+       critter::create_flow(p, "bob", "main", &tool_flow(steps)).unwrap();
+
+       let run =
+           run_flow(&build_client(), p, "bob", "main", None, SendOptions::BACKGROUND, &Headless, |_| {}).await.unwrap();
+
+       assert!(run.ok);
+       assert_eq!(received.lock().unwrap()[0], r#"{"text":"Hi"}"#);
+   }
+   ```
+
+   `Headless` is the host used when nobody can answer, the same one schedules use.
+
+   On the UI side, add a case to `tools.test.ts` checking that a `teams` step with no webhook reports `"No webhook URL"`.
+
+8. ### Try it
+
+   Run all the checks:
+
+   ```sh
+   cargo fmt --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace
+   cd ui && npm run typecheck && npm run lint && npm test
+   ```
+
+   Then in the app:
+
+   1. Open a flow (<kbd>Ctrl</kbd>+<kbd>B</kbd>).
+   2. Drag **Teams** in from the palette.
+   3. Fill in the webhook and message, then save.
+   4. Check the YAML tab: it should show only the fields you filled in.
+   5. Click **Run** and check the step card.
+
+   And from the CLI:
+
+   ```sh
+   cactus-cli flow . bob main
+   ```
+
+</Steps>

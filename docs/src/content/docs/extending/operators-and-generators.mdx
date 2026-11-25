@@ -1,0 +1,164 @@
+---
+title: Add an operator or generator
+description: Add a check operator such as `isUuid`, or a `set` generator such as `$randomHex`.
+---
+
+import { Steps } from "@astrojs/starlight/components";
+
+Both are short lists defined in Rust. The UI keeps a copy of each so it can suggest values as you type, and a test fails if the two copies differ. Always change both together.
+
+| List | Rust | UI copy |
+| --- | --- | --- |
+| Check operators | `core/src/http/assertions.rs` → `ASSERTION_OPERATORS` | `ui/src/domain/http.ts` |
+| Generators | `core/src/tools/random.rs` → `GENERATORS` | `ui/src/domain/generators.ts` |
+
+The test that compares them is `core/tests/ui_contract.rs`.
+
+## Add an operator
+
+This adds `isUuid`, which passes when a value is a UUID:
+
+```yaml
+runtime:
+  assertions:
+    - expression: res.body.id
+      operator: isUuid
+```
+
+<Steps>
+
+1. ### Add it to the list
+
+   In `core/src/http/assertions.rs`, add the name to `ASSERTION_OPERATORS` and increase the array length by one. The editor suggests operators in this order.
+
+   ```rust title="core/src/http/assertions.rs" ins={1,5}
+   pub const ASSERTION_OPERATORS: [&str; 29] = [
+       "eq",
+       // …
+       "isFalsy",
+       "isUuid",
+   ];
+   ```
+
+2. ### Implement it
+
+   In the same file, `holds(operator, actual, expected)` is a `match` on the operator name. Add an arm:
+
+   ```rust title="core/src/http/assertions.rs" ins={4}
+   Ok(match operator {
+       "eq" => actual.is_some_and(|a| loosely_equal(a, &value())),
+       // …
+       "isUuid" => actual.is_some_and(|a| a.as_str().is_some_and(is_uuid)),
+       _ => return Err(format!("unsupported operator {operator:?}")),
+   })
+   ```
+
+   The arguments:
+
+   | | |
+   | --- | --- |
+   | `actual` | `Option<&Value>`: what the expression selected, or `None` if it found nothing |
+   | `expected` | The check's `value`, as raw text |
+
+   Return `Ok(true)` or `Ok(false)`. Return `Err(…)` only when `expected` itself is invalid, such as a bad regex.
+
+   To compare values the same way the other operators do, use the helpers already in the file: `parse_expected` (text → JSON value), `as_number`, `plain_string`, `loosely_equal`, `length`, `pattern`.
+
+   Then write `is_uuid`:
+
+   ```rust title="core/src/http/assertions.rs"
+   fn is_uuid(text: &str) -> bool {
+       let parts: Vec<&str> = text.split('-').collect();
+       parts.iter().map(|p| p.len()).eq([8, 4, 4, 4, 12])
+           && parts.iter().all(|p| p.chars().all(|c| c.is_ascii_hexdigit()))
+   }
+   ```
+
+3. ### Add test cases
+
+   Add cases to the `operators` test at the bottom of `assertions.rs`, then run:
+
+   ```sh
+   cargo test -p cactus-core http::assertions
+   ```
+
+   `every_listed_operator_is_checked` fails if a name is in the list but has no `match` arm.
+
+4. ### Copy it to the UI
+
+   Add `"isUuid"` to `ASSERTION_OPERATORS` in `ui/src/domain/http.ts`, at the same position as in Rust.
+
+   Operators whose names start with `is` are treated as taking no value: the editor hides the value field and suggests no value. Name a value-less operator `is…`; name an operator that takes a value anything else.
+
+   **Check:**
+
+   ```sh
+   cargo test -p cactus-core --test ui_contract
+   ```
+
+   `the_editor_offers_every_operator_core_checks` compares the two lists.
+
+5. ### Document it
+
+   Add a row to the operators table in [Expressions and operators](/reference/operators/).
+
+</Steps>
+
+## Add a generator
+
+Generators are values the [`set`](/reference/flow-tools/#set) tool fills in when a value is exactly the generator's name. This adds `$randomHex`:
+
+```yaml
+- tool: set
+  values:
+    nonce: $randomHex
+```
+
+<Steps>
+
+1. ### Add it in Rust
+
+   In `core/src/tools/random.rs`, add the name to `GENERATORS` and an arm to the `match` in `generate`:
+
+   ```rust title="core/src/tools/random.rs" ins={1,9}
+   pub const GENERATORS: &[&str] = &["$uuid", "$timestamp", "$isoTime", "$randomInt", "$randomEmail", "$randomHex"];
+
+   pub fn generate(name: &str) -> Option<String> {
+       Some(match name {
+           "$uuid" => uuid_v4(),
+           "$timestamp" => now_unix_millis().to_string(),
+           // …
+           "$randomEmail" => format!("user-{}@example.com", &hex(&random_bytes::<8>())[..10]),
+           "$randomHex" => hex(&random_bytes::<8>()),
+           _ => return None,
+       })
+   }
+   ```
+
+   `random_bytes` reads the OS random source and `hex` formats bytes. Use them instead of adding a dependency.
+
+2. ### Test it
+
+   Add a case to the `generators` test in the same file:
+
+   ```sh
+   cargo test -p cactus-core tools::random
+   ```
+
+3. ### Copy it to the UI
+
+   Add `"$randomHex"` to `GENERATORS` in `ui/src/domain/generators.ts`, at the same position. The `set` editor suggests it once a value starts with `$`.
+
+   **Check:**
+
+   ```sh
+   cargo test -p cactus-core --test ui_contract
+   ```
+
+   `the_set_tool_offers_every_generator_core_has` compares the two lists.
+
+4. ### Document it
+
+   Add a row to the generators table in [Flow tools → set](/reference/flow-tools/#set).
+
+</Steps>

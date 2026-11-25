@@ -1,0 +1,161 @@
+---
+title: Add a critter species
+description: Add a new critter animal, from the Rust enum to its 16×16 sprite.
+---
+
+import { Steps, FileTree } from "@astrojs/starlight/components";
+
+A critter's `species` sets only its sprite and accent colour. It has no effect on behaviour. This page adds a Gila monster, written in YAML as:
+
+```yaml title="critters/<id>/critter.yml"
+species: gila-monster
+```
+
+## How a species is put together
+
+| Half | Language | Decides |
+| --- | --- | --- |
+| `core/src/critter/model.rs` | Rust | Which names a `critter.yml` may contain |
+| `ui/src/components/critters/species.ts` | TypeScript | The name, colour and pixel art |
+
+You'll touch these files:
+
+<FileTree>
+- core/src/critter/
+  - **model.rs** add the variant
+- ui/src/components/critters/
+  - **species.ts** draw it
+  - **species.test.ts** add it to the expected list
+</FileTree>
+
+## Steps
+
+<Steps>
+
+1. ### Add the variant in Rust
+
+   In `core/src/critter/model.rs`, a species appears in **three** places: the public `Species` enum, a private `Known` enum inside its `Deserialize` impl, and the `match` that maps one to the other. Add `GilaMonster` to all three.
+
+   ```rust title="core/src/critter/model.rs" ins={6,17,24}
+   pub enum Species {
+       #[default]
+       Roadrunner,
+       // …
+       Tumbleweed,
+       GilaMonster,
+   }
+
+   impl<'de> Deserialize<'de> for Species {
+       fn deserialize<D: Deserializer<'de>>(deserializer: D) -> std::result::Result<Self, D::Error> {
+           #[derive(Deserialize)]
+           #[serde(rename_all = "kebab-case")]
+           enum Known {
+               Roadrunner,
+               // …
+               Tumbleweed,
+               GilaMonster,
+           }
+           let value = serde_json::Value::deserialize(deserializer)?;
+           Ok(match serde_json::from_value::<Known>(value) {
+               Ok(Known::Roadrunner) | Err(_) => Self::Roadrunner,
+               // …
+               Ok(Known::Tumbleweed) => Self::Tumbleweed,
+               Ok(Known::GilaMonster) => Self::GilaMonster,
+           })
+       }
+   }
+   ```
+
+   `rename_all = "kebab-case"` turns `GilaMonster` into `gila-monster` in YAML.
+
+   **Why two enums?** If a newer version of cactus writes a species this build doesn't know, `Err(_)` falls back to `roadrunner`, so the critter still loads instead of failing.
+
+2. ### Regenerate the TypeScript types
+
+   ```sh
+   cargo test -p cactus
+   ```
+
+   The `Species` type in `ui/src/api/bindings.ts` now includes `"gila-monster"`.
+
+   **Check:** `cd ui && npm run typecheck` **fails** in `species.ts`. `SPECIES` is a `Record<Species, SpeciesInfo>`, so it needs an entry for every species and doesn't have one for the new one yet.
+
+3. ### Draw the sprite
+
+   Add an entry to `SPECIES` in `ui/src/components/critters/species.ts`:
+
+   ```ts title="ui/src/components/critters/species.ts"
+   "gila-monster": {
+     name: "Gila Monster",
+     description: "Slow, but never lets go of a session.",
+     accent: "#e07a3f",
+     palette: { o: "#e07a3f", k: "#2b2024", p: "#f2b6a0" },
+     body: [
+       ...blank(9),
+       "..........kkoo..",
+       "...okokokokoeko.",
+       "..okokokokokokpp",
+       ".kokokokokokok..",
+       "..k.k.....k.k...",
+       "..k.k.....k.k...",
+       "................",
+     ],
+     stride: {
+       from: 13,
+       rows: [
+         ".k...k...k...k..",
+         ".k...k...k...k..",
+         "................",
+       ],
+     },
+     lid: "k",
+   },
+   ```
+
+   A sprite is a 16×16 grid with one character per pixel. Each character is looked up in `palette` to get its colour, and `.` is transparent.
+
+   | Key | |
+   | --- | --- |
+   | `name` | Shown in the species picker |
+   | `description` | One line in the picker |
+   | `accent` | The critter's colour elsewhere in the UI |
+   | `palette` | Character → colour |
+   | `body` | 16 rows of exactly 16 characters, drawn from the bottom. `blank(n)` adds `n` empty rows on top. |
+   | `stride` | The second frame of the walking animation: from row `from` to the bottom, `rows` replace the body. `from + rows.length` must be 16. |
+   | `lid` | The character a closed eye turns into when the critter blinks |
+
+   Reserved characters you can't redefine in `palette`:
+
+   | Char | |
+   | --- | --- |
+   | `e` | The eye. Every body needs at least one. |
+   | `w` | The eye when the critter's flow passes |
+   | `x` | The eye when it fails |
+
+   Only `body` and `stride` are drawn by hand. The app derives blinking (`e` → `lid`) and the pass/fail eyes (`e` → `w` / `x`).
+
+   **Check:** `npm run typecheck` passes again.
+
+4. ### Update the test
+
+   In `ui/src/components/critters/species.test.ts`, the test `covers every species the backend knows` has a list of every species. Add `"gila-monster"` to it.
+
+   ```sh
+   cd ui && npm test -- species
+   ```
+
+   The other tests in the file then check your drawing:
+
+   - every frame is 16×16
+   - every character is in the palette
+   - there's an `e` to blink
+   - the stride fits
+   - no frame needs more than 90 `<rect>`s, which keeps sprites cheap to render
+
+5. ### Look at it
+
+   Run the app in debug and open `/#sprites`, a dev-only gallery of every sprite in every state. Check it on a dark theme and a light theme. Light themes add an outline, but pale colours can still disappear.
+
+   Then pick it for a critter (<kbd>Ctrl</kbd>+<kbd>B</kbd>), save, and check `critter.yml` says `species: gila-monster`.
+
+</Steps>
