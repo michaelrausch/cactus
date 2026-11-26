@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 /// Bodies larger than this are truncated before going to the UI.
 const MAX_LIVE_BODY_BYTES: usize = 5 * 1024 * 1024;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct Response {
@@ -45,6 +45,17 @@ pub struct Response {
     /// Whether it was sent again after the critter logged in again on a 401.
     #[serde(default)]
     pub relogged: bool,
+    /// The headers and body sent; in memory only, never saved or shown.
+    #[serde(skip)]
+    pub sent: Sent,
+}
+
+/// The headers and body of a request as sent, e.g. for a fuzzer to say how
+/// to send it again. A body that isn't in memory (a streamed file) is `None`.
+#[derive(Debug, Clone, Default)]
+pub struct Sent {
+    pub headers: Vec<(String, String)>,
+    pub body: Option<String>,
 }
 
 /// A set-variable action that couldn't select a value from the response.
@@ -71,6 +82,20 @@ pub(crate) struct SentRequest {
     pub url: String,
     pub unresolved: Vec<String>,
     pub warnings: Vec<String>,
+    pub sent: Sent,
+}
+
+/// How much of a sent body [`Sent`] keeps.
+const MAX_SENT_BODY_BYTES: usize = 64 * 1024;
+
+impl Sent {
+    pub(crate) fn of(request: &reqwest::Request) -> Self {
+        let body = request
+            .body()
+            .and_then(reqwest::Body::as_bytes)
+            .map(|bytes| String::from_utf8_lossy(&bytes[..bytes.len().min(MAX_SENT_BODY_BYTES)]).into_owned());
+        Self { headers: header_pairs(request.headers()), body }
+    }
 }
 
 /// What came back over the wire.
@@ -101,6 +126,7 @@ impl Response {
             checks: Vec::new(),
             critter: None,
             relogged: false,
+            sent: sent.sent,
         }
     }
 

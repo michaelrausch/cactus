@@ -572,3 +572,199 @@ async fn pick_sets_the_chosen_item() {
     let run = run_flow(&client, p, "bob", "main", None, SendOptions::BACKGROUND, &Headless, |_| {}).await.unwrap();
     assert_eq!(run.steps[1].reason(), "Needs a choice");
 }
+
+/// A project whose `api.yml` sends `GET {{base}}/api?q=shoes` to `route`.
+async fn api_project(
+    route: impl Fn(&test_server::Request) -> test_server::Reply + Send + Sync + 'static,
+) -> tempfile::TempDir {
+    let base = test_server::serve_with_headers(route).await;
+    let dir = tempfile::tempdir().unwrap();
+    let p = dir.path();
+    env::save(p, &EnvFile::Base, &Env::from([("base".into(), base)])).unwrap();
+    fs::write(p.join("api.yml"), "info: {name: Api}\nhttp: {method: GET, url: '{{base}}/api?q=shoes'}\n").unwrap();
+    critter::create(p, "bob", &Critter::default()).unwrap();
+    dir
+}
+
+/// Run a new flow of `bob`'s with one tool step, written as YAML.
+async fn run_tool_step(p: &Path, yaml: &str) -> FlowRun {
+    let name = format!("flow-{}", critter::list_flows(p, "bob").unwrap().len());
+    critter::create_flow(p, "bob", &name, &tool_flow(vec![tool(yaml)])).unwrap();
+    run_flow(&build_client(), p, "bob", &name, None, SendOptions::BACKGROUND, &Headless, |_| {}).await.unwrap()
+}
+
+/// The first step's findings, as rule and location.
+fn found(run: &FlowRun) -> Vec<(String, String)> {
+    let output = run.steps[0].output.as_ref().unwrap();
+    output.found().iter().map(|finding| (finding.rule.clone(), finding.location.clone())).collect()
+}
+
+fn pair(rule: &str, location: &str) -> (String, String) {
+    (rule.into(), location.into())
+}
+
+#[tokio::test]
+async fn fuzz_reports_what_payloads_give_away_and_fails_on_it() {
+    let dir = api_project(|request| {
+        if request.path.contains("%27") {
+            (500, Vec::new(), "You have an error in your SQL syntax near ''".into())
+        } else {
+            (200, Vec::new(), "[]".into())
+        }
+    })
+    .await;
+    let p = dir.path();
+
+    let run = run_tool_step(p, "tool: fuzz\nrequest: api.yml\npayloads: [sqli]\n").await;
+    assert_eq!(
+        found(&run),
+        [pair("fuzz.sql-error", "query.q"), pair("fuzz.server-error", "query.q")],
+        "most severe first, one of each per place"
+    );
+    assert_eq!(run.steps[0].reason(), "1 high finding");
+    let output = run.steps[0].output.as_ref().unwrap();
+    assert_eq!(output.metrics[0].value, 8.0, "every SQL payload, once");
+    let status = |status, count| crate::tools::StatusCount { status, count };
+    assert_eq!(
+        output.coverage,
+        [crate::tools::Coverage {
+            location: "query.q".into(),
+            requests: 8,
+            statuses: vec![status(500, 5), status(200, 3)],
+            findings: 2,
+        }],
+        "five of the payloads have a quote"
+    );
+    let repro = &output.found()[0].repro;
+    assert!(repro.starts_with("curl -X GET 'http://127.0.0.1:") && repro.contains("/api?q=%27"), "{repro}");
+
+    // Mutations, the same each time with the same seed.
+    let mutate = "tool: fuzz\nrequest: api.yml\npayloads: [mutate]\niterations: 10\nseed: 7\n";
+    let run = run_tool_step(p, mutate).await;
+    let output = run.steps[0].output.as_ref().unwrap();
+    assert_eq!(output.text.as_deref(), Some("1 values, 10 requests, seed 7"));
+    let again = run_tool_step(p, mutate).await;
+    assert_eq!(again.steps[0].output.as_ref().unwrap().coverage, output.coverage);
+
+    // What it found, handed to a later step that fails the flow instead.
+    let steps = vec![
+        tool(
+            "tool: fuzz\nrequest: api.yml\npayloads: [sqli]\nfail_on: never\nset: {issues: findings, highs: findings.high, sent: requests}\n",
+        ),
+        tool("tool: assert\nchecks: [{expression: '{{highs}}', operator: eq, value: '0'}]\n"),
+    ];
+    critter::create_flow(p, "bob", "handoff", &tool_flow(steps)).unwrap();
+    let run =
+        run_flow(&build_client(), p, "bob", "handoff", None, SendOptions::BACKGROUND, &Headless, |_| {}).await.unwrap();
+    let values = &run.steps[0].output.as_ref().unwrap().values;
+    assert_eq!((values["highs"].as_str(), values["sent"].as_str()), ("1", "8"));
+    let issues: Vec<crate::tools::Finding> = serde_json::from_str(&values["issues"]).unwrap();
+    assert_eq!(issues[0].rule, "fuzz.sql-error", "most severe first");
+    assert!(run.steps[0].ok && !run.steps[1].ok, "{:?}", run.failure());
+
+    let run = run_tool_step(p, "tool: fuzz\nrequest: api.yml\nset: {x: p95}\n").await;
+    assert!(run.steps[0].reason().starts_with(r#"set x: no "p95"; use requests, errors"#), "{}", run.steps[0].reason());
+
+    // Payloads without a quote, which this server takes for SQL.
+    let run = run_tool_step(p, "tool: fuzz\nrequest: api.yml\npayloads: [traversal, types]\n").await;
+    assert!(run.ok, "{:?}", run.failure());
+    assert_eq!(found(&run), []);
+}
+
+#[tokio::test]
+async fn ratelimit_checks_the_server_refuses_past_the_limit() {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let counter = Arc::clone(&calls);
+    let dir = api_project(move |_| {
+        if counter.fetch_add(1, Ordering::SeqCst) < 5 {
+            (200, Vec::new(), "{}".into())
+        } else {
+            (429, vec![("retry-after", "1".into())], "{}".into())
+        }
+    })
+    .await;
+    let p = dir.path();
+
+    let run = run_tool_step(p, "tool: ratelimit\nrequest: api.yml\nlimit: 5\nreset: true\n").await;
+    assert!(run.ok, "{:?}", run.failure());
+    assert_eq!(run.steps[0].output.as_ref().unwrap().text.as_deref(), Some("Limited after 5 of 15"));
+    assert_eq!(found(&run), [pair("ratelimit.no-reset", "api.yml")], "this server never lets up");
+
+    calls.store(0, Ordering::SeqCst);
+    let run = run_tool_step(p, "tool: ratelimit\nrequest: api.yml\nlimit: 2\n").await;
+    assert_eq!(found(&run), [pair("ratelimit.too-high", "api.yml")]);
+    assert!(run.ok, "medium doesn't fail by default");
+
+    let unlimited = api_project(|_| (200, Vec::new(), "{}".into())).await;
+    let run = run_tool_step(unlimited.path(), "tool: ratelimit\nrequest: api.yml\nrequests: 10\n").await;
+    assert_eq!(found(&run), [pair("ratelimit.missing", "api.yml")]);
+    assert_eq!(run.steps[0].reason(), "1 high finding");
+}
+
+#[tokio::test]
+async fn loadtest_measures_and_fails_on_its_checks() {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let counter = Arc::clone(&calls);
+    let dir = api_project(move |_| {
+        // Every fourth request fails.
+        let status = if counter.fetch_add(1, Ordering::SeqCst) % 4 == 3 { 500 } else { 200 };
+        (status, Vec::new(), "{}".into())
+    })
+    .await;
+    let p = dir.path();
+
+    let passing = "tool: loadtest\nrequest: api.yml\nrequests: 40\nconcurrency: 4\nchecks: [{expression: p95, operator: lt, value: '5000'}]\n";
+    let run = run_tool_step(p, passing).await;
+    assert!(run.ok, "{:?}", run.failure());
+    let output = run.steps[0].output.as_ref().unwrap();
+    let value = |name: &str| output.metrics.iter().find(|metric| metric.name == name).unwrap().value;
+    assert_eq!((value("requests"), value("error_rate"), value("non2xx")), (40.0, 25.0, 10.0));
+    assert!(output.findings.is_none(), "a load test only measures");
+    assert_eq!(calls.load(Ordering::SeqCst), 40);
+
+    let failing =
+        "tool: loadtest\nrequest: api.yml\nrequests: 8\nchecks: [{expression: error_rate, operator: lt, value: '1'}]\n";
+    let run = run_tool_step(p, failing).await;
+    assert_eq!(run.steps[0].reason(), "error_rate: expected lt 1, got 25.0");
+}
+
+#[tokio::test]
+async fn cert_reports_a_self_signed_certificate_for_another_name() {
+    use rustls::pki_types::{PrivateKeyDer, PrivatePkcs8KeyDer};
+
+    let key = rcgen::KeyPair::generate().unwrap();
+    let certificate =
+        rcgen::CertificateParams::new(vec!["example.test".to_string()]).unwrap().self_signed(&key).unwrap();
+    let provider = Arc::new(rustls::crypto::ring::default_provider());
+    let config = rustls::ServerConfig::builder_with_provider(provider)
+        .with_safe_default_protocol_versions()
+        .unwrap()
+        .with_no_client_auth()
+        .with_single_cert(
+            vec![certificate.der().clone()],
+            PrivateKeyDer::Pkcs8(PrivatePkcs8KeyDer::from(key.serialize_der())),
+        )
+        .unwrap();
+    let acceptor = tokio_rustls::TlsAcceptor::from(Arc::new(config));
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    tokio::spawn(async move {
+        while let Ok((socket, _)) = listener.accept().await {
+            let acceptor = acceptor.clone();
+            tokio::spawn(async move {
+                let _ = acceptor.accept(socket).await;
+            });
+        }
+    });
+    let dir = tempfile::tempdir().unwrap();
+    let p = dir.path();
+    critter::create(p, "bob", &Critter::default()).unwrap();
+
+    let run = run_tool_step(p, &format!("tool: cert\nurl: https://127.0.0.1:{port}\n")).await;
+    let location = format!("127.0.0.1:{port}");
+    assert_eq!(found(&run), [pair("cert.hostname", &location), pair("cert.untrusted", &location)]);
+    assert_eq!(run.steps[0].reason(), "2 high findings");
+    let output = run.steps[0].output.as_ref().unwrap();
+    assert!(output.text.as_deref().unwrap().contains("TLS 1.3"), "{:?}", output.text);
+    assert!(output.metrics[0].value > 300.0, "rcgen certificates last years");
+}

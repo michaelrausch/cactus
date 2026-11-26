@@ -17,7 +17,7 @@ import { formatDuration } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useFlowStore } from "@/stores/flowStore";
 import { ToolResult } from "./StepCard";
-import { FindingsList, MetricStats, SeverityCounts } from "./ToolFindings";
+import { CoverageTable, FindingsList, MetricStats, SeverityCounts } from "./ToolFindings";
 import { toolOf } from "./tools";
 
 /** Where a step is in the run shown. */
@@ -172,7 +172,7 @@ function ResponseTabs({ response }: { response: HttpResponse }) {
 
 /** A security tool's output: its findings and numbers in tabs, the rest under Output. */
 function ToolTabs({ output }: { output: ToolOutput }) {
-  const { findings, metrics = [], ...rest } = output;
+  const { findings, metrics = [], coverage = [], ...rest } = output;
   const hasRest = Boolean(rest.text) || Object.keys(rest.values ?? {}).length > 0 || rest.status !== undefined;
   return (
     <Tabs defaultValue={findings ? "findings" : "stats"} className="min-h-0 flex-1 gap-3">
@@ -183,6 +183,7 @@ function ToolTabs({ output }: { output: ToolOutput }) {
             <CountBadge count={findings.length} />
           </TabsTrigger>
         )}
+        {coverage.length > 0 && <TabsTrigger value="coverage">Coverage</TabsTrigger>}
         {metrics.length > 0 && <TabsTrigger value="stats">Stats</TabsTrigger>}
         {hasRest && <TabsTrigger value="output">Output</TabsTrigger>}
       </TabsList>
@@ -190,6 +191,11 @@ function ToolTabs({ output }: { output: ToolOutput }) {
         <TabsContent value="findings" className="flex min-h-0 flex-col gap-2 overflow-auto">
           <SeverityCounts findings={findings} className="px-1.5 text-xs" />
           <FindingsList findings={findings} />
+        </TabsContent>
+      )}
+      {coverage.length > 0 && (
+        <TabsContent value="coverage" className="min-h-0 overflow-auto">
+          <CoverageTable coverage={coverage} />
         </TabsContent>
       )}
       {metrics.length > 0 && (

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { setField } from "@/domain/flowEdit";
 import { generatorSuggester } from "@/domain/generators";
-import { TOOL_IDS, TOOLS, toolDataflow } from ".";
+import { TOOL_IDS, TOOL_SECTIONS, TOOLS, toolDataflow } from ".";
 
 describe("the tool registry", () => {
   it("creates each tool as the backend writes it: tagged, with no empty fields", () => {
@@ -15,6 +15,11 @@ describe("the tool registry", () => {
       );
       expect(normalised, id).toEqual(step);
     }
+  });
+
+  it("puts every tool in exactly one palette section", () => {
+    const listed = TOOL_SECTIONS.flatMap((section) => section.tools);
+    expect(listed.toSorted()).toEqual(TOOL_IDS.toSorted());
   });
 
   it("describes what tools read and set", () => {
@@ -62,6 +67,37 @@ describe("the tool registry", () => {
       },
     );
     expect(toolDataflow({ tool: "assert", each: { list: "{{items}}" } }).problems).toEqual(["No checks for each item"]);
+  });
+
+  it("describes the security tools", () => {
+    expect(toolDataflow({ tool: "fuzz" }).problems).toEqual(["No request"]);
+    expect(toolDataflow({ tool: "fuzz", request: "a.yml", with: { id: "{{id}}" }, concurrency: 33 })).toEqual({
+      templates: ["{{id}}"],
+      sets: [],
+      problems: ["Send at most 32 at once"],
+    });
+    expect(toolDataflow({ tool: "cert" }).problems).toEqual(["No URL"]);
+    const check = { expression: "days_left", operator: "gt", value: "{{min}}" };
+    expect(toolDataflow({ tool: "cert", url: "{{host}}", checks: [check] }).templates).toEqual(["{{host}}", "{{min}}"]);
+    expect(toolDataflow({ tool: "ratelimit", request: "a.yml", limit: 400 }).problems).toEqual([]);
+    expect(toolDataflow({ tool: "ratelimit", request: "a.yml", limit: 10, requests: 10 }).problems).toEqual([
+      "Send more requests than the limit",
+    ]);
+    expect(toolDataflow({ tool: "loadtest", request: "a.yml", duration: 601 }).problems).toEqual([
+      "Run for at most 600 seconds",
+    ]);
+  });
+
+  it("hands findings and metrics on to later steps", () => {
+    const fuzz = toolDataflow({ tool: "fuzz", request: "a.yml", set: { issues: "findings", highs: "findings.high" } });
+    expect(fuzz).toEqual({ templates: [], sets: ["issues", "highs"], problems: [] });
+    expect(toolDataflow({ tool: "loadtest", request: "a.yml", set: { latency: "p95" } }).sets).toEqual(["latency"]);
+    expect(toolDataflow({ tool: "loadtest", request: "a.yml", set: { x: "findings" } }).problems).toEqual([
+      "Set x: no findings",
+    ]);
+    expect(toolDataflow({ tool: "cert", url: "h", set: { days: "days_left", n: "findings.count" } }).problems).toEqual(
+      [],
+    );
   });
 
   it("suggests generators for a value starting with $", () => {

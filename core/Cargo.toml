@@ -40,6 +40,16 @@ getrandom = "0.3"
 # OAuth2's authorization code arrives on a loopback listener (`net`, `io-util`);
 # the cookie jar of a send is a task-local (`rt`).
 tokio = { version = "1", features = ["time", "rt", "net", "io-util"] }
+# Already in the tree through reqwest; `fuzz`, `ratelimit` and `loadtest`
+# send their probes several at a time with it.
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
+# Already in the tree through reqwest; the `cert` tool makes its own TLS
+# handshake to look at the certificate, even one reqwest would refuse.
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
+webpki-roots = "1"
+# The `cert` tool reads the certificate: dates, names, key and signature.
+x509-parser = "0.18"
 
 [features]
 # Derive TypeScript-exportable types for the desktop app's generated bindings.
@@ -51,6 +61,8 @@ git = ["dep:git2"]
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "io-util", "time", "test-util"] }
 tempfile = "3"
 jsonschema = { version = "0.63", default-features = false }
+# Certificates for the `cert` tool's tests.
+rcgen = { version = "0.14", default-features = false, features = ["ring", "pem"] }
 
 [lints]
 workspace = true

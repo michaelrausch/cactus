@@ -22,17 +22,23 @@
 #![allow(clippy::unused_async_trait_impl)]
 
 mod assert;
+mod cert;
 mod display;
 mod findings;
+mod fuzz;
+mod loadtest;
+mod mutate;
 mod notify;
 mod open;
 mod pick;
 mod poll;
 mod prompt;
 mod random;
+mod ratelimit;
 mod run;
 mod set;
 mod slack;
+mod stats;
 mod wait;
 mod webhook;
 
@@ -42,11 +48,14 @@ use std::pin::Pin;
 
 use serde::{Deserialize, Serialize};
 
-pub use self::findings::{FailOn, Finding, FindingKey, Metric, Severity, findings_verdict, metrics_verdict};
+pub use self::findings::{
+    Coverage, FailOn, Finding, FindingKey, Metric, Severity, StatusCount, findings_verdict, metrics_verdict,
+};
 pub use self::pick::CHOICE;
 pub use self::prompt::PromptVar;
 pub use self::random::GENERATORS;
 use crate::Result;
+use crate::collection::LenientString;
 use crate::critter::FlowStep;
 use crate::env::Env;
 use crate::http::Response;
@@ -136,6 +145,10 @@ tools! {
     poll::Poll,
     run::Run,
     pick::Pick,
+    fuzz::Fuzz,
+    cert::Cert,
+    ratelimit::Ratelimit,
+    loadtest::Loadtest,
 }
 
 /// What a tool step did, for the step card, the run panel and the CLI.
@@ -158,6 +171,9 @@ pub struct ToolOutput {
     /// Numbers a tool measured, e.g. a load test's latencies.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub metrics: Vec<Metric>,
+    /// What it tried at each place, e.g. each value a fuzzer replaced.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub coverage: Vec<Coverage>,
 }
 
 impl ToolOutput {
@@ -328,6 +344,20 @@ fn title_or(title: &str, default: &str) -> String {
     let title = title.trim();
     if title.is_empty() { default.to_string() } else { title.to_string() }
 }
+
+/// For `skip_serializing_if` on counts and seconds.
+#[allow(clippy::trivially_copy_pass_by_ref)] // serde passes a reference.
+fn is_zero(number: &u32) -> bool {
+    *number == 0
+}
+
+/// The request step that tools sending one request many times probe with.
+fn request_step(request: &LenientString, with: &BTreeMap<String, LenientString>) -> FlowStep {
+    FlowStep { request: request.clone(), with: with.clone(), ..FlowStep::default() }
+}
+
+/// A probe's edit that changes nothing.
+fn unchanged(_: &mut Scenario) {}
 
 #[cfg(test)]
 mod tests {

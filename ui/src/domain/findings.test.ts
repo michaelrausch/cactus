@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Finding } from "@/api/client";
-import { countBySeverity, findingsSummary, formatMetric, severityTone } from "./findings";
+import { countBySeverity, failsAt, findingsSummary, formatMetric, severityTone } from "./findings";
 
 const finding = (severity: Finding["severity"], rule: string): Finding => ({ severity, title: rule, rule });
 
@@ -25,6 +25,15 @@ describe("findings", () => {
       "info",
       "muted",
     ]);
+  });
+
+  it("says which severities fail a step", () => {
+    expect(failsAt("high", undefined)).toBe(true);
+    expect(failsAt("medium", undefined)).toBe(false);
+    expect(failsAt("medium", "medium")).toBe(true);
+    expect(failsAt("critical", "never")).toBe(false);
+    expect(failsAt("info", "info")).toBe(true);
+    expect(failsAt("high", "critical")).toBe(false);
   });
 
   it("formats metrics by unit", () => {

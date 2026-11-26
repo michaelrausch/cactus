@@ -115,7 +115,12 @@ fn patch_mapping(mapping: &Mapping, old: &Map<String, Value>, new: &Map<String, 
                 let old_child = old_value.and_then(Value::as_object).unwrap_or(&empty);
                 patch_mapping(&child, old_child, new_child)?;
             }
-            (Some(YamlNode::Sequence(child)), Value::Array(new_items)) if old_value.is_some_and(Value::is_array) => {
+            // A one-line list stays one line only while it holds plain values:
+            // steps added to `steps: []` would all land on that line.
+            (Some(YamlNode::Sequence(child)), Value::Array(new_items))
+                if old_value.is_some_and(Value::is_array)
+                    && !(is_one_line(&child) && new_items.iter().any(|item| item.is_object() || item.is_array())) =>
+            {
                 let old_items = old_value.and_then(Value::as_array).map_or(&[][..], Vec::as_slice);
                 patch_sequence(&child, old_items, new_items)?;
             }
@@ -145,6 +150,11 @@ fn patch_sequence(sequence: &Sequence, old: &[Value], new: &[Value]) -> Result<(
         }
     }
     Ok(())
+}
+
+/// Whether `sequence` is written `[a, b]` rather than as `- ` lines.
+fn is_one_line(sequence: &Sequence) -> bool {
+    sequence.syntax().children_with_tokens().any(|el| el.kind() == SyntaxKind::LEFT_BRACKET)
 }
 
 fn replace_item(sequence: &Sequence, index: usize, old: &Value, new: &Value) -> Result<(), PatchError> {
@@ -560,6 +570,24 @@ http:
         assert!(patched.contains("name: B\n  tags: [x] # mine"), "{patched}");
         assert!(patched.contains("code: ok"), "{patched}");
         assert!(patched.contains("expression: res.status"), "{patched}");
+    }
+
+    #[test]
+    fn steps_added_to_an_empty_list_go_one_per_line() {
+        check(
+            "name: x\nsteps: []\n",
+            |v| v["steps"] = json!([{"request": "a.yml", "expect": 200}, {"tool": "wait", "seconds": 5}]),
+            "name: x\nsteps:\n  - request: a.yml\n    expect: 200\n  - tool: wait\n    seconds: 5\n",
+        );
+    }
+
+    #[test]
+    fn steps_added_to_a_one_line_list_go_one_per_line() {
+        check(
+            "name: x\nsteps: [{tool: wait, seconds: 1}]\n",
+            |v| v["steps"].as_array_mut().unwrap().push(json!({"tool": "wait", "seconds": 5})),
+            "name: x\nsteps:\n  - tool: wait\n    seconds: 1\n  - tool: wait\n    seconds: 5\n",
+        );
     }
 
     #[test]
