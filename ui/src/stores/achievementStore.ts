@@ -1,7 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { Counts, Stat } from "@/domain/achievements";
-import { storageKey } from "@/lib/storage";
 
 interface AchievementState {
   counts: Counts;
@@ -36,7 +35,7 @@ export const useAchievementStore = create<AchievementState>()(
       reset: () => set({ counts: {}, unlocked: {}, seen: {} }),
     }),
     {
-      name: storageKey("achievements"),
+      name: "cactus.achievements",
       version: 1,
       partialize: ({ counts, unlocked, seen }) => ({ counts, unlocked, seen }),
     },

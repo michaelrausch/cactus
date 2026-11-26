@@ -1,6 +1,5 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { storageKey } from "@/lib/storage";
 import { DEFAULT_THEME, resolveTheme, type ThemeId } from "@/theme/themes";
 
 /** Who commits are by. Blank parts fall back to git config. */
@@ -42,7 +41,7 @@ export const useSettingsStore = create<SettingsState>()(
       setOnboarded: (onboarded) => set({ onboarded }),
     }),
     {
-      name: storageKey("settings"),
+      name: "cactus.settings",
       version: 1,
       partialize: ({ themeId, commitIdentity, animateCritters, onboarded }) => ({
         themeId,
