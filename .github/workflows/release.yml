@@ -71,7 +71,15 @@ jobs:
           cache-dependency-path: package-lock.json
       - name: Install JavaScript dependencies
         run: npm ci
+      # Tauri signs with the Developer ID certificate and notarizes when these are set.
       - name: Build universal DMG
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: npm run build:desktop -- --target universal-apple-darwin --bundles dmg ${{ matrix.edition.config }}
       - name: Stage DMG
         run: |
