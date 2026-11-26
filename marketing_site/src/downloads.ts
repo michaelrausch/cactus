@@ -15,3 +15,6 @@ export const proDownloads = {
 
 /** Where Pro licenses come from: any donation here emails a key (worker/index.ts). */
 export const KOFI_URL = "https://ko-fi.com/O4F82BBNNS";
+
+/** The cactus pro product in the Ko-fi shop: buying it emails a key. */
+export const KOFI_PRO_URL = "https://ko-fi.com/s/91f9b78594";

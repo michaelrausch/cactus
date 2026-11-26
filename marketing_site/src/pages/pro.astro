@@ -1,6 +1,6 @@
 ---
 import "../styles/global.css";
-import { KOFI_URL, proDownloads } from "../downloads";
+import { KOFI_PRO_URL, proDownloads } from "../downloads";
 
 const features = [
   { title: "Security tooling", body: "Flow steps for fuzzing, security headers, certificates, rate limits and load testing." },
@@ -10,7 +10,7 @@ const features = [
 ];
 
 const steps = [
-  { title: "Donate", body: "Any amount from $5 on Ko-fi." },
+  { title: "Support cactus", body: "Get cactus pro from the Ko-fi shop." },
   { title: "Get your key", body: "It's emailed to the address you give Ko-fi, usually within a minute." },
   { title: "Activate", body: "Open cactus pro and paste the key in. It works offline, on any version." },
 ];
@@ -28,7 +28,7 @@ const heartIcon = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>cactus pro</title>
-    <meta name="description" content="cactus pro: security tooling, Slack and webhooks, extra themes and early access. Donate on Ko-fi for a license key." />
+    <meta name="description" content="cactus pro: security tooling, Slack and webhooks, extra themes and early access. Support cactus on Ko-fi for a license key." />
   </head>
   <body>
     <div class="wrap">
@@ -46,9 +46,9 @@ const heartIcon = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s
 
       <div class="hero">
         <h1>cactus <span class="accent">pro</span></h1>
-        <p>Security testing, Slack and webhooks in your flows, plus everything in cactus. Donate $5 or more and your license key is emailed to you.</p>
+        <p>Security testing, Slack and webhooks in your flows, plus everything in cactus. Support cactus on Ko-fi and your license key is emailed to you.</p>
         <div class="buttons">
-          <a class="btn primary" href={KOFI_URL}><Fragment set:html={heartIcon} />Donate on Ko-fi</a>
+          <a class="btn primary" href={KOFI_PRO_URL}><Fragment set:html={heartIcon} />Get cactus pro</a>
           <a class="btn" href={proDownloads.macos}><Fragment set:html={appleIcon} />macOS</a>
           <a class="btn" href={proDownloads.windowsInstaller}><Fragment set:html={windowsIcon} />Windows</a>
         </div>
