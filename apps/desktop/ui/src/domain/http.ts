@@ -61,7 +61,7 @@ export const OAUTH2_FLOWS: readonly string[] = [
   "authorization_code",
 ] satisfies OAuth2Flow[];
 
-/** Operators cactus checks, as Bruno names them. Mirrors `ASSERTION_OPERATORS` in core (checked by core/tests/ui_contract.rs). */
+/** Operators cactus checks, as Bruno names them. Mirrors `ASSERTION_OPERATORS` in core (checked by crates/core/tests/ui_contract.rs). */
 export const ASSERTION_OPERATORS = [
   "eq",
   "neq",

@@ -6,6 +6,9 @@
     "apps/site",
     "apps/docs"
   ],
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.12.6"
+  },
   "scripts": {
     "dev:desktop": "tauri dev",
     "build:desktop": "tauri build",

@@ -28,7 +28,7 @@ interface SharedQueryCase {
 }
 
 const sharedQueryCases = JSON.parse(
-  readFileSync(new URL("../../../core/tests/fixtures/query-params.json", import.meta.url), "utf8"),
+  readFileSync(new URL("../../../../../crates/core/tests/fixtures/query-params.json", import.meta.url), "utf8"),
 ) as SharedQueryCase[];
 
 const scenario = (http: Partial<Scenario["http"]> = {}): Scenario => ({
