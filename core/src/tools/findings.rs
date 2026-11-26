@@ -1,6 +1,6 @@
 //! What security tools report: findings with a severity, and metrics. A
 //! step's `fail_on` decides which findings fail it; `checks` on metric
-//! names decide the same for numbers.
+//! names decide the same for numbers; `set` hands either to later steps.
 //!
 //! ```yaml
 //! - tool: headers
@@ -8,6 +8,8 @@
 //! - tool: loadtest
 //!   checks:
 //!     - {expression: p95, operator: lt, value: "500"}
+//!   set:
+//!     latency: p95         # a metric; or findings, findings.count, findings.high
 //! ```
 
 use std::cmp::Reverse;
@@ -16,6 +18,9 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 
+use super::{ToolCx, ToolOutput};
+use crate::Error;
+use crate::collection::LenientString;
 use crate::http::check_value;
 use crate::scenario::Assertion;
 
@@ -63,6 +68,29 @@ pub struct Finding {
     /// What was sent or seen, e.g. the payload and a response snippet.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub evidence: String,
+    /// How to send it again: a curl command, secrets masked.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub repro: String,
+}
+
+/// What a tool tried at one place, e.g. one value a fuzzer replaced, so
+/// what held up shows as well as what didn't.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct Coverage {
+    pub location: String,
+    pub requests: u32,
+    /// How often each status came back, most common first; 0 is no response.
+    pub statuses: Vec<StatusCount>,
+    pub findings: u32,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct StatusCount {
+    pub status: u16,
+    pub count: u32,
 }
 
 impl Finding {
@@ -191,6 +219,83 @@ pub fn metrics_verdict(checks: &[Assertion], metrics: &[Metric]) -> Option<Strin
     })
 }
 
+/// What a security tool can hand to later steps: the names of its
+/// metrics, and whether it reports findings.
+pub struct Exports {
+    pub metrics: &'static [&'static str],
+    pub findings: bool,
+}
+
+const SEVERITIES: [Severity; 5] = [Severity::Info, Severity::Low, Severity::Medium, Severity::High, Severity::Critical];
+
+impl Exports {
+    /// Fail before anything is sent if `set` names something this tool
+    /// never reports.
+    pub fn check(&self, set: &BTreeMap<String, LenientString>) -> crate::Result<()> {
+        let Some((name, source)) = set.iter().find(|(_, source)| !self.offers(source.trim())) else {
+            return Ok(());
+        };
+
+        let mut offered: Vec<&str> = self.metrics.to_vec();
+        if self.findings {
+            offered.extend(["findings", "findings.count", "findings.<severity>"]);
+        }
+
+        Err(Error::Tool(format!("set {name}: no {:?}; use {}", source.trim(), offered.join(", "))))
+    }
+
+    /// Whether `source` is one of this tool's metrics or, if it has
+    /// findings, `findings`, `findings.count` or `findings.<severity>`.
+    fn offers(&self, source: &str) -> bool {
+        let Some(part) = source.strip_prefix("findings") else {
+            return self.metrics.contains(&source);
+        };
+
+        let severity = |part: &str| SEVERITIES.iter().any(|severity| part.strip_prefix('.') == Some(severity.as_str()));
+        self.findings && (part.is_empty() || part == ".count" || severity(part))
+    }
+}
+
+/// Give later steps what `set` asks for from `output`, already checked
+/// with [`Exports::check`]. A metric the run didn't measure is empty.
+pub fn export(cx: &mut ToolCx<'_>, set: &BTreeMap<String, LenientString>, output: &ToolOutput) -> crate::Result<()> {
+    for (name, source) in set {
+        let value = exported(source.trim(), output)?;
+        cx.set(name.trim(), value);
+    }
+
+    Ok(())
+}
+
+/// The value `source` names in `output`.
+fn exported(source: &str, output: &ToolOutput) -> crate::Result<String> {
+    let found = output.found();
+
+    let value = match source {
+        "findings" => {
+            let mut sorted = found.to_vec();
+            sorted.sort_by_key(|finding| Reverse(finding.severity));
+            serde_json::to_string(&sorted)?
+        }
+        "findings.count" => found.len().to_string(),
+        source => match source.strip_prefix("findings.") {
+            Some(severity) => found.iter().filter(|finding| finding.severity.as_str() == severity).count().to_string(),
+            None => output.metrics.iter().find(|metric| metric.name == source).map_or_default(number),
+        },
+    };
+
+    Ok(value)
+}
+
+/// A metric's value as a variable: `412`, `412.5`; empty when it has none.
+fn number(metric: &Metric) -> String {
+    match metric.value {
+        value if !value.is_finite() => String::new(),
+        value if value.fract() == 0.0 => format!("{value}"),
+        value => format!("{value:.1}"),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -231,6 +336,27 @@ mod tests {
     fn a_metric_written_as_null_reads_back_as_nan() {
         let json = serde_json::to_string(&Metric::new("errors", "Errors", f64::NAN, "%")).unwrap();
         assert!(serde_json::from_str::<Metric>(&json).unwrap().value.is_nan(), "{json}");
+    }
+
+    #[test]
+    fn set_may_name_only_what_the_tool_reports() {
+        let set = |source: &str| BTreeMap::from([("x".to_string(), LenientString::from(source))]);
+        let scan = Exports { metrics: &["requests"], findings: true };
+        for source in ["requests", "findings", "findings.count", "findings.critical", " findings.info "] {
+            assert!(scan.check(&set(source)).is_ok(), "{source}");
+        }
+        let error = scan.check(&set("p95")).unwrap_err().to_string();
+        assert_eq!(error, r#"set x: no "p95"; use requests, findings, findings.count, findings.<severity>"#);
+        assert!(scan.check(&set("findings.severe")).is_err());
+        let load = Exports { metrics: &["p95"], findings: false };
+        assert!(load.check(&set("findings")).is_err(), "a load test has no findings");
+    }
+
+    #[test]
+    fn metrics_are_set_as_plain_numbers() {
+        assert_eq!(number(&Metric::new("p95", "P95", 412.0, "ms")), "412");
+        assert_eq!(number(&Metric::new("rps", "Rate", 12.345, "/s")), "12.3");
+        assert_eq!(number(&Metric::new("p95", "P95", f64::NAN, "ms")), "");
     }
 
     #[test]

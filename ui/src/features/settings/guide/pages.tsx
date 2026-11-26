@@ -265,8 +265,8 @@ export const GUIDE_PAGES: GuidePage[] = [
             The request file isn't touched.
           </>,
           <>
-            Tool steps do things other than send a request. Drag them in from the Tools list, under your requests.
-            Values they set last for that run only.
+            Tool steps do things other than send a request. Drag them in from the Input, Flow, Output and Security
+            sections, under your requests. Values they set last for that run only.
           </>,
         ],
       },
@@ -310,6 +310,27 @@ export const GUIDE_PAGES: GuidePage[] = [
           </>,
           <>
             <b>Notify</b> shows a desktop notification.
+          </>,
+          <>
+            <b>Fuzz</b> sends a request again with each value swapped for attack payloads, and reports what gives them
+            away: SQL errors, stack traces, reflected markup, file contents.
+          </>,
+          <>
+            <b>Certificate</b> checks a host&apos;s TLS certificate: dates, name, trust, key and signature.
+          </>,
+          <>
+            <b>Rate limit</b> sends a request past its limit and checks the server starts answering 429.
+          </>,
+          <>
+            <b>Load test</b> sends a request many times at once and measures response times.
+          </>,
+          <>
+            <b>Security headers</b> checks a response&apos;s HSTS, CSP, framing, cookie flags and CORS, and whether it
+            names the server&apos;s version.
+          </>,
+          <>
+            Security tools fail on findings at or above <b>Fail on</b>, and <b>Set</b> hands their findings and metrics
+            to later steps.
           </>,
         ],
       },

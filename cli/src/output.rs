@@ -3,7 +3,7 @@
 use cactus_core::http::Response;
 use cactus_core::import::ImportSummary;
 use cactus_core::runner::{FlowRun, FlowStepResult, RunResult};
-use cactus_core::tools::{Severity, ToolOutput};
+use cactus_core::tools::{Coverage, Severity, ToolOutput};
 
 const RESET: &str = "\x1b[0m";
 const GREEN: &str = "\x1b[32m";
@@ -38,6 +38,28 @@ pub fn format_step_result(step: &FlowStepResult) -> String {
     }
 }
 
+/// One line per place a tool tried: `query.q  8 sent  500×5 200×3  2 findings`.
+fn coverage_lines(coverage: &[Coverage]) -> Vec<String> {
+    let width = coverage.iter().map(|place| place.location.chars().count()).max().unwrap_or(0);
+    coverage
+        .iter()
+        .map(|place| {
+            let statuses: Vec<String> = place
+                .statuses
+                .iter()
+                .map(|s| if s.status == 0 { format!("none×{}", s.count) } else { format!("{}×{}", s.status, s.count) })
+                .collect();
+            let found = match place.findings {
+                0 => paint(DIM, "ok"),
+                1 => paint(YELLOW, "1 finding"),
+                n => paint(YELLOW, &format!("{n} findings")),
+            };
+            let sent = format!("{} sent", place.requests);
+            format!("{DETAIL_INDENT}{:<width$}  {sent:>8}  {}  {found}", place.location, statuses.join(" "))
+        })
+        .collect()
+}
+
 /// A tool step that ran: its status if it sent something, why it failed,
 /// then what it found, measured, said and set.
 fn format_tool_output(location: &str, output: &ToolOutput, error: Option<&str>) -> String {
@@ -48,16 +70,22 @@ fn format_tool_output(location: &str, output: &ToolOutput, error: Option<&str>) 
     lines.extend(error.map(|error| format!("{DETAIL_INDENT}{}", paint(RED, error))));
     match output.findings.as_deref() {
         Some([]) => lines.push(format!("{DETAIL_INDENT}{}", paint(DIM, "no findings"))),
-        Some(findings) => lines.extend(findings.iter().map(|finding| {
-            let color = if finding.severity >= Severity::High { RED } else { YELLOW };
-            format!("{DETAIL_INDENT}{}", paint(color, &finding.line()))
-        })),
+        Some(findings) => {
+            for finding in findings {
+                let color = if finding.severity >= Severity::High { RED } else { YELLOW };
+                lines.push(format!("{DETAIL_INDENT}{}", paint(color, &finding.line())));
+                if !finding.repro.is_empty() {
+                    lines.push(format!("{DETAIL_INDENT}  {}", paint(DIM, &finding.repro)));
+                }
+            }
+        }
         None => {}
     }
     if !output.metrics.is_empty() {
         let metrics: Vec<String> = output.metrics.iter().map(|m| format!("{} {}", m.label, m.shown())).collect();
         lines.push(format!("{DETAIL_INDENT}{}", metrics.join("  ")));
     }
+    lines.extend(coverage_lines(&output.coverage));
     lines.extend(output.text.iter().flat_map(|text| text.lines()).map(|line| format!("{DETAIL_INDENT}{line}")));
     lines.extend(
         output
@@ -141,7 +169,7 @@ pub fn format_import_summary(summary: &ImportSummary) -> String {
 #[cfg(test)]
 mod tests {
     use cactus_core::ProjectPath;
-    use cactus_core::tools::{Finding, Metric};
+    use cactus_core::tools::{Finding, Metric, StatusCount};
 
     use super::*;
 
@@ -193,6 +221,47 @@ mod tests {
         assert_eq!(
             format_tool_output("1. Headers", &output, None),
             "\x1b[32m✓\x1b[0m   -        -  1. Headers\n      \x1b[2mno findings\x1b[0m"
+        );
+    }
+
+    #[test]
+    fn a_fuzz_run_shows_repro_and_what_each_value_got() {
+        let status = |status, count| StatusCount { status, count };
+        let output = ToolOutput {
+            findings: Some(vec![Finding {
+                severity: Severity::Medium,
+                rule: "fuzz.server-error".into(),
+                location: "query.q".into(),
+                title: "Server error".into(),
+                repro: "curl -X GET 'http://x/?q=%27'".into(),
+                ..Finding::default()
+            }]),
+            coverage: vec![
+                Coverage {
+                    location: "query.q".into(),
+                    requests: 8,
+                    statuses: vec![status(500, 5), status(200, 3)],
+                    findings: 1,
+                },
+                Coverage {
+                    location: "body.name".into(),
+                    requests: 12,
+                    statuses: vec![status(200, 11), status(0, 1)],
+                    findings: 0,
+                },
+            ],
+            ..ToolOutput::default()
+        };
+        assert_eq!(
+            format_tool_output("1. Fuzz", &output, None),
+            [
+                "\x1b[32m✓\x1b[0m   -        -  1. Fuzz",
+                "      \x1b[33mmedium  fuzz.server-error  query.q  Server error\x1b[0m",
+                "        \x1b[2mcurl -X GET 'http://x/?q=%27'\x1b[0m",
+                "      query.q      8 sent  500×5 200×3  \x1b[33m1 finding\x1b[0m",
+                "      body.name   12 sent  200×11 none×1  \x1b[2mok\x1b[0m",
+            ]
+            .join("\n")
         );
     }
 }

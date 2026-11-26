@@ -115,6 +115,7 @@ mod tests {
                 checks: Vec::new(),
                 critter: None,
                 relogged: false,
+                sent: crate::http::Sent::default(),
             },
         }
     }

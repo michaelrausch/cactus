@@ -47,6 +47,7 @@ export default defineConfig({
             { label: "Wait for a background job", slug: "recipes/polling" },
             { label: "A support tool in a flow", slug: "recipes/support-tool" },
             { label: "Watch staging, alert Slack", slug: "recipes/monitoring" },
+            { label: "Security checks in CI", slug: "recipes/security-checks" },
             { label: "Sign in with OAuth2", slug: "recipes/oauth2" },
             { label: "Moving from Postman", slug: "recipes/from-postman" },
           ],

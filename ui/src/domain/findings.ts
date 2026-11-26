@@ -1,4 +1,4 @@
-import type { Finding, Metric, Severity } from "@/api/client";
+import type { FailOn, Finding, Metric, Severity } from "@/api/client";
 import { formatDuration } from "@/lib/format";
 
 /** Most severe first. Mirrors `Severity`'s order in Rust. */
@@ -41,6 +41,27 @@ export function formatMetric(metric: Metric): string {
   if (metric.unit === "ms") return formatDuration(Math.round(metric.value));
   const value = Number.isInteger(metric.value) ? String(metric.value) : metric.value.toFixed(1);
   return `${value}${metric.unit ?? ""}`;
+}
+
+/** What a security tool's `set` can name: its metrics, and its findings if it has any. Mirrors `Exports` in Rust. */
+export function exportSources(metrics: readonly string[], findings: boolean): string[] {
+  const found = findings ? ["findings", "findings.count", ...SEVERITIES.map((s) => `findings.${s}`)] : [];
+  return [...metrics, ...found];
+}
+
+/** A problem for each `set` entry naming something the tool doesn't report. */
+export function setProblems(set: Readonly<Record<string, string>> | undefined, sources: readonly string[]): string[] {
+  return Object.entries(set ?? {})
+    .filter(([, source]) => !sources.includes(source.trim()))
+    .map(([name, source]) => `Set ${name}: no ${source.trim() || "value"}`);
+}
+
+/** Whether a finding of `severity` fails a step with `failOn` (default `high`). Mirrors `findings_verdict` in Rust. */
+export function failsAt(severity: Severity, failOn: FailOn | undefined): boolean {
+  const threshold = failOn ?? "high";
+  if (threshold === "never") return false;
+  // SEVERITIES is most severe first, so a lower index is worse.
+  return SEVERITIES.indexOf(severity) <= SEVERITIES.indexOf(threshold);
 }
 
 /** A finding's title, or its rule when untitled. */

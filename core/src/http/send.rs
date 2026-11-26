@@ -10,7 +10,7 @@ use reqwest::{StatusCode, Url};
 
 use super::assertions::evaluate;
 use super::request::{BearerToken, DigestCredentials, build_request};
-use super::response::{ReceivedResponse, Response, SentRequest};
+use super::response::{ReceivedResponse, Response, Sent, SentRequest};
 use crate::Result;
 use crate::collection::RequestDefaults;
 use crate::env::Env;
@@ -36,6 +36,7 @@ pub async fn send(
         url: prepared.request.url().to_string(),
         unresolved: prepared.unresolved,
         warnings: prepared.warnings,
+        sent: Sent::of(&prepared.request),
     };
     let started = Instant::now();
     let mut reply = client.execute(prepared.request).await?;

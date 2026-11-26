@@ -436,6 +436,32 @@ export type CaptureFailure = {
 	reason: string,
 };
 
+export type Cert = Cert_Serialize | Cert_Deserialize;
+
+export type Cert_Deserialize = {
+	/**  `https://host[:port]`, or just `host[:port]`. */
+	url?: LenientString,
+	/**  Report a certificate that expires within this many days; 30 when not set. */
+	warn_days?: number,
+	/**  Limits on the metrics: `days_left gt 14`. */
+	checks?: Assertion_Deserialize[],
+	fail_on?: FailOn,
+	/**  Metrics or findings for later steps: `days: days_left`. */
+	set?: { [key in string]: LenientString },
+};
+
+export type Cert_Serialize = {
+	/**  `https://host[:port]`, or just `host[:port]`. */
+	url?: LenientString,
+	/**  Report a certificate that expires within this many days; 30 when not set. */
+	warn_days?: number,
+	/**  Limits on the metrics: `days_left gt 14`. */
+	checks?: Assertion_Serialize[],
+	fail_on?: FailOn,
+	/**  Metrics or findings for later steps: `days: days_left`. */
+	set?: { [key in string]: LenientString },
+};
+
 export type ChangeKind = "added" | "modified" | "deleted" | "renamed" | "untracked" | "conflicted";
 
 /**  The outcome of one assertion. */
@@ -520,6 +546,36 @@ export type CookieKey = {
 	domain: string,
 	path: string,
 	name: string,
+};
+
+/**
+ *  What a tool tried at one place, e.g. one value a fuzzer replaced, so
+ *  what held up shows as well as what didn't.
+ */
+export type Coverage = Coverage_Serialize | Coverage_Deserialize;
+
+/**
+ *  What a tool tried at one place, e.g. one value a fuzzer replaced, so
+ *  what held up shows as well as what didn't.
+ */
+export type Coverage_Deserialize = {
+	location?: string,
+	requests?: number,
+	/**  How often each status came back, most common first; 0 is no response. */
+	statuses?: StatusCount[],
+	findings?: number,
+};
+
+/**
+ *  What a tool tried at one place, e.g. one value a fuzzer replaced, so
+ *  what held up shows as well as what didn't.
+ */
+export type Coverage_Serialize = {
+	location: string,
+	requests: number,
+	/**  How often each status came back, most common first; 0 is no response. */
+	statuses: StatusCount[],
+	findings: number,
 };
 
 /**  `critters/<id>/critter.yml`. */
@@ -655,6 +711,9 @@ export type EnvFile =
 
 export type Error = string;
 
+/**  The lowest severity that fails a step, or never. */
+export type FailOn = "never" | "info" | "low" | "medium" | "high" | "critical";
+
 export type FileDiff = FileDiff_Serialize | FileDiff_Deserialize;
 
 export type FileDiff_Deserialize = {
@@ -750,6 +809,8 @@ export type Finding_Deserialize = {
 	detail?: string,
 	/**  What was sent or seen, e.g. the payload and a response snippet. */
 	evidence?: string,
+	/**  How to send it again: a curl command, secrets masked. */
+	repro?: string,
 };
 
 /**  One thing a tool found. */
@@ -764,6 +825,8 @@ export type Finding_Serialize = {
 	detail?: string,
 	/**  What was sent or seen, e.g. the payload and a response snippet. */
 	evidence?: string,
+	/**  How to send it again: a curl command, secrets masked. */
+	repro?: string,
 };
 
 /**  `critters/<id>/flows/<flow>.yml`: requests run in order as the critter. */
@@ -1083,6 +1146,55 @@ export type FormField_Serialize = {
 /**  Project-relative paths of files that changed on disk. */
 export type FsChanged = string[];
 
+export type Fuzz = Fuzz_Serialize | Fuzz_Deserialize;
+
+/**  Which values of the request to replace. */
+export type FuzzTarget = "query" | "path" | "headers" | "body";
+
+export type Fuzz_Deserialize = {
+	request?: LenientString,
+	/**  Variables for this request only, as a request step's `with`. */
+	with?: { [key in string]: LenientString },
+	/**  What to replace; query, path and body when not set. */
+	targets?: FuzzTarget[],
+	/**  Which payloads to send; all when not set. */
+	payloads?: PayloadKind[],
+	/**  Mutated inputs per value, with `mutate`; 20 when not set. */
+	iterations?: number,
+	/**
+	 *  Makes the same mutations again; a random one when not set, shown in
+	 *  the step's output.
+	 */
+	seed?: number,
+	/**  How many to have in flight at once; 4 when not set. */
+	concurrency?: number,
+	fail_on?: FailOn,
+	/**  Findings or metrics for later steps: `issues: findings`, `highs: findings.high`. */
+	set?: { [key in string]: LenientString },
+};
+
+export type Fuzz_Serialize = {
+	request?: LenientString,
+	/**  Variables for this request only, as a request step's `with`. */
+	with?: { [key in string]: LenientString },
+	/**  What to replace; query, path and body when not set. */
+	targets?: FuzzTarget[],
+	/**  Which payloads to send; all when not set. */
+	payloads?: PayloadKind[],
+	/**  Mutated inputs per value, with `mutate`; 20 when not set. */
+	iterations?: number,
+	/**
+	 *  Makes the same mutations again; a random one when not set, shown in
+	 *  the step's output.
+	 */
+	seed?: number,
+	/**  How many to have in flight at once; 4 when not set. */
+	concurrency?: number,
+	fail_on?: FailOn,
+	/**  Findings or metrics for later steps: `issues: findings`, `highs: findings.high`. */
+	set?: { [key in string]: LenientString },
+};
+
 /**  Who a commit is by: `user.name` and `user.email`. */
 export type GitIdentity = {
 	name: string,
@@ -1132,6 +1244,26 @@ export type Header_Serialize = {
 	name: LenientString,
 	value: LenientString,
 	disabled?: boolean,
+};
+
+export type Headers = Headers_Serialize | Headers_Deserialize;
+
+export type Headers_Deserialize = {
+	request?: LenientString,
+	/**  Variables for this request only, as a request step's `with`. */
+	with?: { [key in string]: LenientString },
+	fail_on?: FailOn,
+	/**  Findings for later steps: `issues: findings`. */
+	set?: { [key in string]: LenientString },
+};
+
+export type Headers_Serialize = {
+	request?: LenientString,
+	/**  Variables for this request only, as a request step's `with`. */
+	with?: { [key in string]: LenientString },
+	fail_on?: FailOn,
+	/**  Findings for later steps: `issues: findings`. */
+	set?: { [key in string]: LenientString },
 };
 
 /**
@@ -1209,6 +1341,40 @@ export type JsonValue = null | boolean | number | null | string | JsonValue[] | 
  *  writes as a plain string, and derefs to [`String`].
  */
 export type LenientString = string;
+
+export type Loadtest = Loadtest_Serialize | Loadtest_Deserialize;
+
+export type Loadtest_Deserialize = {
+	request?: LenientString,
+	/**  Variables for this request only, as a request step's `with`. */
+	with?: { [key in string]: LenientString },
+	/**  How many to send; 100 when neither this nor `duration` is set. */
+	requests?: number,
+	/**  Seconds to keep sending for. */
+	duration?: number,
+	/**  How many to have in flight at once; 10 when not set. */
+	concurrency?: number,
+	/**  Limits on the metrics: `p95 lt 500`, `error_rate lt 1`. */
+	checks?: Assertion_Deserialize[],
+	/**  Metrics for later steps: `latency: p95`. */
+	set?: { [key in string]: LenientString },
+};
+
+export type Loadtest_Serialize = {
+	request?: LenientString,
+	/**  Variables for this request only, as a request step's `with`. */
+	with?: { [key in string]: LenientString },
+	/**  How many to send; 100 when neither this nor `duration` is set. */
+	requests?: number,
+	/**  Seconds to keep sending for. */
+	duration?: number,
+	/**  How many to have in flight at once; 10 when not set. */
+	concurrency?: number,
+	/**  Limits on the metrics: `p95 lt 500`, `error_rate lt 1`. */
+	checks?: Assertion_Serialize[],
+	/**  Metrics for later steps: `latency: p95`. */
+	set?: { [key in string]: LenientString },
+};
 
 export type MatrixCell = MatrixCell_Serialize | MatrixCell_Deserialize;
 
@@ -1559,6 +1725,11 @@ export type PartKind = "text" | "file";
 /**  A file part's value is a path relative to the project, or several. */
 export type PartValue = string | string[];
 
+/**  A family of payloads. */
+export type PayloadKind = "sqli" | "xss" | "traversal" | "command" | "overflow" | "types" | 
+/**  Inputs made from each value's own: see [`super::mutate`]. */
+"mutate";
+
 export type Pick = Pick_Serialize | Pick_Deserialize;
 
 export type Pick_Deserialize = {
@@ -1665,6 +1836,42 @@ export type Prompt_Deserialize = {
 export type Prompt_Serialize = {
 	title?: LenientString,
 	vars?: PromptVar_Serialize[],
+};
+
+export type Ratelimit = Ratelimit_Serialize | Ratelimit_Deserialize;
+
+export type Ratelimit_Deserialize = {
+	request?: LenientString,
+	/**  Variables for this request only, as a request step's `with`. */
+	with?: { [key in string]: LenientString },
+	/**  The most requests that should get through before it's limited. */
+	limit?: number,
+	/**  How many to send; three times `limit`, or 100, when not set. */
+	requests?: number,
+	/**  How many to have in flight at once; 1 when not set. */
+	concurrency?: number,
+	/**  Once limited, wait as long as it says and check it lets one through. */
+	reset?: boolean,
+	fail_on?: FailOn,
+	/**  Metrics or findings for later steps: `allowed: allowed`, `gaps: findings`. */
+	set?: { [key in string]: LenientString },
+};
+
+export type Ratelimit_Serialize = {
+	request?: LenientString,
+	/**  Variables for this request only, as a request step's `with`. */
+	with?: { [key in string]: LenientString },
+	/**  The most requests that should get through before it's limited. */
+	limit?: number,
+	/**  How many to send; three times `limit`, or 100, when not set. */
+	requests?: number,
+	/**  How many to have in flight at once; 1 when not set. */
+	concurrency?: number,
+	/**  Once limited, wait as long as it says and check it lets one through. */
+	reset?: boolean,
+	fail_on?: FailOn,
+	/**  Metrics or findings for later steps: `allowed: allowed`, `gaps: findings`. */
+	set?: { [key in string]: LenientString },
 };
 
 export type RequestInfo = RequestInfo_Serialize | RequestInfo_Deserialize;
@@ -2035,6 +2242,11 @@ export type Slack_Serialize = {
 /**  What the critter looks like. An unknown species reads as the default. */
 export type Species = "roadrunner" | "tortoise" | "gecko" | "elf-owl" | "armadillo" | "scorpion" | "jackalope" | "tumbleweed";
 
+export type StatusCount = {
+	status: number,
+	count: number,
+};
+
 /**  One step of a flow: a request, or a tool (`- tool: prompt`). */
 export type Step = Step_Serialize | Step_Deserialize;
 
@@ -2124,6 +2336,8 @@ export type ToolOutput_Deserialize = {
 	findings?: Finding_Deserialize[] | null,
 	/**  Numbers a tool measured, e.g. a load test's latencies. */
 	metrics?: Metric_Deserialize[],
+	/**  What it tried at each place, e.g. each value a fuzzer replaced. */
+	coverage?: Coverage_Deserialize[],
 };
 
 /**  What a tool step did, for the step card, the run panel and the CLI. */
@@ -2140,6 +2354,8 @@ export type ToolOutput_Serialize = {
 	findings?: Finding_Serialize[],
 	/**  Numbers a tool measured, e.g. a load test's latencies. */
 	metrics?: Metric_Serialize[],
+	/**  What it tried at each place, e.g. each value a fuzzer replaced. */
+	coverage?: Coverage_Serialize[],
 };
 
 /**  A tool step as written in the flow file, tagged by `tool`. */
@@ -2170,7 +2386,17 @@ export type ToolStep_Deserialize = {
 	tool: "run",
 } & Run_Deserialize | {
 	tool: "pick",
-} & Pick_Deserialize;
+} & Pick_Deserialize | {
+	tool: "fuzz",
+} & Fuzz_Deserialize | {
+	tool: "headers",
+} & Headers_Deserialize | {
+	tool: "cert",
+} & Cert_Deserialize | {
+	tool: "ratelimit",
+} & Ratelimit_Deserialize | {
+	tool: "loadtest",
+} & Loadtest_Deserialize;
 
 /**  A tool step as written in the flow file, tagged by `tool`. */
 export type ToolStep_Serialize = {
@@ -2197,7 +2423,17 @@ export type ToolStep_Serialize = {
 	tool: "run",
 } & Run_Serialize | {
 	tool: "pick",
-} & Pick_Serialize;
+} & Pick_Serialize | {
+	tool: "fuzz",
+} & Fuzz_Serialize | {
+	tool: "headers",
+} & Headers_Serialize | {
+	tool: "cert",
+} & Cert_Serialize | {
+	tool: "ratelimit",
+} & Ratelimit_Serialize | {
+	tool: "loadtest",
+} & Loadtest_Serialize;
 
 /**  A new secret to add to an authenticator app, before it's turned on. */
 export type TotpSetup = {

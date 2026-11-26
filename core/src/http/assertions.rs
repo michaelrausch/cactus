@@ -287,6 +287,7 @@ mod tests {
             checks: vec![],
             critter: None,
             relogged: false,
+            sent: crate::http::Sent::default(),
         }
     }
 

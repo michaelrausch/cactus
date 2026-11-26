@@ -7,7 +7,7 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 
 use super::wait::MAX_SECONDS;
-use super::{Tool, ToolCx, ToolOutput};
+use super::{Tool, ToolCx, ToolOutput, is_zero};
 use crate::collection::LenientString;
 use crate::critter::FlowStep;
 use crate::scenario::Assertion;
@@ -37,11 +37,6 @@ pub struct Poll {
     /// Seconds to keep trying; 60 when not set.
     #[serde(skip_serializing_if = "is_zero")]
     pub timeout: u32,
-}
-
-#[allow(clippy::trivially_copy_pass_by_ref)] // serde passes a reference.
-fn is_zero(seconds: &u32) -> bool {
-    *seconds == 0
 }
 
 const fn or(seconds: u32, default: u32) -> u32 {

@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 import { useFlowStore } from "@/stores/flowStore";
 import { useProjectStore } from "@/stores/projectStore";
 import { REQUEST_MIME, STEP_MIME, TOOL_MIME } from "./dragTypes";
-import { TOOL_IDS, TOOLS } from "./tools";
+import { TOOL_SECTIONS, TOOLS } from "./tools";
 
 const matches = (query: string, ...texts: string[]): boolean => {
   const q = query.trim().toLowerCase();
@@ -75,7 +75,10 @@ export function RequestPalette() {
   const [query, setQuery] = useState("");
   const [removing, setRemoving] = useState(false);
   const requests = authFirst(entries.filter((entry) => matches(query, entry.title, entry.relPath, entry.method)));
-  const tools = TOOL_IDS.filter((id) => matches(query, TOOLS[id].label, id));
+  const sections = TOOL_SECTIONS.map(({ label, tools }) => ({
+    label,
+    tools: tools.filter((id) => matches(query, TOOLS[id].label, id, label)),
+  })).filter((section) => section.tools.length > 0);
 
   const onDragOver = (event: DragEvent) => {
     if (!event.dataTransfer.types.includes(STEP_MIME)) return;
@@ -128,13 +131,13 @@ export function RequestPalette() {
             </PaletteRow>
           ))}
         </ul>
-        {tools.length > 0 && (
-          <>
+        {sections.map((section) => (
+          <section key={section.label}>
             <h4 className="px-1.5 pt-3 pb-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-              Tools
+              {section.label}
             </h4>
-            <ul aria-label="Tools">
-              {tools.map((id) => {
+            <ul aria-label={section.label}>
+              {section.tools.map((id) => {
                 const { label, icon: Icon, create } = TOOLS[id];
                 return (
                   <PaletteRow
@@ -153,8 +156,8 @@ export function RequestPalette() {
                 );
               })}
             </ul>
-          </>
-        )}
+          </section>
+        ))}
       </div>
     </div>
   );

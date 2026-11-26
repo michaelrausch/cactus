@@ -1,6 +1,8 @@
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Copy } from "lucide-react";
 import { useState } from "react";
-import type { Finding, Metric, Severity } from "@/api/client";
+import { copyText } from "@/actions/clipboard";
+import type { Coverage, Finding, Metric, Severity, StatusCount } from "@/api/client";
+import { IconButton } from "@/components/IconButton";
 import { countBySeverity, findingTitle, formatMetric, severityTone } from "@/domain/findings";
 import { cn } from "@/lib/utils";
 
@@ -35,7 +37,7 @@ export function SeverityCounts({ findings, className }: { findings: readonly Fin
 
 function FindingRow({ finding }: { finding: Finding }) {
   const [open, setOpen] = useState(false);
-  const more = Boolean(finding.detail || finding.evidence);
+  const more = Boolean(finding.detail || finding.evidence || finding.repro);
   return (
     <li className="flex flex-col">
       <button
@@ -67,9 +69,56 @@ function FindingRow({ finding }: { finding: Finding }) {
               {finding.evidence}
             </pre>
           )}
+          {finding.repro && <Repro command={finding.repro} />}
         </div>
       )}
     </li>
+  );
+}
+
+/** The command that sends a finding's request again, with a copy button. */
+function Repro({ command }: { command: string }) {
+  return (
+    <div className="flex items-start gap-1 rounded-md border bg-muted/40 p-2">
+      <pre className="max-h-32 min-w-0 flex-1 overflow-auto font-mono break-all whitespace-pre-wrap">{command}</pre>
+      <IconButton label="Copy curl command" onClick={() => void copyText(command, "Copied curl command")}>
+        <Copy className="size-3.5" />
+      </IconButton>
+    </div>
+  );
+}
+
+/** `500×5 200×3`; a request that got no answer counts as `none`. */
+const statusCounts = (statuses: readonly StatusCount[]) =>
+  statuses.map(({ status, count }) => `${status === 0 ? "none" : status}×${count}`).join(" ");
+
+/** What a tool tried at each place, e.g. each value a fuzzer replaced. */
+export function CoverageTable({ coverage }: { coverage: readonly Coverage[] }) {
+  return (
+    <table className="w-full text-xs">
+      <thead className="text-left text-muted-foreground">
+        <tr>
+          <th className="px-1.5 py-1 font-medium">Value</th>
+          <th className="px-1.5 py-1 text-right font-medium">Sent</th>
+          <th className="px-1.5 py-1 font-medium">Statuses</th>
+          <th className="px-1.5 py-1 font-medium">Findings</th>
+        </tr>
+      </thead>
+      <tbody>
+        {coverage.map((place) => (
+          <tr key={place.location} className="border-t">
+            <td className="max-w-48 truncate px-1.5 py-1 font-mono" title={place.location}>
+              {place.location}
+            </td>
+            <td className="px-1.5 py-1 text-right tabular-nums">{place.requests ?? 0}</td>
+            <td className="px-1.5 py-1 font-mono tabular-nums">{statusCounts(place.statuses ?? [])}</td>
+            <td className={cn("px-1.5 py-1", place.findings ? "text-warning" : "text-success")}>
+              {place.findings ? place.findings : "None"}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 }
 

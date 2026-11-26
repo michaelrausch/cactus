@@ -7,12 +7,17 @@
 import type { ToolStep } from "@/api/client";
 import type { ToolDataflow } from "@/domain/flowDataflow";
 import { assert } from "./assert";
+import { cert } from "./cert";
 import { display } from "./display";
+import { fuzz } from "./fuzz";
+import { headers } from "./headers";
+import { loadtest } from "./loadtest";
 import { notify } from "./notify";
 import { open } from "./open";
 import { pick } from "./pick";
 import { poll } from "./poll";
 import { prompt } from "./prompt";
+import { ratelimit } from "./ratelimit";
 import { run } from "./run";
 import { set } from "./set";
 import { slack } from "./slack";
@@ -20,7 +25,6 @@ import type { ToolDef, ToolId, ToolOf } from "./types";
 import { wait } from "./wait";
 import { webhook } from "./webhook";
 
-/** In the order the palette lists them. */
 export const TOOLS: { readonly [T in ToolId]: ToolDef<T> } = {
   prompt,
   pick,
@@ -34,9 +38,22 @@ export const TOOLS: { readonly [T in ToolId]: ToolDef<T> } = {
   webhook,
   slack,
   notify,
+  fuzz,
+  headers,
+  cert,
+  ratelimit,
+  loadtest,
 };
 
 export const TOOL_IDS = Object.keys(TOOLS) as ToolId[];
+
+/** The palette's sections, in order. Every tool is in exactly one (checked in `tools.test.ts`). */
+export const TOOL_SECTIONS: readonly { label: string; tools: readonly ToolId[] }[] = [
+  { label: "Input", tools: ["prompt", "pick", "set"] },
+  { label: "Flow", tools: ["assert", "poll", "wait", "run"] },
+  { label: "Output", tools: ["display", "open", "webhook", "slack", "notify"] },
+  { label: "Security", tools: ["fuzz", "headers", "cert", "ratelimit", "loadtest"] },
+];
 
 export const isToolId = (id: string): id is ToolId => id in TOOLS;
 
