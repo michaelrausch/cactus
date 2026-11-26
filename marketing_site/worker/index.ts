@@ -100,7 +100,7 @@ function sendKey(env: Env, to: string, key: string): Promise<Response> {
     "",
     key,
     "",
-    "Paste it into cactus pro when it asks. Download cactus pro at https://usecactus.dev/pro",
+    "Download cactus pro and paste the key in when it asks: https://usecactus.dev/pro/thanks",
   ].join("\n");
   // An HTML part as well as the text, and somewhere real to reply to: plain
   // text that's mostly a random-looking key, from an address that can't be
@@ -108,10 +108,11 @@ function sendKey(env: Env, to: string, key: string): Promise<Response> {
   const html = `<!doctype html>
 <html>
   <body style="margin:0;padding:24px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#212121;line-height:1.5">
+    <img src="https://usecactus.dev/email-logo.png" width="48" height="48" alt="cactus" style="display:block;border:0" />
     <p>Thanks for supporting cactus.</p>
     <p>Your cactus pro license key:</p>
     <p style="padding:12px 14px;border:1px solid #e0e0e0;border-radius:8px;background:#f7f7f7;font-family:ui-monospace,Menlo,monospace;font-size:13px;word-break:break-all">${key}</p>
-    <p>Paste it into cactus pro when it asks. You can download cactus pro at <a href="https://usecactus.dev/pro">usecactus.dev/pro</a>.</p>
+    <p><a href="https://usecactus.dev/pro/thanks">Download cactus pro</a> and paste the key in when it asks.</p>
     <p>If anything goes wrong, reply to this email.</p>
   </body>
 </html>`;
