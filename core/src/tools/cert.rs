@@ -12,12 +12,14 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use rustls::client::WebPkiServerVerifier;
 use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
+use rustls::crypto::CryptoProvider;
 use rustls::pki_types::{CertificateDer, ServerName, UnixTime};
 use rustls::{CertificateError, ClientConfig, DigitallySignedStruct, ProtocolVersion, RootCertStore, SignatureScheme};
 use serde::{Deserialize, Serialize};
 use tokio::net::TcpStream;
 use tokio::time::{Instant, timeout};
 use tokio_rustls::TlsConnector;
+use tokio_rustls::client::TlsStream;
 use x509_parser::extensions::GeneralName;
 use x509_parser::prelude::{FromDer, X509Certificate};
 use x509_parser::public_key::PublicKey;
@@ -88,18 +90,21 @@ impl Target {
         if text.is_empty() {
             return Err(Error::MissingUrl);
         }
+
         let full = if text.contains("://") { text.to_string() } else { format!("https://{text}") };
         let invalid = |reason: String| Error::InvalidUrl { url: text.into(), reason };
         let url = url::Url::parse(&full).map_err(|e| invalid(e.to_string()))?;
         if !matches!(url.scheme(), "https" | "wss") {
             return Err(invalid("not https".into()));
         }
+
         let host = match url.host() {
             Some(url::Host::Domain(name)) => Host::Name(name.to_ascii_lowercase()),
             Some(url::Host::Ipv4(ip)) => Host::Ip(ip.into()),
             Some(url::Host::Ipv6(ip)) => Host::Ip(ip.into()),
             None => return Err(invalid("no host".into())),
         };
+
         Ok(Self { host, port: url.port_or_known_default().unwrap_or(443) })
     }
 
@@ -135,18 +140,12 @@ impl Tool for Cert {
     async fn run(&self, cx: &mut ToolCx<'_>) -> Result<ToolOutput> {
         EXPORTS.check(&self.set)?;
         let target = Target::parse(&self.url)?;
-        let handshake = handshake(&target).await?;
-        let now = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |since| since.as_secs());
-        let now = i64::try_from(now).unwrap_or(i64::MAX);
         let warn_days = if self.warn_days == 0 { DEFAULT_WARN_DAYS } else { self.warn_days };
-        let mut seen = inspect(&handshake.leaf, &target, now, warn_days)?;
-        if let Some(why) = handshake.untrusted {
-            seen.findings.push(finding(Severity::High, "Untrusted certificate", "cert.untrusted", &target, why));
-        }
-        if handshake.protocol != Some(ProtocolVersion::TLSv1_3) {
-            let detail = format!("Negotiated {}", protocol_name(handshake.protocol));
-            seen.findings.push(finding(Severity::Info, "No TLS 1.3", "cert.no-tls13", &target, detail));
-        }
+
+        let handshake = handshake(&target).await?;
+        let mut seen = inspect(&handshake.leaf, &target, unix_now(), warn_days)?;
+        seen.findings.extend(handshake_findings(&handshake, &target));
+
         #[allow(clippy::cast_precision_loss)] // Milliseconds and days are far below 2^53.
         let metrics = vec![
             Metric::new("days_left", "Days left", seen.days_left as f64, "d"),
@@ -154,6 +153,7 @@ impl Tool for Cert {
         ];
         let text = format!("{}\n{} · {}", seen.text, protocol_name(handshake.protocol), handshake.cipher);
         let output = ToolOutput { findings: Some(seen.findings), metrics, ..ToolOutput::text(text) };
+
         export(cx, &self.set, &output)?;
         Ok(output)
     }
@@ -175,35 +175,38 @@ struct Handshake {
     millis: u128,
 }
 
+/// What the handshake itself shows: an untrusted chain, and no TLS 1.3.
+fn handshake_findings(handshake: &Handshake, target: &Target) -> Vec<Finding> {
+    let mut findings = Vec::new();
+
+    if let Some(why) = &handshake.untrusted {
+        findings.push(finding(Severity::High, "Untrusted certificate", "cert.untrusted", target, why.clone()));
+    }
+
+    if handshake.protocol != Some(ProtocolVersion::TLSv1_3) {
+        let detail = format!("Negotiated {}", protocol_name(handshake.protocol));
+        findings.push(finding(Severity::Info, "No TLS 1.3", "cert.no-tls13", target, detail));
+    }
+
+    findings
+}
+
+/// Seconds since the Unix epoch.
+fn unix_now() -> i64 {
+    let seconds = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |since| since.as_secs());
+    i64::try_from(seconds).unwrap_or(i64::MAX)
+}
+
+/// Connect to `target` and shake hands, keeping what webpki thought of its
+/// certificate rather than failing on it.
 async fn handshake(target: &Target) -> Result<Handshake> {
-    let provider = Arc::new(rustls::crypto::ring::default_provider());
-    let roots = Arc::new(RootCertStore { roots: webpki_roots::TLS_SERVER_ROOTS.to_vec() });
-    let webpki = WebPkiServerVerifier::builder_with_provider(roots, Arc::clone(&provider))
-        .build()
-        .map_err(|e| Error::Tool(format!("TLS: {e}")))?;
-    let recorder = Arc::new(Recorder { webpki, outcome: Mutex::new(None) });
-    let config = ClientConfig::builder_with_provider(provider)
-        .with_safe_default_protocol_versions()
-        .map_err(|e| Error::Tool(format!("TLS: {e}")))?
-        .dangerous()
-        .with_custom_certificate_verifier(Arc::clone(&recorder) as Arc<dyn ServerCertVerifier>)
-        .with_no_client_auth();
-    let address = match &target.host {
-        Host::Name(name) => format!("{name}:{}", target.port),
-        Host::Ip(ip) => std::net::SocketAddr::new(*ip, target.port).to_string(),
-    };
+    let recorder = Arc::new(Recorder::new()?);
+    let config = client_config(Arc::clone(&recorder))?;
+
     let started = Instant::now();
-    let connect = async {
-        let tcp = TcpStream::connect(&address).await?;
-        TlsConnector::from(Arc::new(config)).connect(target.server_name()?, tcp).await.map_err(Error::from)
-    };
-    let stream = timeout(CONNECT_TIMEOUT, connect)
-        .await
-        .map_err(|_| {
-            Error::Tool(format!("No TLS answer from {} in {}s", target.location(), CONNECT_TIMEOUT.as_secs()))
-        })?
-        .map_err(|e| Error::Tool(format!("TLS handshake with {} failed: {e}", target.location())))?;
+    let stream = connect(target, config).await?;
     let millis = started.elapsed().as_millis();
+
     let connection = stream.get_ref().1;
     let leaf = connection
         .peer_certificates()
@@ -212,13 +215,45 @@ async fn handshake(target: &Target) -> Result<Handshake> {
         .clone()
         .into_owned();
     let untrusted = recorder.outcome.lock().unwrap().take().and_then(untrusted_reason);
-    Ok(Handshake {
-        leaf,
-        untrusted,
-        protocol: connection.protocol_version(),
-        cipher: connection.negotiated_cipher_suite().map_or_default(|suite| format!("{:?}", suite.suite())),
-        millis,
-    })
+    let cipher = connection.negotiated_cipher_suite().map_or_default(|suite| format!("{:?}", suite.suite()));
+
+    Ok(Handshake { leaf, untrusted, protocol: connection.protocol_version(), cipher, millis })
+}
+
+/// A client that accepts any certificate, asking `recorder` what it thinks.
+fn client_config(recorder: Arc<Recorder>) -> Result<ClientConfig> {
+    let config = ClientConfig::builder_with_provider(crypto_provider())
+        .with_safe_default_protocol_versions()
+        .map_err(|e| Error::Tool(format!("TLS: {e}")))?
+        .dangerous()
+        .with_custom_certificate_verifier(recorder)
+        .with_no_client_auth();
+    Ok(config)
+}
+
+fn crypto_provider() -> Arc<CryptoProvider> {
+    Arc::new(rustls::crypto::ring::default_provider())
+}
+
+/// A TLS connection to `target`, or why there's none within [`CONNECT_TIMEOUT`].
+async fn connect(target: &Target, config: ClientConfig) -> Result<TlsStream<TcpStream>> {
+    let address = match &target.host {
+        Host::Name(name) => format!("{name}:{}", target.port),
+        Host::Ip(ip) => std::net::SocketAddr::new(*ip, target.port).to_string(),
+    };
+    let server_name = target.server_name()?;
+
+    let attempt = async {
+        let tcp = TcpStream::connect(&address).await?;
+        TlsConnector::from(Arc::new(config)).connect(server_name, tcp).await
+    };
+
+    let location = target.location();
+    match timeout(CONNECT_TIMEOUT, attempt).await {
+        Ok(Ok(stream)) => Ok(stream),
+        Ok(Err(error)) => Err(Error::Tool(format!("TLS handshake with {location} failed: {error}"))),
+        Err(_) => Err(Error::Tool(format!("No TLS answer from {location} in {}s", CONNECT_TIMEOUT.as_secs()))),
+    }
 }
 
 /// Why webpki refused the chain, unless it's for a reason [`inspect`] reports.
@@ -276,6 +311,17 @@ struct Recorder {
     outcome: Mutex<Option<rustls::Error>>,
 }
 
+impl Recorder {
+    /// Checks against the same roots as the HTTP client: webpki's.
+    fn new() -> Result<Self> {
+        let roots = Arc::new(RootCertStore { roots: webpki_roots::TLS_SERVER_ROOTS.to_vec() });
+        let webpki = WebPkiServerVerifier::builder_with_provider(roots, crypto_provider())
+            .build()
+            .map_err(|e| Error::Tool(format!("TLS: {e}")))?;
+        Ok(Self { webpki, outcome: Mutex::new(None) })
+    }
+}
+
 impl ServerCertVerifier for Recorder {
     fn verify_server_cert(
         &self,
@@ -287,6 +333,7 @@ impl ServerCertVerifier for Recorder {
     ) -> std::result::Result<ServerCertVerified, rustls::Error> {
         let verify = |now| self.webpki.verify_server_cert(end_entity, intermediates, server_name, ocsp_response, now);
         let mut outcome = verify(now).err();
+
         // webpki checks dates before trust, so an out-of-date certificate
         // hides whether it's trusted: ask again as of a time it was valid.
         if is_date_error(outcome.as_ref())
@@ -294,6 +341,7 @@ impl ServerCertVerifier for Recorder {
         {
             outcome = verify(valid_at).err();
         }
+
         *self.outcome.lock().unwrap() = outcome;
         Ok(ServerCertVerified::assertion())
     }
@@ -342,50 +390,19 @@ struct Inspected {
 fn inspect(der: &[u8], target: &Target, now: i64, warn_days: u32) -> Result<Inspected> {
     let (_, cert) =
         X509Certificate::from_der(der).map_err(|e| Error::Tool(format!("Couldn't read the certificate: {e}")))?;
-    let mut findings = Vec::new();
-    let mut add = |severity, title: &str, rule: &str, detail: String| {
-        findings.push(finding(severity, title, rule, target, detail));
-    };
+
+    let findings = [
+        check_dates(&cert, target, now, warn_days),
+        check_name(&cert, target),
+        check_key(&cert, target),
+        check_signature(&cert, target),
+    ]
+    .into_iter()
+    .flatten()
+    .collect();
+
     let validity = cert.validity();
-    let (not_before, not_after) = (validity.not_before.timestamp(), validity.not_after.timestamp());
-    let days_left = (not_after - now).div_euclid(SECONDS_PER_DAY);
-    if now > not_after {
-        add(Severity::Critical, "Certificate expired", "cert.expired", format!("Expired {}", validity.not_after));
-    } else if now < not_before {
-        add(Severity::Critical, "Not valid yet", "cert.not-yet-valid", format!("Valid from {}", validity.not_before));
-    } else if days_left < i64::from(warn_days) {
-        let severity = if days_left < URGENT_DAYS { Severity::High } else { Severity::Medium };
-        let detail = format!("Expires in {days_left} days, {}", validity.not_after);
-        add(severity, "Certificate expiring", "cert.expiring", detail);
-    }
-
-    let names = alt_names(&cert);
-    if !names.iter().any(|name| name.matches(&target.host)) {
-        let listed: Vec<String> = names.iter().map(ToString::to_string).collect();
-        let listed = if listed.is_empty() { "no names".into() } else { listed.join(", ") };
-        add(
-            Severity::High,
-            "Name doesn't match",
-            "cert.hostname",
-            format!("Not for {}; for {listed}", target.location()),
-        );
-    }
-
-    match cert.public_key().parsed() {
-        Ok(PublicKey::RSA(rsa)) if rsa_bits(rsa.modulus) < MIN_RSA_BITS => {
-            add(Severity::High, "Weak key", "cert.weak-key", format!("{}-bit RSA", rsa_bits(rsa.modulus)));
-        }
-        Ok(PublicKey::EC(ec)) if ec.key_size() < MIN_EC_BITS => {
-            add(Severity::High, "Weak key", "cert.weak-key", format!("{}-bit EC", ec.key_size()));
-        }
-        _ => {}
-    }
-
-    let algorithm = cert.signature_algorithm.algorithm.to_id_string();
-    if let Some((_, name)) = WEAK_SIGNATURES.iter().find(|(oid, _)| *oid == algorithm) {
-        add(Severity::High, "Weak signature", "cert.weak-signature", format!("Signed with {name}"));
-    }
-
+    let days_left = (validity.not_after.timestamp() - now).div_euclid(SECONDS_PER_DAY);
     let text = format!(
         "{}\nIssued by {}\nValid {} to {}",
         cert.subject(),
@@ -393,7 +410,69 @@ fn inspect(der: &[u8], target: &Target, now: i64, warn_days: u32) -> Result<Insp
         validity.not_before,
         validity.not_after
     );
+
     Ok(Inspected { findings, days_left, text })
+}
+
+/// Expired, not valid yet, or expiring within `warn_days`.
+fn check_dates(cert: &X509Certificate<'_>, target: &Target, now: i64, warn_days: u32) -> Option<Finding> {
+    let validity = cert.validity();
+    let (not_before, not_after) = (validity.not_before.timestamp(), validity.not_after.timestamp());
+    let days_left = (not_after - now).div_euclid(SECONDS_PER_DAY);
+
+    if now > not_after {
+        let detail = format!("Expired {}", validity.not_after);
+        return Some(finding(Severity::Critical, "Certificate expired", "cert.expired", target, detail));
+    }
+
+    if now < not_before {
+        let detail = format!("Valid from {}", validity.not_before);
+        return Some(finding(Severity::Critical, "Not valid yet", "cert.not-yet-valid", target, detail));
+    }
+
+    if days_left < i64::from(warn_days) {
+        let severity = if days_left < URGENT_DAYS { Severity::High } else { Severity::Medium };
+        let detail = format!("Expires in {days_left} days, {}", validity.not_after);
+        return Some(finding(severity, "Certificate expiring", "cert.expiring", target, detail));
+    }
+
+    None
+}
+
+/// The host isn't one of the names the certificate is for.
+fn check_name(cert: &X509Certificate<'_>, target: &Target) -> Option<Finding> {
+    let names = alt_names(cert);
+    if names.iter().any(|name| name.matches(&target.host)) {
+        return None;
+    }
+
+    let listed: Vec<String> = names.iter().map(ToString::to_string).collect();
+    let listed = if listed.is_empty() { "no names".into() } else { listed.join(", ") };
+    let detail = format!("Not for {}; for {listed}", target.location());
+
+    Some(finding(Severity::High, "Name doesn't match", "cert.hostname", target, detail))
+}
+
+/// An RSA key under [`MIN_RSA_BITS`] or an EC key under [`MIN_EC_BITS`].
+fn check_key(cert: &X509Certificate<'_>, target: &Target) -> Option<Finding> {
+    let detail = match cert.public_key().parsed() {
+        Ok(PublicKey::RSA(rsa)) if rsa_bits(rsa.modulus) < MIN_RSA_BITS => {
+            format!("{}-bit RSA", rsa_bits(rsa.modulus))
+        }
+        Ok(PublicKey::EC(ec)) if ec.key_size() < MIN_EC_BITS => format!("{}-bit EC", ec.key_size()),
+        _ => return None,
+    };
+
+    Some(finding(Severity::High, "Weak key", "cert.weak-key", target, detail))
+}
+
+/// Signed with one of [`WEAK_SIGNATURES`].
+fn check_signature(cert: &X509Certificate<'_>, target: &Target) -> Option<Finding> {
+    let algorithm = cert.signature_algorithm.algorithm.to_id_string();
+    let (_, name) = WEAK_SIGNATURES.iter().find(|(oid, _)| *oid == algorithm)?;
+    let detail = format!("Signed with {name}");
+
+    Some(finding(Severity::High, "Weak signature", "cert.weak-signature", target, detail))
 }
 
 fn finding(severity: Severity, title: &str, rule: &str, target: &Target, detail: String) -> Finding {

@@ -232,50 +232,59 @@ impl Exports {
     /// Fail before anything is sent if `set` names something this tool
     /// never reports.
     pub fn check(&self, set: &BTreeMap<String, LenientString>) -> crate::Result<()> {
-        for (name, source) in set {
-            let source = source.trim();
-            let known = if let Some(part) = source.strip_prefix("findings") {
-                self.findings
-                    && (part.is_empty()
-                        || part == ".count"
-                        || SEVERITIES.iter().any(|severity| part.strip_prefix('.') == Some(severity.as_str())))
-            } else {
-                self.metrics.contains(&source)
-            };
-            if !known {
-                let mut offered: Vec<&str> = self.metrics.to_vec();
-                if self.findings {
-                    offered.extend(["findings", "findings.count", "findings.<severity>"]);
-                }
-                return Err(Error::Tool(format!("set {name}: no {source:?}; use {}", offered.join(", "))));
-            }
+        let Some((name, source)) = set.iter().find(|(_, source)| !self.offers(source.trim())) else {
+            return Ok(());
+        };
+
+        let mut offered: Vec<&str> = self.metrics.to_vec();
+        if self.findings {
+            offered.extend(["findings", "findings.count", "findings.<severity>"]);
         }
-        Ok(())
+
+        Err(Error::Tool(format!("set {name}: no {:?}; use {}", source.trim(), offered.join(", "))))
+    }
+
+    /// Whether `source` is one of this tool's metrics or, if it has
+    /// findings, `findings`, `findings.count` or `findings.<severity>`.
+    fn offers(&self, source: &str) -> bool {
+        let Some(part) = source.strip_prefix("findings") else {
+            return self.metrics.contains(&source);
+        };
+
+        let severity = |part: &str| SEVERITIES.iter().any(|severity| part.strip_prefix('.') == Some(severity.as_str()));
+        self.findings && (part.is_empty() || part == ".count" || severity(part))
     }
 }
 
 /// Give later steps what `set` asks for from `output`, already checked
 /// with [`Exports::check`]. A metric the run didn't measure is empty.
 pub fn export(cx: &mut ToolCx<'_>, set: &BTreeMap<String, LenientString>, output: &ToolOutput) -> crate::Result<()> {
-    let found = output.found();
     for (name, source) in set {
-        let value = match source.trim() {
-            "findings" => {
-                let mut sorted = found.to_vec();
-                sorted.sort_by_key(|finding| Reverse(finding.severity));
-                serde_json::to_string(&sorted)?
-            }
-            "findings.count" => found.len().to_string(),
-            source => match source.strip_prefix("findings.") {
-                Some(severity) => {
-                    found.iter().filter(|finding| finding.severity.as_str() == severity).count().to_string()
-                }
-                None => output.metrics.iter().find(|metric| metric.name == source).map_or_default(number),
-            },
-        };
+        let value = exported(source.trim(), output)?;
         cx.set(name.trim(), value);
     }
+
     Ok(())
+}
+
+/// The value `source` names in `output`.
+fn exported(source: &str, output: &ToolOutput) -> crate::Result<String> {
+    let found = output.found();
+
+    let value = match source {
+        "findings" => {
+            let mut sorted = found.to_vec();
+            sorted.sort_by_key(|finding| Reverse(finding.severity));
+            serde_json::to_string(&sorted)?
+        }
+        "findings.count" => found.len().to_string(),
+        source => match source.strip_prefix("findings.") {
+            Some(severity) => found.iter().filter(|finding| finding.severity.as_str() == severity).count().to_string(),
+            None => output.metrics.iter().find(|metric| metric.name == source).map_or_default(number),
+        },
+    };
+
+    Ok(value)
 }
 
 /// A metric's value as a variable: `412`, `412.5`; empty when it has none.

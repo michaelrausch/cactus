@@ -17,6 +17,7 @@ use super::{
 };
 use crate::collection::LenientString;
 use crate::collection::model::is_false;
+use crate::critter::FlowStep;
 use crate::http::Response;
 use crate::{Error, Result};
 
@@ -70,16 +71,12 @@ struct Seen {
 
 impl Seen {
     fn of(response: &Response) -> Self {
-        let header = |name: &str| response.headers.iter().find(|(key, _)| key.eq_ignore_ascii_case(name));
         let limit_headers = response.headers.iter().any(|(key, _)| {
             let key = key.to_ascii_lowercase();
             key.starts_with("ratelimit") || key.starts_with("x-ratelimit")
         });
-        Self {
-            status: response.status,
-            retry_after: header("retry-after").map(|(_, value)| value.clone()),
-            limit_headers,
-        }
+
+        Self { status: response.status, retry_after: response.header("retry-after").map(Into::into), limit_headers }
     }
 
     /// A 429, or a 503 that says when to retry.
@@ -115,68 +112,27 @@ impl Tool for Ratelimit {
     async fn run(&self, cx: &mut ToolCx<'_>) -> Result<ToolOutput> {
         EXPORTS.check(&self.set)?;
         let total = self.requests();
-        if total > MAX_REQUESTS {
-            return Err(Error::Tool(format!("Send at most {MAX_REQUESTS} requests")));
-        }
-        if total <= self.limit {
-            return Err(Error::Tool("Send more requests than the limit".into()));
-        }
-        if self.concurrency > MAX_CONCURRENCY {
-            return Err(Error::Tool(format!("Send at most {MAX_CONCURRENCY} at once")));
-        }
+        self.check_limits(total)?;
         let step = request_step(&self.request, &self.with);
-        let started = Instant::now();
-        let mut seen = Vec::new();
-        let mut first_error = None;
-        let mut sends = stream::iter(0..total)
-            .map(|_| cx.runner.probe(&step, &unchanged))
-            .buffered(self.concurrency.max(1) as usize);
-        while let Some(outcome) = sends.next().await {
-            match outcome {
-                Ok(response) => seen.push(Some(Seen::of(&response))),
-                Err(error) => {
-                    first_error.get_or_insert_with(|| error.to_string());
-                    seen.push(None);
-                }
-            }
-            cx.progress(u32::try_from(seen.len()).unwrap_or(u32::MAX), total);
-        }
-        drop(sends);
-        if seen.iter().all(Option::is_none) {
-            return Err(Error::Tool(format!("No responses: {}", first_error.unwrap_or_default())));
-        }
-        let seconds = started.elapsed().as_secs_f64();
         let location = self.request.trim();
+
+        let started = Instant::now();
+        let seen = self.send_all(cx, &step, total).await?;
+        let seconds = started.elapsed().as_secs_f64();
+
         let (mut findings, metrics) = analyse(&seen, self.limit, seconds, location);
 
         let last_limited = seen.iter().flatten().rfind(|seen| seen.limited());
         if let (true, Some(limited)) = (self.reset, last_limited) {
-            let wait = limited.retry_seconds().unwrap_or(DEFAULT_RETRY_AFTER).min(u64::from(MAX_SECONDS));
-            // A second more, so a window that ends on the second has ended.
-            tokio::time::sleep(Duration::from_secs(wait + 1)).await;
-            // A failed retry is a finding too, so what was already found is kept.
-            let still = match cx.runner.probe(&step, &unchanged).await {
-                Ok(response) => {
-                    Seen::of(&response).limited().then(|| format!("Got {} again {wait}s later", response.status))
-                }
-                Err(error) => Some(format!("No answer {wait}s later: {error}")),
-            };
-            if let Some(detail) = still {
-                findings.push(Finding {
-                    severity: Severity::Low,
-                    title: "Still limited after waiting".into(),
-                    rule: "ratelimit.no-reset".into(),
-                    location: location.into(),
-                    detail,
-                    ..Finding::default()
-                });
-            }
+            findings.extend(check_reset(cx, &step, limited, location).await);
         }
+
         let text = match seen.iter().flatten().position(Seen::limited) {
             Some(at) => format!("Limited after {at} of {total}"),
             None => format!("None of {total} limited"),
         };
         let output = ToolOutput { findings: Some(findings), metrics, ..ToolOutput::text(text) };
+
         export(cx, &self.set, &output)?;
         Ok(output)
     }
@@ -186,47 +142,151 @@ impl Tool for Ratelimit {
     }
 }
 
-/// What `seen`, in the order sent, says about the limit: findings and
-/// metrics. `None` is a request that got no response.
-#[allow(clippy::cast_precision_loss)]
-fn analyse(seen: &[Option<Seen>], limit: u32, seconds: f64, location: &str) -> (Vec<Finding>, Vec<Metric>) {
-    let finding = |severity, title: &str, rule: &str, detail: String| Finding {
+impl Ratelimit {
+    fn check_limits(&self, total: u32) -> Result<()> {
+        if total > MAX_REQUESTS {
+            return Err(Error::Tool(format!("Send at most {MAX_REQUESTS} requests")));
+        }
+
+        if total <= self.limit {
+            return Err(Error::Tool("Send more requests than the limit".into()));
+        }
+
+        if self.concurrency > MAX_CONCURRENCY {
+            return Err(Error::Tool(format!("Send at most {MAX_CONCURRENCY} at once")));
+        }
+
+        Ok(())
+    }
+
+    /// Send `step` `total` times, a few at a time; what each response said,
+    /// in the order sent. Fails only if none was answered.
+    async fn send_all(&self, cx: &ToolCx<'_>, step: &FlowStep, total: u32) -> Result<Vec<Option<Seen>>> {
+        let mut sends = stream::iter(0..total)
+            .map(|_| cx.runner.probe(step, &unchanged))
+            .buffered(self.concurrency.max(1) as usize);
+
+        let mut seen = Vec::new();
+        let mut first_error = None;
+        while let Some(outcome) = sends.next().await {
+            match outcome {
+                Ok(response) => seen.push(Some(Seen::of(&response))),
+                Err(error) => {
+                    first_error.get_or_insert_with(|| error.to_string());
+                    seen.push(None);
+                }
+            }
+
+            cx.progress(u32::try_from(seen.len()).unwrap_or(u32::MAX), total);
+        }
+
+        if seen.iter().all(Option::is_none) {
+            return Err(Error::Tool(format!("No responses: {}", first_error.unwrap_or_default())));
+        }
+
+        Ok(seen)
+    }
+}
+
+/// Wait as long as `limited` asked, then send once more: still refused, or
+/// not answered at all, is a finding.
+async fn check_reset(cx: &ToolCx<'_>, step: &FlowStep, limited: &Seen, location: &str) -> Option<Finding> {
+    let wait = limited.retry_seconds().unwrap_or(DEFAULT_RETRY_AFTER).min(u64::from(MAX_SECONDS));
+    // A second more, so a window that ends on the second has ended.
+    tokio::time::sleep(Duration::from_secs(wait + 1)).await;
+
+    let detail = match cx.runner.probe(step, &unchanged).await {
+        Ok(response) if Seen::of(&response).limited() => format!("Got {} again {wait}s later", response.status),
+        Ok(_) => return None,
+        Err(error) => format!("No answer {wait}s later: {error}"),
+    };
+
+    Some(finding(location, Severity::Low, "Still limited after waiting", "ratelimit.no-reset", detail))
+}
+
+fn finding(location: &str, severity: Severity, title: &str, rule: &str, detail: String) -> Finding {
+    Finding {
         severity,
         title: title.into(),
         rule: rule.into(),
         location: location.into(),
         detail,
         ..Finding::default()
-    };
-    let answered: Vec<&Seen> = seen.iter().flatten().collect();
-    let mut metrics = vec![Metric::new("sent", "Sent", seen.len() as f64, "")];
-    let Some(first) = answered.iter().position(|seen| seen.limited()) else {
-        let detail = format!("None of {} responses was a 429", answered.len());
-        metrics.push(Metric::new("allowed", "Allowed", answered.len() as f64, ""));
-        metrics.push(Metric::new("rps", "Rate", per_second(seen.len(), seconds), "/s"));
-        return (vec![finding(Severity::High, "No rate limit", "ratelimit.missing", detail)], metrics);
-    };
-    let mut findings = Vec::new();
-    if limit > 0 && first > limit as usize {
-        let detail = format!("Limited after {first} requests; expected at most {limit}");
-        findings.push(finding(Severity::Medium, "Limit higher than expected", "ratelimit.too-high", detail));
     }
+}
+
+/// What `seen`, in the order sent, says about the limit: findings and
+/// metrics. `None` is a request that got no response.
+fn analyse(seen: &[Option<Seen>], limit: u32, seconds: f64, location: &str) -> (Vec<Finding>, Vec<Metric>) {
+    let answered: Vec<&Seen> = seen.iter().flatten().collect();
+    let first_limited = answered.iter().position(|seen| seen.limited());
+    let metrics = metrics(seen.len(), answered.len(), first_limited, seconds);
+
+    let Some(first) = first_limited else {
+        let detail = format!("None of {} responses was a 429", answered.len());
+        return (vec![finding(location, Severity::High, "No rate limit", "ratelimit.missing", detail)], metrics);
+    };
+
+    let findings = [too_high(first, limit), no_retry_after(&answered), let_through(&answered[first + 1..])]
+        .into_iter()
+        .flatten()
+        .map(|(severity, title, rule, detail)| finding(location, severity, title, rule, detail))
+        .collect();
+
+    (findings, metrics)
+}
+
+/// A finding before it's given a place: severity, title, rule and detail.
+type Problem = (Severity, &'static str, &'static str, String);
+
+/// More got through before the first 429 than `limit`.
+fn too_high(first: usize, limit: u32) -> Option<Problem> {
+    if limit == 0 || first <= limit as usize {
+        return None;
+    }
+
+    let detail = format!("Limited after {first} requests; expected at most {limit}");
+    Some((Severity::Medium, "Limit higher than expected", "ratelimit.too-high", detail))
+}
+
+/// 429s that don't say when to try again.
+fn no_retry_after(answered: &[&Seen]) -> Option<Problem> {
     let limited: Vec<&&Seen> = answered.iter().filter(|seen| seen.limited()).collect();
     let silent = limited.iter().filter(|seen| seen.retry_after.is_none() && !seen.limit_headers).count();
-    if silent > 0 {
-        let detail = format!("{silent} of {} limited responses had no Retry-After or RateLimit headers", limited.len());
-        findings.push(finding(Severity::Low, "No Retry-After", "ratelimit.no-retry-after", detail));
+    if silent == 0 {
+        return None;
     }
-    let after = &answered[first + 1..];
-    let let_through = after.iter().filter(|seen| seen.ok()).count();
-    if let_through > 0 {
-        let detail = format!("{let_through} of {} requests after the first 429 got a 2xx", after.len());
-        findings.push(finding(Severity::Low, "Allowed again while limited", "ratelimit.bypass", detail));
+
+    let detail = format!("{silent} of {} limited responses had no Retry-After or RateLimit headers", limited.len());
+    Some((Severity::Low, "No Retry-After", "ratelimit.no-retry-after", detail))
+}
+
+/// 2xx responses `after` the first 429.
+fn let_through(after: &[&Seen]) -> Option<Problem> {
+    let ok = after.iter().filter(|seen| seen.ok()).count();
+    if ok == 0 {
+        return None;
     }
-    metrics.push(Metric::new("allowed", "Allowed", first as f64, ""));
-    metrics.push(Metric::new("limited_at", "Limited at", (first + 1) as f64, ""));
-    metrics.push(Metric::new("rps", "Rate", per_second(seen.len(), seconds), "/s"));
-    (findings, metrics)
+
+    let detail = format!("{ok} of {} requests after the first 429 got a 2xx", after.len());
+    Some((Severity::Low, "Allowed again while limited", "ratelimit.bypass", detail))
+}
+
+/// `limited_at` only when something was.
+#[allow(clippy::cast_precision_loss)]
+fn metrics(sent: usize, answered: usize, first_limited: Option<usize>, seconds: f64) -> Vec<Metric> {
+    let mut metrics = vec![Metric::new("sent", "Sent", sent as f64, "")];
+
+    match first_limited {
+        Some(first) => {
+            metrics.push(Metric::new("allowed", "Allowed", first as f64, ""));
+            metrics.push(Metric::new("limited_at", "Limited at", (first + 1) as f64, ""));
+        }
+        None => metrics.push(Metric::new("allowed", "Allowed", answered as f64, "")),
+    }
+
+    metrics.push(Metric::new("rps", "Rate", per_second(sent, seconds), "/s"));
+    metrics
 }
 
 #[cfg(test)]

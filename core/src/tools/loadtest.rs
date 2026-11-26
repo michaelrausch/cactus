@@ -15,6 +15,7 @@ use super::stats::{mean, per_second, percent, percentile, sorted};
 use super::wait::MAX_SECONDS;
 use super::{Metric, Tool, ToolCx, ToolOutput, is_zero, metrics_verdict, request_step, unchanged};
 use crate::collection::LenientString;
+use crate::critter::FlowStep;
 use crate::scenario::Assertion;
 use crate::{Error, Result};
 
@@ -70,65 +71,23 @@ impl Tool for Loadtest {
 
     async fn run(&self, cx: &mut ToolCx<'_>) -> Result<ToolOutput> {
         EXPORTS.check(&self.set)?;
-        if self.requests > MAX_REQUESTS {
-            return Err(Error::Tool(format!("Send at most {MAX_REQUESTS} requests")));
-        }
-        if self.duration > MAX_SECONDS {
-            return Err(Error::Tool(format!("Run for at most {MAX_SECONDS} seconds")));
-        }
-        if self.concurrency > MAX_CONCURRENCY {
-            return Err(Error::Tool(format!("Send at most {MAX_CONCURRENCY} at once")));
-        }
-        let limit = match (self.requests, self.duration) {
-            (0, 0) => DEFAULT_REQUESTS,
-            // Only the clock stops it.
-            (0, _) => u32::MAX,
-            (requests, _) => requests,
-        };
-        let concurrency = if self.concurrency == 0 { DEFAULT_CONCURRENCY } else { self.concurrency }.min(limit);
-        let started = Instant::now();
-        let deadline = (self.duration > 0).then(|| started + Duration::from_secs(u64::from(self.duration)));
+        self.check_limits()?;
+        let plan = self.plan();
         let step = request_step(&self.request, &self.with);
-        let (next, done) = (AtomicU32::new(0), AtomicU32::new(0));
-        let samples: Mutex<Vec<Sample>> = Mutex::new(Vec::new());
-        let first_error: Mutex<Option<String>> = Mutex::new(None);
 
-        let shared: &ToolCx<'_> = cx;
-        let sender = || async {
-            loop {
-                if deadline.is_some_and(|deadline| Instant::now() >= deadline)
-                    || next.fetch_add(1, Ordering::SeqCst) >= limit
-                {
-                    break;
-                }
-                let sample = match shared.runner.probe(&step, &unchanged).await {
-                    Ok(response) => Some((response.status, response.time_ms)),
-                    Err(error) => {
-                        first_error.lock().unwrap().get_or_insert_with(|| error.to_string());
-                        None
-                    }
-                };
-                samples.lock().unwrap().push(sample);
-                let done = done.fetch_add(1, Ordering::SeqCst) + 1;
-                match deadline {
-                    // Seconds gone, of the run's.
-                    Some(_) => {
-                        shared.progress(started.elapsed().as_secs().try_into().unwrap_or(u32::MAX), self.duration);
-                    }
-                    None => shared.progress(done, limit),
-                }
-            }
-        };
-        join_all((0..concurrency).map(|_| sender())).await;
+        let started = Instant::now();
+        let (samples, first_error) = plan.send(cx, &step).await;
+        let seconds = started.elapsed().as_secs_f64();
 
-        let samples = samples.into_inner().unwrap();
         if samples.iter().all(Option::is_none) {
-            let why = first_error.into_inner().unwrap().unwrap_or_else(|| "nothing was sent".into());
+            let why = first_error.unwrap_or_else(|| "nothing was sent".into());
             return Err(Error::Tool(format!("No responses: {why}")));
         }
-        let metrics = summarise(&samples, started.elapsed().as_secs_f64());
-        let text = format!("{} requests, {} at once", samples.len(), concurrency);
+
+        let metrics = summarise(&samples, seconds);
+        let text = format!("{} requests, {} at once", samples.len(), plan.concurrency);
         let output = ToolOutput { metrics, ..ToolOutput::text(text) };
+
         export(cx, &self.set, &output)?;
         Ok(output)
     }
@@ -138,12 +97,100 @@ impl Tool for Loadtest {
     }
 }
 
+impl Loadtest {
+    fn check_limits(&self) -> Result<()> {
+        if self.requests > MAX_REQUESTS {
+            return Err(Error::Tool(format!("Send at most {MAX_REQUESTS} requests")));
+        }
+
+        if self.duration > MAX_SECONDS {
+            return Err(Error::Tool(format!("Run for at most {MAX_SECONDS} seconds")));
+        }
+
+        if self.concurrency > MAX_CONCURRENCY {
+            return Err(Error::Tool(format!("Send at most {MAX_CONCURRENCY} at once")));
+        }
+
+        Ok(())
+    }
+
+    fn plan(&self) -> Plan {
+        let limit = match (self.requests, self.duration) {
+            (0, 0) => DEFAULT_REQUESTS,
+            // Only the clock stops it.
+            (0, _) => u32::MAX,
+            (requests, _) => requests,
+        };
+        let concurrency = if self.concurrency == 0 { DEFAULT_CONCURRENCY } else { self.concurrency };
+
+        Plan { limit, concurrency: concurrency.min(limit), seconds: self.duration }
+    }
+}
+
+/// How much to send, and how fast.
+struct Plan {
+    /// Requests to send at most.
+    limit: u32,
+    /// Senders, each sending one request after another.
+    concurrency: u32,
+    /// Seconds to send for; 0 to stop only at `limit`.
+    seconds: u32,
+}
+
+impl Plan {
+    /// Send `step` until the plan says stop, reporting progress on `cx`.
+    /// What each request got, in the order answered, and the first error.
+    async fn send(&self, cx: &ToolCx<'_>, step: &FlowStep) -> (Vec<Sample>, Option<String>) {
+        let started = Instant::now();
+        let deadline = (self.seconds > 0).then(|| started + Duration::from_secs(u64::from(self.seconds)));
+
+        let (next, done) = (AtomicU32::new(0), AtomicU32::new(0));
+        let samples: Mutex<Vec<Sample>> = Mutex::new(Vec::new());
+        let first_error: Mutex<Option<String>> = Mutex::new(None);
+
+        let sender = || async {
+            loop {
+                let out_of_time = deadline.is_some_and(|deadline| Instant::now() >= deadline);
+                if out_of_time || next.fetch_add(1, Ordering::SeqCst) >= self.limit {
+                    break;
+                }
+
+                let sample = match cx.runner.probe(step, &unchanged).await {
+                    Ok(response) => Some((response.status, response.time_ms)),
+                    Err(error) => {
+                        first_error.lock().unwrap().get_or_insert_with(|| error.to_string());
+                        None
+                    }
+                };
+                samples.lock().unwrap().push(sample);
+
+                let done = done.fetch_add(1, Ordering::SeqCst) + 1;
+                self.progress(cx, started, done);
+            }
+        };
+        join_all((0..self.concurrency).map(|_| sender())).await;
+
+        (samples.into_inner().unwrap(), first_error.into_inner().unwrap())
+    }
+
+    /// Seconds gone of a timed run, or else requests sent.
+    fn progress(&self, cx: &ToolCx<'_>, started: Instant, done: u32) {
+        if self.seconds > 0 {
+            let gone = u32::try_from(started.elapsed().as_secs()).unwrap_or(u32::MAX);
+            cx.progress(gone, self.seconds);
+        } else {
+            cx.progress(done, self.limit);
+        }
+    }
+}
+
 /// The metrics of a run that took `seconds`.
 #[allow(clippy::cast_precision_loss)]
 fn summarise(samples: &[Sample], seconds: f64) -> Vec<Metric> {
     let times = sorted(samples.iter().flatten().map(|(_, ms)| *ms as f64).collect());
     let failed = samples.iter().filter(|sample| sample.is_none_or(|(status, _)| status >= 500)).count();
     let non_2xx = samples.iter().flatten().filter(|(status, _)| !(200..300).contains(status)).count();
+
     let ms = |name: &str, label: &str, value: f64| Metric::new(name, label, value, "ms");
     vec![
         Metric::new("requests", "Requests", samples.len() as f64, ""),

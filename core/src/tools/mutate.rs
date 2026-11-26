@@ -54,16 +54,20 @@ pub fn mutations(original: &Value, count: usize, rng: &mut Rng) -> Vec<Value> {
         Value::String(text) => text.clone(),
         other => other.to_string(),
     };
+
+    // Ten tries per input: some edits can't change a short value.
     let mut made: Vec<Value> = Vec::new();
     for _ in 0..count * 10 {
         if made.len() == count {
             break;
         }
+
         let value = sanitise(mutate(original, &text, rng));
         if value != *original && !made.contains(&value) {
             made.push(value);
         }
     }
+
     made
 }
 
@@ -77,51 +81,84 @@ fn mutate(original: &Value, text: &str, rng: &mut Rng) -> Value {
     }
 }
 
-/// Text with one thing changed.
+/// Text with one thing changed, by edit number `op`. An edit that needs a
+/// character to work on adds a suffix to empty text instead.
 fn textual(op: usize, text: &str, rng: &mut Rng) -> String {
-    let mut chars: Vec<char> = text.chars().collect();
-    let at = |rng: &mut Rng, len: usize| if len == 0 { 0 } else { rng.below(len + 1) };
+    let chars: Vec<char> = text.chars().collect();
+    let empty = chars.is_empty();
+
     match op {
         0 => String::new(),
-        1 => {
-            let unit = if text.is_empty() { "A" } else { text };
-            unit.repeat(LONG_CHARS / unit.chars().count().max(1) + 1)
-        }
-        2 if !chars.is_empty() => chars[..rng.below(chars.len())].iter().collect(),
-        3 if !chars.is_empty() => {
-            chars.remove(rng.below(chars.len()));
-            chars.into_iter().collect()
-        }
-        4 => {
-            let i = at(rng, chars.len());
-            chars.insert(i, rng.pick(SPECIAL));
-            chars.into_iter().collect()
-        }
-        5 if !chars.is_empty() => {
-            let i = rng.below(chars.len());
-            chars[i] = rng.pick(SPECIAL);
-            chars.into_iter().collect()
-        }
-        6 if !chars.is_empty() => {
-            let start = rng.below(chars.len());
-            let end = start + 1 + rng.below(chars.len() - start);
-            let slice: Vec<char> = chars[start..end].to_vec();
-            chars.splice(end..end, slice.iter().copied().cycle().take(slice.len() * (1 + rng.below(8))));
-            chars.into_iter().collect()
-        }
-        7 if !chars.is_empty() => {
-            let i = rng.below(chars.len());
-            chars[i] = flip(chars[i], rng);
-            chars.into_iter().collect()
-        }
-        8 => (0..=rng.below(32)).map(|_| char::from(b' ' + u8::try_from(rng.below(95)).unwrap_or(0))).collect(),
-        9 => {
-            let i = at(rng, chars.len());
-            chars.insert(i, rng.pick(ODD_UNICODE));
-            chars.into_iter().collect()
-        }
-        _ => format!("{text}{}", rng.pick(&["%00", "%n", "\\", "../", "${", "\r\n", "' --", "\u{0}"])),
+        1 => lengthened(text),
+        2 if !empty => truncated(&chars, rng),
+        3 if !empty => char_dropped(chars, rng),
+        4 => inserted(chars, rng.pick(SPECIAL), rng),
+        5 if !empty => special_replaced(chars, rng),
+        6 if !empty => slice_repeated(chars, rng),
+        7 if !empty => char_flipped(chars, rng),
+        8 => random_ascii(rng),
+        9 => inserted(chars, rng.pick(ODD_UNICODE), rng),
+        _ => suffixed(text, rng),
     }
+}
+
+/// `text` repeated past [`LONG_CHARS`]; `A`s for empty text.
+fn lengthened(text: &str) -> String {
+    let unit = if text.is_empty() { "A" } else { text };
+    unit.repeat(LONG_CHARS / unit.chars().count().max(1) + 1)
+}
+
+/// The start of `chars`, cut anywhere.
+fn truncated(chars: &[char], rng: &mut Rng) -> String {
+    chars[..rng.below(chars.len())].iter().collect()
+}
+
+fn char_dropped(mut chars: Vec<char>, rng: &mut Rng) -> String {
+    chars.remove(rng.below(chars.len()));
+    chars.into_iter().collect()
+}
+
+/// `c` put in anywhere, the ends included.
+fn inserted(mut chars: Vec<char>, c: char, rng: &mut Rng) -> String {
+    let i = rng.below(chars.len() + 1);
+    chars.insert(i, c);
+    chars.into_iter().collect()
+}
+
+/// One character swapped for one of [`SPECIAL`].
+fn special_replaced(mut chars: Vec<char>, rng: &mut Rng) -> String {
+    let i = rng.below(chars.len());
+    chars[i] = rng.pick(SPECIAL);
+    chars.into_iter().collect()
+}
+
+/// A run of characters repeated up to 8 more times where it ends.
+fn slice_repeated(mut chars: Vec<char>, rng: &mut Rng) -> String {
+    let start = rng.below(chars.len());
+    let end = start + 1 + rng.below(chars.len() - start);
+    let slice: Vec<char> = chars[start..end].to_vec();
+
+    let repeats = slice.len() * (1 + rng.below(8));
+    chars.splice(end..end, slice.iter().copied().cycle().take(repeats));
+    chars.into_iter().collect()
+}
+
+fn char_flipped(mut chars: Vec<char>, rng: &mut Rng) -> String {
+    let i = rng.below(chars.len());
+    chars[i] = flip(chars[i], rng);
+    chars.into_iter().collect()
+}
+
+/// 1 to 32 printable ASCII characters.
+fn random_ascii(rng: &mut Rng) -> String {
+    let length = 1 + rng.below(32);
+    (0..length).map(|_| char::from(b' ' + u8::try_from(rng.below(95)).unwrap_or(0))).collect()
+}
+
+/// `text` with something that ends strings, paths or lines after it.
+fn suffixed(text: &str, rng: &mut Rng) -> String {
+    let suffix = rng.pick(&["%00", "%n", "\\", "../", "${", "\r\n", "' --", "\u{0}"]);
+    format!("{text}{suffix}")
 }
 
 /// A letter in the other case, or another character one bit away.
@@ -129,6 +166,7 @@ fn flip(c: char, rng: &mut Rng) -> char {
     if c.is_ascii_alphabetic() {
         return if c.is_ascii_lowercase() { c.to_ascii_uppercase() } else { c.to_ascii_lowercase() };
     }
+
     let flipped = u32::from(c) ^ (1 << rng.below(7));
     char::from_u32(flipped).unwrap_or('\u{fffd}')
 }
@@ -151,6 +189,7 @@ fn numeric(original: &Value, number: f64, rng: &mut Rng) -> Value {
         Number::from_f64(number + 0.5).map_or(Value::Null, Value::Number),
         Value::from(whole.saturating_mul(1_000_000)),
     ];
+
     let value = picks[rng.below(picks.len())].clone();
     // A number written as text stays text, as it would be sent.
     if original.is_number() { value } else { Value::String(value.to_string()) }

@@ -20,9 +20,11 @@ use super::{
     Coverage, FailOn, Finding, MASK, Metric, Severity, StatusCount, Tool, ToolCx, ToolOutput, findings_verdict,
     is_zero, request_step,
 };
+use crate::collection::Header;
 use crate::collection::LenientString;
+use crate::critter::FlowStep;
 use crate::http::Response;
-use crate::scenario::{Body, ParamKind, Scenario, TypedBody};
+use crate::scenario::{Body, Param, ParamKind, Scenario, TypedBody};
 use crate::{Error, Result};
 
 /// Requests in flight at once when not set, and the most.
@@ -134,15 +136,155 @@ impl Fuzz {
         let fixed = payloads(&kinds);
         let iterations = if self.iterations == 0 { DEFAULT_ITERATIONS } else { self.iterations };
         let mut rng = Rng::new(seed);
+
         let mut cases = Vec::new();
         for (s, slot) in slots.iter().enumerate() {
             cases.extend(fixed.iter().filter(|payload| slot.takes(payload)).map(|payload| (s, payload.clone())));
+
             if kinds.contains(&PayloadKind::Mutate) {
                 let made = mutations(&slot.original, iterations as usize, &mut rng);
                 cases.extend(made.into_iter().map(Payload::mutated).filter(|p| slot.takes(p)).map(|p| (s, p)));
             }
         }
+
         cases
+    }
+}
+
+impl Fuzz {
+    fn check_limits(&self) -> Result<()> {
+        if self.concurrency > MAX_CONCURRENCY {
+            return Err(Error::Tool(format!("Send at most {MAX_CONCURRENCY} at once")));
+        }
+
+        if self.iterations > MAX_ITERATIONS {
+            return Err(Error::Tool(format!("At most {MAX_ITERATIONS} iterations")));
+        }
+
+        Ok(())
+    }
+
+    /// Send every case, a few at a time, calling `seen` with each outcome
+    /// as it comes back.
+    async fn send_all(
+        &self,
+        cx: &ToolCx<'_>,
+        step: &FlowStep,
+        slots: &[Slot],
+        cases: &[(usize, Payload)],
+        mut seen: impl FnMut(usize, &Payload, Result<Response>),
+    ) {
+        let total = u32::try_from(cases.len()).unwrap_or(u32::MAX);
+        let concurrency = if self.concurrency == 0 { DEFAULT_CONCURRENCY } else { self.concurrency };
+
+        // By index: futures borrowing them by reference trip up `Send` inference.
+        let mut sends = stream::iter(0..cases.len())
+            .map(|i| async move {
+                let (s, payload) = &cases[i];
+                let edit = |scenario: &mut Scenario| slots[*s].apply(scenario, payload);
+                (i, cx.runner.probe(step, &edit).await)
+            })
+            .buffer_unordered(concurrency as usize);
+
+        let mut sent = 0;
+        while let Some((i, outcome)) = sends.next().await {
+            sent += 1;
+            cx.progress(sent, total);
+
+            let (s, payload) = &cases[i];
+            seen(*s, payload, outcome);
+        }
+    }
+}
+
+/// The request sent as it is, to compare against, and what it looks like
+/// once its step's changes are applied: what the slots come from.
+async fn baseline(cx: &ToolCx<'_>, step: &FlowStep) -> Result<(Response, Scenario)> {
+    let prepared = Mutex::new(None);
+    let keep = |scenario: &mut Scenario| *prepared.lock().unwrap() = Some(scenario.clone());
+
+    let response = cx.runner.probe(step, &keep).await?;
+    let scenario = prepared.into_inner().unwrap().unwrap_or_default();
+
+    Ok((response, scenario))
+}
+
+/// Something to send, and not more than one step may.
+fn check_cases(cases: &[(usize, Payload)]) -> Result<()> {
+    if cases.is_empty() {
+        return Err(Error::Tool("Nothing to fuzz in this request".into()));
+    }
+
+    if cases.len() > MAX_REQUESTS {
+        return Err(Error::Tool(format!(
+            "{} requests; at most {MAX_REQUESTS}: choose fewer targets, payloads or iterations",
+            cases.len()
+        )));
+    }
+
+    Ok(())
+}
+
+/// What came back, as it comes back.
+struct Results {
+    findings: Vec<Finding>,
+    /// Rule and location of each finding so far, so each is reported once.
+    found: BTreeSet<(String, String)>,
+    /// Per slot, in the order of the slots.
+    tallies: Vec<Tally>,
+    sent: u32,
+    /// Requests with no response or a 5xx.
+    errors: u32,
+}
+
+impl Results {
+    fn new(slots: usize) -> Self {
+        Self {
+            findings: Vec::new(),
+            found: BTreeSet::new(),
+            tallies: vec![Tally::default(); slots],
+            sent: 0,
+            errors: 0,
+        }
+    }
+
+    /// The outcome of sending `payload` in slot number `s`.
+    fn record(&mut self, slot: &Slot, s: usize, payload: &Payload, outcome: Result<Response>, baseline: &Response) {
+        let (status, problems) = match outcome {
+            Ok(response) => {
+                let mut problems = detect(&slot.location, payload, &response, baseline);
+                for problem in &mut problems {
+                    problem.repro = curl(&response);
+                }
+                (response.status, problems)
+            }
+            Err(error) => (0, vec![no_response(&slot.location, payload, &error.to_string())]),
+        };
+
+        self.sent += 1;
+        if status == 0 || status >= 500 {
+            self.errors += 1;
+        }
+        *self.tallies[s].statuses.entry(status).or_default() += 1;
+
+        for problem in problems {
+            // One finding per rule and place, whichever input found it first.
+            if self.found.insert((problem.rule.clone(), problem.location.clone())) {
+                self.tallies[s].findings += 1;
+                self.findings.push(problem);
+            }
+        }
+    }
+
+    fn into_output(self, slots: &[Slot], seed: u32) -> ToolOutput {
+        let coverage = slots.iter().zip(self.tallies).map(|(slot, tally)| tally.coverage(&slot.location)).collect();
+        let metrics = vec![
+            Metric::new("requests", "Requests", f64::from(self.sent), ""),
+            Metric::new("errors", "Errors", f64::from(self.errors), ""),
+        ];
+        let text = format!("{} values, {} requests, seed {seed}", slots.len(), self.sent);
+
+        ToolOutput { findings: Some(self.findings), metrics, coverage, ..ToolOutput::text(text) }
     }
 }
 
@@ -158,6 +300,7 @@ impl Tally {
         let mut statuses: Vec<StatusCount> =
             self.statuses.into_iter().map(|(status, count)| StatusCount { status, count }).collect();
         statuses.sort_by_key(|status| std::cmp::Reverse(status.count));
+
         Coverage {
             location: location.into(),
             requests: statuses.iter().map(|status| status.count).sum(),
@@ -174,80 +317,22 @@ impl Tool for Fuzz {
 
     async fn run(&self, cx: &mut ToolCx<'_>) -> Result<ToolOutput> {
         EXPORTS.check(&self.set)?;
-        if self.concurrency > MAX_CONCURRENCY {
-            return Err(Error::Tool(format!("Send at most {MAX_CONCURRENCY} at once")));
-        }
-        if self.iterations > MAX_ITERATIONS {
-            return Err(Error::Tool(format!("At most {MAX_ITERATIONS} iterations")));
-        }
+        self.check_limits()?;
         let step = request_step(&self.request, &self.with);
-        // The baseline, which also shows what the request looks like.
-        let prepared = Mutex::new(None);
-        let keep = |scenario: &mut Scenario| *prepared.lock().unwrap() = Some(scenario.clone());
-        let baseline = cx.runner.probe(&step, &keep).await?;
-        let scenario = prepared.into_inner().unwrap().unwrap_or_default();
 
+        let (baseline, scenario) = baseline(cx, &step).await?;
         let slots = slots(&scenario, &self.targets());
         let seed = if self.seed == 0 { random_seed() } else { self.seed };
         let cases = self.cases(&slots, seed);
-        if cases.is_empty() {
-            return Err(Error::Tool("Nothing to fuzz in this request".into()));
-        }
-        if cases.len() > MAX_REQUESTS {
-            return Err(Error::Tool(format!(
-                "{} requests; at most {MAX_REQUESTS}: choose fewer targets, payloads or iterations",
-                cases.len()
-            )));
-        }
+        check_cases(&cases)?;
 
-        let total = u32::try_from(cases.len()).unwrap_or(u32::MAX);
-        let concurrency = if self.concurrency == 0 { DEFAULT_CONCURRENCY } else { self.concurrency };
-        // By index: futures borrowing them by reference trip up `Send` inference.
-        let (step, all_slots, all_cases, shared) = (&step, &slots, &cases, &*cx);
-        let mut sends = stream::iter(0..cases.len())
-            .map(|i| async move {
-                let (s, payload) = &all_cases[i];
-                let edit = |scenario: &mut Scenario| all_slots[*s].apply(scenario, payload);
-                (i, shared.runner.probe(step, &edit).await)
-            })
-            .buffer_unordered(concurrency as usize);
-        let mut tally: Vec<Tally> = vec![Tally::default(); slots.len()];
-        let (mut findings, mut found, mut sent, mut errors) = (Vec::new(), BTreeSet::new(), 0, 0);
-        while let Some((i, outcome)) = sends.next().await {
-            let (s, payload) = &cases[i];
-            let slot = &slots[*s];
-            sent += 1;
-            shared.progress(sent, total);
-            let (status, problems) = match outcome {
-                Ok(response) => {
-                    let mut problems = detect(&slot.location, payload, &response, &baseline);
-                    for problem in &mut problems {
-                        problem.repro = curl(&response);
-                    }
-                    (response.status, problems)
-                }
-                Err(error) => (0, vec![no_response(&slot.location, payload, &error.to_string())]),
-            };
-            if status == 0 || status >= 500 {
-                errors += 1;
-            }
-            *tally[*s].statuses.entry(status).or_default() += 1;
-            for problem in problems {
-                // One finding per rule and place, whichever input found it first.
-                if found.insert((problem.rule.clone(), problem.location.clone())) {
-                    tally[*s].findings += 1;
-                    findings.push(problem);
-                }
-            }
-        }
-        drop(sends);
-        let coverage = slots.iter().zip(tally).map(|(slot, tally)| tally.coverage(&slot.location)).collect();
-        let text = format!("{} values, {sent} requests, seed {seed}", slots.len());
-        let metrics = vec![
-            Metric::new("requests", "Requests", f64::from(sent), ""),
-            Metric::new("errors", "Errors", f64::from(errors), ""),
-        ];
-        let output = ToolOutput { findings: Some(findings), metrics, coverage, ..ToolOutput::text(text) };
+        let mut results = Results::new(slots.len());
+        self.send_all(cx, &step, &slots, &cases, |s, payload, outcome| {
+            results.record(&slots[s], s, payload, outcome, &baseline);
+        })
+        .await;
+
+        let output = results.into_output(&slots, seed);
         export(cx, &self.set, &output)?;
         Ok(output)
     }
@@ -297,71 +382,81 @@ impl Payload {
     }
 }
 
-/// The payloads of `kinds`.
+/// The fixed payloads of `kinds`.
 fn payloads(kinds: &BTreeSet<PayloadKind>) -> Vec<Payload> {
-    use PayloadKind::{Command, Overflow, Sqli, Traversal, Xss};
-    let mut all = Vec::new();
-    for kind in kinds {
-        match kind {
-            Sqli => {
-                all.extend(
-                    ["'", "\"", "' OR '1'='1", "1' ORDER BY 999-- -", "1 UNION SELECT NULL-- -"]
-                        .map(|text| Payload::text(Sqli, text)),
-                );
-                all.extend(
-                    ["' OR SLEEP(SECONDS)-- -", "'; WAITFOR DELAY '0:0:SECONDS'--", "1) OR pg_sleep(SECONDS)--"]
-                        .map(|text| Payload::sleeping(Sqli, text)),
-                );
-            }
-            Xss => all.extend(
-                [
-                    "<script>alert(1337)</script>",
-                    "\"><img src=x onerror=alert(1337)>",
-                    "<svg/onload=alert(1337)>",
-                    "'\"><cactus-xss>",
-                ]
-                .map(|text| Payload::text(Xss, text)),
-            ),
-            Traversal => all.extend(
-                [
-                    "../../../../../../../../etc/passwd",
-                    "....//....//....//....//....//etc/passwd",
-                    "..%2f..%2f..%2f..%2f..%2f..%2fetc%2fpasswd",
-                    "/etc/passwd",
-                    "..\\..\\..\\..\\..\\..\\windows\\win.ini",
-                    "file:///etc/passwd",
-                ]
-                .map(|text| Payload::text(Traversal, text)),
-            ),
-            Command => {
-                all.extend([";id", "|id", "`id`", "$(id)", "&& id"].map(|text| Payload::text(Command, text)));
-                all.extend([";sleep SECONDS", "|sleep SECONDS"].map(|text| Payload::sleeping(Command, text)));
-            }
-            Overflow => all.extend(
-                [
-                    "A".repeat(10_000),
-                    "%s%s%s%s%n".into(),
-                    "%x%x%x%x".into(),
-                    "\0".into(),
-                    "\u{feff}\u{202e}cactus".into(),
-                ]
-                .map(|text| Payload::text(Overflow, text)),
-            ),
-            PayloadKind::Types => all.extend([
-                Payload::typed("", Value::String(String::new())),
-                Payload::typed("null", Value::Null),
-                Payload::typed("true", Value::Bool(true)),
-                Payload::typed("-1", Value::from(-1)),
-                // 2^64: one more than a u64 holds.
-                Payload::typed("18446744073709551616", Value::String(RAW_JSON_MARK.into())),
-                Payload::typed("[]", Value::Array(Vec::new())),
-                Payload::typed("{}", Value::Object(serde_json::Map::new())),
-            ]),
-            // Made per value, from its own: see `Fuzz::cases`.
-            PayloadKind::Mutate => {}
-        }
+    kinds.iter().flat_map(|kind| payloads_of(*kind)).collect()
+}
+
+fn payloads_of(kind: PayloadKind) -> Vec<Payload> {
+    match kind {
+        PayloadKind::Sqli => sqli_payloads(),
+        PayloadKind::Xss => texts(kind, &XSS),
+        PayloadKind::Traversal => texts(kind, &TRAVERSAL),
+        PayloadKind::Command => command_payloads(),
+        PayloadKind::Overflow => overflow_payloads(),
+        PayloadKind::Types => type_payloads(),
+        // Made per value, from its own: see `Fuzz::cases`.
+        PayloadKind::Mutate => Vec::new(),
     }
+}
+
+const SQLI: [&str; 5] = ["'", "\"", "' OR '1'='1", "1' ORDER BY 999-- -", "1 UNION SELECT NULL-- -"];
+const SQLI_SLEEPS: [&str; 3] =
+    ["' OR SLEEP(SECONDS)-- -", "'; WAITFOR DELAY '0:0:SECONDS'--", "1) OR pg_sleep(SECONDS)--"];
+
+const XSS: [&str; 4] = [
+    "<script>alert(1337)</script>",
+    "\"><img src=x onerror=alert(1337)>",
+    "<svg/onload=alert(1337)>",
+    "'\"><cactus-xss>",
+];
+
+const TRAVERSAL: [&str; 6] = [
+    "../../../../../../../../etc/passwd",
+    "....//....//....//....//....//etc/passwd",
+    "..%2f..%2f..%2f..%2f..%2f..%2fetc%2fpasswd",
+    "/etc/passwd",
+    "..\\..\\..\\..\\..\\..\\windows\\win.ini",
+    "file:///etc/passwd",
+];
+
+const COMMANDS: [&str; 5] = [";id", "|id", "`id`", "$(id)", "&& id"];
+const COMMAND_SLEEPS: [&str; 2] = [";sleep SECONDS", "|sleep SECONDS"];
+
+/// `kind` payloads, one per text.
+fn texts(kind: PayloadKind, texts: &[&str]) -> Vec<Payload> {
+    texts.iter().map(|text| Payload::text(kind, *text)).collect()
+}
+
+fn sqli_payloads() -> Vec<Payload> {
+    let mut all = texts(PayloadKind::Sqli, &SQLI);
+    all.extend(SQLI_SLEEPS.map(|text| Payload::sleeping(PayloadKind::Sqli, text)));
     all
+}
+
+fn command_payloads() -> Vec<Payload> {
+    let mut all = texts(PayloadKind::Command, &COMMANDS);
+    all.extend(COMMAND_SLEEPS.map(|text| Payload::sleeping(PayloadKind::Command, text)));
+    all
+}
+
+fn overflow_payloads() -> Vec<Payload> {
+    let long = "A".repeat(10_000);
+    let texts = [long.as_str(), "%s%s%s%s%n", "%x%x%x%x", "\0", "\u{feff}\u{202e}cactus"];
+    self::texts(PayloadKind::Overflow, &texts)
+}
+
+fn type_payloads() -> Vec<Payload> {
+    vec![
+        Payload::typed("", Value::String(String::new())),
+        Payload::typed("null", Value::Null),
+        Payload::typed("true", Value::Bool(true)),
+        Payload::typed("-1", Value::from(-1)),
+        // 2^64: one more than a u64 holds.
+        Payload::typed("18446744073709551616", Value::String(RAW_JSON_MARK.into())),
+        Payload::typed("[]", Value::Array(Vec::new())),
+        Payload::typed("{}", Value::Object(serde_json::Map::new())),
+    ]
 }
 
 /// Where a value sits in the request.
@@ -432,55 +527,91 @@ impl Slot {
 fn slots(scenario: &Scenario, targets: &BTreeSet<FuzzTarget>) -> Vec<Slot> {
     let http = &scenario.http;
     let mut slots = Vec::new();
-    let mut add = |place, location: String, original: Value| slots.push(Slot { place, location, original });
-    let text = |text: &str| Value::String(text.to_string());
+
     if targets.contains(&FuzzTarget::Query) {
-        for (n, (name, value)) in query_pairs(&http.url).into_iter().enumerate() {
-            add(Place::Query(n), format!("query.{name}"), text(value));
-        }
+        slots.extend(query_slots(&http.url));
     }
     if targets.contains(&FuzzTarget::Path) {
-        for (i, param) in http.params.iter().enumerate() {
-            if param.kind == ParamKind::Path && !param.disabled && !param.name.is_empty() {
-                add(Place::Path(i), format!("path.{}", param.name.trim()), text(&param.value));
-            }
-        }
+        slots.extend(path_slots(&http.params));
     }
     if targets.contains(&FuzzTarget::Headers) {
-        for (i, header) in http.headers.iter().enumerate() {
-            let name = header.name.trim();
-            let lower = name.to_ascii_lowercase();
-            let kept = KEPT_HEADERS.contains(&lower.as_str()) || lower.starts_with("content-");
-            if !header.disabled && !name.is_empty() && !kept {
-                add(Place::Header(i), format!("header.{name}"), text(&header.value));
-            }
-        }
+        slots.extend(header_slots(&http.headers));
     }
     if targets.contains(&FuzzTarget::Body) {
-        match &http.body {
-            Some(Body::Typed(TypedBody::Json { data })) => {
-                // A body that's only JSON once its `{{variables}}` are filled in is left alone.
-                if let Ok(json) = serde_json::from_str::<Value>(data) {
-                    let mut leaves = Vec::new();
-                    collect_leaves(&json, &mut Vec::new(), &mut leaves);
-                    for (keys, value) in leaves {
-                        let location = format!("body{}", json_path(&keys));
-                        add(Place::Json(keys), location, value);
-                    }
-                }
-            }
-            Some(Body::Typed(TypedBody::FormUrlencoded { data })) => {
-                for (i, field) in data.iter().enumerate() {
-                    if !field.disabled && !field.name.is_empty() {
-                        add(Place::Form(i), format!("form.{}", field.name.trim()), text(&field.value));
-                    }
-                }
-            }
-            _ => {}
-        }
+        slots.extend(body_slots(http.body.as_ref()));
     }
+
     number_repeats(&mut slots);
     slots
+}
+
+fn slot(place: Place, location: String, original: Value) -> Slot {
+    Slot { place, location, original }
+}
+
+fn text(text: &str) -> Value {
+    Value::String(text.to_string())
+}
+
+fn query_slots(url: &str) -> Vec<Slot> {
+    query_pairs(url)
+        .into_iter()
+        .enumerate()
+        .map(|(n, (name, value))| slot(Place::Query(n), format!("query.{name}"), text(value)))
+        .collect()
+}
+
+fn path_slots(params: &[Param]) -> Vec<Slot> {
+    params
+        .iter()
+        .enumerate()
+        .filter(|(_, param)| param.kind == ParamKind::Path && !param.disabled && !param.name.is_empty())
+        .map(|(i, param)| slot(Place::Path(i), format!("path.{}", param.name.trim()), text(&param.value)))
+        .collect()
+}
+
+/// Every header but [`KEPT_HEADERS`] and `Content-*`.
+fn header_slots(headers: &[Header]) -> Vec<Slot> {
+    let fuzzed = |header: &Header| {
+        let lower = header.name.trim().to_ascii_lowercase();
+        let kept = KEPT_HEADERS.contains(&lower.as_str()) || lower.starts_with("content-");
+        !header.disabled && !lower.is_empty() && !kept
+    };
+
+    headers
+        .iter()
+        .enumerate()
+        .filter(|(_, header)| fuzzed(header))
+        .map(|(i, header)| slot(Place::Header(i), format!("header.{}", header.name.trim()), text(&header.value)))
+        .collect()
+}
+
+/// Each leaf of a JSON body, or each field of a form.
+fn body_slots(body: Option<&Body>) -> Vec<Slot> {
+    match body {
+        Some(Body::Typed(TypedBody::Json { data })) => {
+            // A body that's only JSON once its `{{variables}}` are filled in is left alone.
+            let Ok(json) = serde_json::from_str::<Value>(data) else { return Vec::new() };
+
+            let mut leaves = Vec::new();
+            collect_leaves(&json, &mut Vec::new(), &mut leaves);
+
+            leaves
+                .into_iter()
+                .map(|(keys, value)| {
+                    let location = format!("body{}", json_path(&keys));
+                    slot(Place::Json(keys), location, value)
+                })
+                .collect()
+        }
+        Some(Body::Typed(TypedBody::FormUrlencoded { data })) => data
+            .iter()
+            .enumerate()
+            .filter(|(_, field)| !field.disabled && !field.name.is_empty())
+            .map(|(i, field)| slot(Place::Form(i), format!("form.{}", field.name.trim()), text(&field.value)))
+            .collect(),
+        _ => Vec::new(),
+    }
 }
 
 /// Tell apart values sharing a name, like `?id=1&id=2`, as `query.id[0]`
@@ -490,6 +621,7 @@ fn number_repeats(slots: &mut [Slot]) {
     for slot in slots.iter() {
         *counts.entry(slot.location.clone()).or_default() += 1;
     }
+
     let mut seen = BTreeMap::<String, usize>::new();
     for slot in slots.iter_mut().filter(|slot| counts[&slot.location] > 1) {
         let n = seen.entry(slot.location.clone()).or_default();
@@ -509,6 +641,7 @@ fn query_pairs(url: &str) -> Vec<(&str, &str)> {
 fn replace_query_value(url: &str, n: usize, value: &str) -> String {
     let Some((base, rest)) = url.split_once('?') else { return url.to_string() };
     let (query, fragment) = rest.split_once('#').map_or((rest, None), |(query, fragment)| (query, Some(fragment)));
+
     let pairs: Vec<String> = query
         .split('&')
         .filter(|pair| !pair.is_empty())
@@ -522,6 +655,7 @@ fn replace_query_value(url: &str, n: usize, value: &str) -> String {
             }
         })
         .collect();
+
     let fragment = fragment.map_or_default(|fragment| format!("#{fragment}"));
     format!("{base}?{}{fragment}", pairs.join("&"))
 }
@@ -600,76 +734,122 @@ static COMMAND_OUTPUT: LazyLock<Regex> =
 
 /// What `response` to `payload` at `location` shows that `baseline` didn't.
 fn detect(location: &str, payload: &Payload, response: &Response, baseline: &Response) -> Vec<Finding> {
-    let mut findings = Vec::new();
-    let mut add = |severity, title: &str, rule: &str, detail: String, at: Option<usize>| {
+    let problems = [
+        server_error(response, baseline),
+        sql_error(response, baseline),
+        stack_trace(response, baseline),
+        reflected_xss(payload, response),
+        path_traversal(payload, response, baseline),
+        command_injection(payload, response, baseline),
+        slowed(payload, response, baseline),
+    ];
+
+    problems.into_iter().flatten().map(|problem| problem.finding(location, payload, response)).collect()
+}
+
+/// One thing a response gave away.
+struct Problem {
+    severity: Severity,
+    title: &'static str,
+    rule: &'static str,
+    detail: String,
+    /// Where in the body it shows, to quote as evidence.
+    at: Option<usize>,
+}
+
+impl Problem {
+    fn new(severity: Severity, title: &'static str, rule: &'static str, detail: impl Into<String>) -> Self {
+        Self { severity, title, rule, detail: detail.into(), at: None }
+    }
+
+    fn at(self, at: usize) -> Self {
+        Self { at: Some(at), ..self }
+    }
+
+    /// The finding, with the payload and a quote of the response as evidence.
+    fn finding(self, location: &str, payload: &Payload, response: &Response) -> Finding {
         let shown: String = payload.text.chars().take(80).collect();
-        let evidence = match at {
+        let evidence = match self.at {
             Some(at) => format!("{shown}\n{}: {}", response.status, snippet(&response.body, at)),
             None => format!("{shown}\n{}", response.status),
         };
-        findings.push(Finding {
-            severity,
-            title: title.into(),
-            rule: rule.into(),
+
+        Finding {
+            severity: self.severity,
+            title: self.title.into(),
+            rule: self.rule.into(),
             location: location.into(),
-            detail,
+            detail: self.detail,
             evidence,
             repro: String::new(),
-        });
-    };
-    // A pattern counts only where the baseline didn't have it already.
-    let new_match = |pattern: &Regex| {
-        pattern.find(&response.body).filter(|_| !pattern.is_match(&baseline.body)).map(|found| found.start())
-    };
+        }
+    }
+}
 
-    if response.status >= 500 && baseline.status < 500 {
-        add(Severity::Medium, "Server error", "fuzz.server-error", format!("Got {}", response.status), None);
+/// Where `pattern` first matches `response`, if `baseline` didn't match it.
+fn new_match(pattern: &Regex, response: &Response, baseline: &Response) -> Option<usize> {
+    if pattern.is_match(&baseline.body) {
+        return None;
     }
-    if let Some(at) = new_match(&SQL_ERROR) {
-        add(
-            Severity::High,
-            "SQL error in response",
-            "fuzz.sql-error",
-            "A database error reached the client".into(),
-            Some(at),
-        );
+    pattern.find(&response.body).map(|found| found.start())
+}
+
+fn server_error(response: &Response, baseline: &Response) -> Option<Problem> {
+    let new = response.status >= 500 && baseline.status < 500;
+    new.then(|| Problem::new(Severity::Medium, "Server error", "fuzz.server-error", format!("Got {}", response.status)))
+}
+
+fn sql_error(response: &Response, baseline: &Response) -> Option<Problem> {
+    let at = new_match(&SQL_ERROR, response, baseline)?;
+    let detail = "A database error reached the client";
+    Some(Problem::new(Severity::High, "SQL error in response", "fuzz.sql-error", detail).at(at))
+}
+
+fn stack_trace(response: &Response, baseline: &Response) -> Option<Problem> {
+    let at = new_match(&STACK_TRACE, response, baseline)?;
+    let detail = "Internals reached the client";
+    Some(Problem::new(Severity::Medium, "Stack trace in response", "fuzz.stack-trace", detail).at(at))
+}
+
+/// An XSS payload sent back as it was, in HTML a browser would render.
+fn reflected_xss(payload: &Payload, response: &Response) -> Option<Problem> {
+    if payload.kind != PayloadKind::Xss || !is_html(response) {
+        return None;
     }
-    if let Some(at) = new_match(&STACK_TRACE) {
-        add(
-            Severity::Medium,
-            "Stack trace in response",
-            "fuzz.stack-trace",
-            "Internals reached the client".into(),
-            Some(at),
-        );
+
+    let at = response.body.find(&payload.text)?;
+    let detail = "Markup sent back unescaped as HTML";
+    Some(Problem::new(Severity::High, "Reflected XSS", "fuzz.reflected-xss", detail).at(at))
+}
+
+fn path_traversal(payload: &Payload, response: &Response, baseline: &Response) -> Option<Problem> {
+    if payload.kind != PayloadKind::Traversal {
+        return None;
     }
-    if payload.kind == PayloadKind::Xss
-        && is_html(response)
-        && let Some(at) = response.body.find(&payload.text)
-    {
-        add(
-            Severity::High,
-            "Reflected XSS",
-            "fuzz.reflected-xss",
-            "Markup sent back unescaped as HTML".into(),
-            Some(at),
-        );
+
+    let at = new_match(&FILE_CONTENTS, response, baseline)?;
+    let detail = "A system file came back";
+    Some(Problem::new(Severity::Critical, "Path traversal", "fuzz.path-traversal", detail).at(at))
+}
+
+fn command_injection(payload: &Payload, response: &Response, baseline: &Response) -> Option<Problem> {
+    if payload.kind != PayloadKind::Command {
+        return None;
     }
-    if payload.kind == PayloadKind::Traversal
-        && let Some(at) = new_match(&FILE_CONTENTS)
-    {
-        add(Severity::Critical, "Path traversal", "fuzz.path-traversal", "A system file came back".into(), Some(at));
+
+    let at = new_match(&COMMAND_OUTPUT, response, baseline)?;
+    let detail = "A shell command ran";
+    Some(Problem::new(Severity::Critical, "Command injection", "fuzz.command-injection", detail).at(at))
+}
+
+/// A sleep payload made the response [`SLOWER_MS`] slower than the baseline.
+fn slowed(payload: &Payload, response: &Response, baseline: &Response) -> Option<Problem> {
+    if !payload.sleeps || response.time_ms < baseline.time_ms + SLOWER_MS {
+        return None;
     }
-    if payload.kind == PayloadKind::Command
-        && let Some(at) = new_match(&COMMAND_OUTPUT)
-    {
-        add(Severity::Critical, "Command injection", "fuzz.command-injection", "A shell command ran".into(), Some(at));
-    }
-    if payload.sleeps && response.time_ms >= baseline.time_ms + SLOWER_MS {
-        let detail = format!("{}ms, against {}ms without it", response.time_ms, baseline.time_ms);
-        add(Severity::Medium, "Slowed by a sleep payload", "fuzz.time-based", detail, None);
-    }
-    findings
+
+    let detail = format!("{}ms, against {}ms without it", response.time_ms, baseline.time_ms);
+    Some(Problem::new(Severity::Medium, "Slowed by a sleep payload", "fuzz.time-based", detail))
 }
 
 /// A request the server never answered: it dropped the connection or timed out.
@@ -689,13 +869,16 @@ fn no_response(location: &str, payload: &Payload, error: &str) -> Finding {
 fn curl(response: &Response) -> String {
     let quote = |text: &str| format!("'{}'", text.replace('\'', r"'\''"));
     let mut parts = vec!["curl".to_string(), "-X".into(), response.method.clone(), quote(&mask_url(&response.url))];
+
     for (name, value) in &response.sent.headers {
         let value = if is_secret(name) { MASK } else { value.as_str() };
         parts.extend(["-H".into(), quote(&format!("{name}: {value}"))]);
     }
+
     if let Some(body) = response.sent.body.as_deref().filter(|body| !body.is_empty()) {
         parts.extend(["--data-raw".into(), quote(&mask_body(body))]);
     }
+
     parts.join(" ")
 }
 
@@ -708,6 +891,7 @@ fn is_secret(name: &str) -> bool {
 fn mask_url(url: &str) -> String {
     let Some((base, rest)) = url.split_once('?') else { return url.to_string() };
     let (query, fragment) = rest.split_once('#').map_or((rest, None), |(query, fragment)| (query, Some(fragment)));
+
     let fragment = fragment.map_or_default(|fragment| format!("#{fragment}"));
     format!("{base}?{}{fragment}", mask_pairs(query))
 }
@@ -729,6 +913,7 @@ fn mask_body(body: &str) -> String {
     if let Ok(mut json) = serde_json::from_str::<Value>(body) {
         return if mask_json(&mut json) { json.to_string() } else { body.to_string() };
     }
+
     let is_form = !body.contains(char::is_whitespace) && body.contains('=');
     if is_form { mask_pairs(body) } else { body.to_string() }
 }
