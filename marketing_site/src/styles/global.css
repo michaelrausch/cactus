@@ -161,6 +161,14 @@ section.tight { padding: 56px 0; }
 .steps li { display: flex; gap: 14px; align-items: flex-start; }
 .steps h3 { font-size: 16px; margin: 2px 0 6px; }
 .steps p { color: var(--muted-foreground); margin: 0; font-size: 14px; }
+.steps .buttons { margin-top: 14px; }
+.buttons.start { justify-content: flex-start; }
+.alt-line { margin-top: 12px !important; }
+.alt-line a { color: var(--foreground); border-bottom: 1px solid var(--border); display: inline-flex; align-items: center; gap: 4px; }
+.alt-line svg { width: 14px; height: 14px; }
+.help { color: var(--muted-foreground); font-size: 14px; margin: 40px 0 0; }
+.help a { color: var(--foreground); border-bottom: 1px solid var(--border); }
+.help a:hover, .alt-line a:hover { border-color: var(--foreground); }
 .step-number {
   flex: none;
   display: grid;
