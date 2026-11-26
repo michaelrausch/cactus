@@ -15,6 +15,8 @@ interface Env {
   RESEND_API_KEY: string;
   /** Who license emails are from, e.g. `cactus <licenses@usecactus.dev>`. */
   LICENSE_FROM: string;
+  /** Where replies to license emails go: a mailbox someone reads. */
+  LICENSE_REPLY_TO?: string;
 }
 
 /** The fields of Ko-fi's webhook this uses: https://ko-fi.com/manage/webhooks */
@@ -47,7 +49,15 @@ async function kofi(request: Request, env: Env): Promise<Response> {
   } catch {
     return new Response("Bad request", { status: 400 });
   }
-  if (!sameText(payment.verification_token ?? "", env.KOFI_VERIFICATION_TOKEN)) {
+  if (!env.KOFI_VERIFICATION_TOKEN || !env.LICENSE_SIGNING_KEY || !env.RESEND_API_KEY) {
+    console.error("A secret isn't set: KOFI_VERIFICATION_TOKEN, LICENSE_SIGNING_KEY and RESEND_API_KEY are all needed");
+    return new Response("Not set up", { status: 500 });
+  }
+  // Trimmed: a secret piped in with `echo` ends in a newline.
+  if (!sameText((payment.verification_token ?? "").trim(), env.KOFI_VERIFICATION_TOKEN.trim())) {
+    // Lengths only, never the tokens: enough to tell a different token from a cut-off one.
+    const [got, want] = [(payment.verification_token ?? "").trim().length, env.KOFI_VERIFICATION_TOKEN.trim().length];
+    console.log(`Ko-fi webhook with the wrong verification token (${got} characters, expected ${want})`);
     return new Response("Forbidden", { status: 403 });
   }
 
@@ -92,10 +102,30 @@ function sendKey(env: Env, to: string, key: string): Promise<Response> {
     "",
     "Paste it into cactus pro when it asks. Download cactus pro at https://usecactus.dev/pro",
   ].join("\n");
+  // An HTML part as well as the text, and somewhere real to reply to: plain
+  // text that's mostly a random-looking key, from an address that can't be
+  // replied to, reads as spam to filters.
+  const html = `<!doctype html>
+<html>
+  <body style="margin:0;padding:24px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#212121;line-height:1.5">
+    <p>Thanks for supporting cactus.</p>
+    <p>Your cactus pro license key:</p>
+    <p style="padding:12px 14px;border:1px solid #e0e0e0;border-radius:8px;background:#f7f7f7;font-family:ui-monospace,Menlo,monospace;font-size:13px;word-break:break-all">${key}</p>
+    <p>Paste it into cactus pro when it asks. You can download cactus pro at <a href="https://usecactus.dev/pro">usecactus.dev/pro</a>.</p>
+    <p>If anything goes wrong, reply to this email.</p>
+  </body>
+</html>`;
   return fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ from: env.LICENSE_FROM, to: [to], subject: "Your cactus pro license key", text }),
+    body: JSON.stringify({
+      from: env.LICENSE_FROM,
+      to: [to],
+      ...(env.LICENSE_REPLY_TO ? { reply_to: env.LICENSE_REPLY_TO } : {}),
+      subject: "Your cactus pro license key",
+      text: `${text}\n\nIf anything goes wrong, reply to this email.`,
+      html,
+    }),
   });
 }
 
