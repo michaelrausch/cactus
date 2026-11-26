@@ -38,19 +38,19 @@ jobs:
         with:
           node-version: 24
           cache: npm
-          cache-dependency-path: ui/package-lock.json
+          cache-dependency-path: apps/desktop/ui/package-lock.json
 
       - name: Install UI dependencies
-        working-directory: ui
+        working-directory: apps/desktop/ui
         run: npm ci
 
-      # The desktop crate embeds ui/dist at compile time, so build it first.
+      # The desktop crate embeds apps/desktop/ui/dist at compile time, so build it first.
       - name: Build UI
-        working-directory: ui
+        working-directory: apps/desktop/ui
         run: npm run build
 
       - name: UI checks
-        working-directory: ui
+        working-directory: apps/desktop/ui
         run: |
           npm run lint
           npm run format:check
@@ -74,5 +74,5 @@ jobs:
 
       # `cargo test -p cactus --features pro` regenerates the TypeScript bindings.
       - name: Bindings are up to date
-        run: git diff --exit-code ui/src/api/bindings.ts
+        run: git diff --exit-code apps/desktop/ui/src/api/bindings.ts
 

@@ -127,7 +127,7 @@ pub fn builder() -> Builder<tauri::Wry> {
         ])
 }
 
-/// Regenerate `ui/src/api/bindings.ts`; debug builds only, so the UI's types
+/// Regenerate `apps/desktop/ui/src/api/bindings.ts`; debug builds only, so the UI's types
 /// always match the commands it is talking to. Pro builds only too: the
 /// bindings have every tool, and both editions' UIs build against them.
 ///

@@ -20,7 +20,7 @@ use serde_json::{Value, json};
 const SCHEMA: &str = include_str!("fixtures/opencollection-v1.0.0.json");
 
 fn demo() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../examples/demo")
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/demo")
 }
 
 /// Check `file` against the schema definition its role calls for.

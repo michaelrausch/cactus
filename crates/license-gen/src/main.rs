@@ -24,7 +24,7 @@ struct Args {
 
 #[derive(Subcommand)]
 enum Command {
-    /// Make a new signing key at PATH, and print its public half for `core/src/license.rs`.
+    /// Make a new signing key at PATH, and print its public half for `crates/core/src/license.rs`.
     Keypair { path: PathBuf },
     /// Print a license key for NAME and EMAIL.
     Issue {
@@ -62,7 +62,7 @@ fn keypair(path: &Path) -> Result<(), String> {
     let public = license::public_key(&signing_key);
     let bytes: Vec<String> = public.iter().map(|byte| format!("0x{byte:02x}")).collect();
     println!("Signing key written to {}. Keep it secret and backed up.", path.display());
-    println!("In core/src/license.rs:\n\nconst PUBLIC_KEY: [u8; 32] = [{}];", bytes.join(", "));
+    println!("In crates/core/src/license.rs:\n\nconst PUBLIC_KEY: [u8; 32] = [{}];", bytes.join(", "));
     Ok(())
 }
 

@@ -10,7 +10,7 @@
 //!    (`skip_serializing_if`: `""`, `[]`, `{}`, `false`, `0`), which is
 //!    what the editor does too.
 //! 2. Add `<id>::<Struct>` to [`tools!`] below.
-//! 3. Add its editor to `ui/src/features/critters/flows/tools/` (the UI
+//! 3. Add its editor to `apps/desktop/ui/src/features/critters/flows/tools/` (the UI
 //!    won't typecheck until you do).
 //!
 //! A tool's templated fields ([`Tool::templates`]) have `{{names}}` filled

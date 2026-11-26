@@ -4,9 +4,9 @@
 use cactus_core::http::ASSERTION_OPERATORS;
 use cactus_core::layout;
 
-const UI_HTTP: &str = include_str!("../../ui/src/domain/http.ts");
-const UI_ENV_FILES: &str = include_str!("../../ui/src/domain/envFiles.ts");
-const UI_PATHS: &str = include_str!("../../ui/src/domain/paths.ts");
+const UI_HTTP: &str = include_str!("../../../apps/desktop/ui/src/domain/http.ts");
+const UI_ENV_FILES: &str = include_str!("../../../apps/desktop/ui/src/domain/envFiles.ts");
+const UI_PATHS: &str = include_str!("../../../apps/desktop/ui/src/domain/paths.ts");
 
 /// The quoted strings of the TypeScript array literal that follows `marker`.
 fn quoted_list<'a>(source: &'a str, marker: &str) -> Vec<&'a str> {
@@ -22,7 +22,7 @@ fn the_editor_offers_every_operator_core_checks() {
 
 #[test]
 fn the_set_tool_offers_every_generator_core_has() {
-    const UI_GENERATORS: &str = include_str!("../../ui/src/domain/generators.ts");
+    const UI_GENERATORS: &str = include_str!("../../../apps/desktop/ui/src/domain/generators.ts");
     assert_eq!(quoted_list(UI_GENERATORS, "export const GENERATORS = ["), cactus_core::tools::GENERATORS);
 }
 

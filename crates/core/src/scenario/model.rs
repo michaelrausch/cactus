@@ -476,7 +476,7 @@ settings:
         assert_eq!(body.effective(), Some(TypedBody::Text { data: "b".into() }));
     }
 
-    /// The same cases run against the editor's `withUrl` (ui/src/domain/scenario.test.ts),
+    /// The same cases run against the editor's `withUrl` (apps/desktop/ui/src/domain/scenario.test.ts),
     /// which has to keep params exactly as a save writes them.
     #[test]
     fn query_params_match_the_shared_cases() {

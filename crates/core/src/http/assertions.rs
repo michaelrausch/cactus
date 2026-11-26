@@ -11,7 +11,7 @@ use crate::scenario::{Action, ActionPhase, Assertion, Scenario, SetVariable};
 use crate::text::plain_string;
 
 /// Every operator [`holds`] checks, as Bruno names them. The editor offers
-/// the same list (`ui/src/domain/http.ts`; `tests/ui_contract.rs` checks it).
+/// the same list (`apps/desktop/ui/src/domain/http.ts`; `tests/ui_contract.rs` checks it).
 pub const ASSERTION_OPERATORS: [&str; 28] = [
     "eq",
     "neq",

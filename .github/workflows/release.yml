@@ -20,7 +20,7 @@ jobs:
       matrix:
         edition:
           - { name: free, prefix: cactus, config: "" }
-          - { name: pro, prefix: cactus-pro, config: "--config src-tauri/tauri.pro.conf.json" }
+          - { name: pro, prefix: cactus-pro, config: "--config apps/desktop/src-tauri/tauri.pro.conf.json" }
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
@@ -29,14 +29,14 @@ jobs:
         with:
           node-version: 24
           cache: npm
-          cache-dependency-path: ui/package-lock.json
+          cache-dependency-path: apps/desktop/ui/package-lock.json
       - name: Install UI dependencies
-        working-directory: ui
+        working-directory: apps/desktop/ui
         run: npm ci
-      # Run from the repository root: the CLI finds src-tauri/ (and the UI's
+      # Run from the repository root: the CLI finds apps/desktop/src-tauri/ (and the UI's
       # package.json for beforeBuildCommand) by searching below the current folder.
       - name: Build NSIS installer
-        run: node ui/node_modules/@tauri-apps/cli/tauri.js build --bundles nsis ${{ matrix.edition.config }}
+        run: node apps/desktop/ui/node_modules/@tauri-apps/cli/tauri.js build --bundles nsis ${{ matrix.edition.config }}
       # The release binary embeds the UI and runs without installing
       # (WebView2 ships with Windows 10/11).
       - name: Stage portable exe
@@ -60,7 +60,7 @@ jobs:
       matrix:
         edition:
           - { name: free, prefix: cactus, config: "" }
-          - { name: pro, prefix: cactus-pro, config: "--config src-tauri/tauri.pro.conf.json" }
+          - { name: pro, prefix: cactus-pro, config: "--config apps/desktop/src-tauri/tauri.pro.conf.json" }
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
@@ -71,12 +71,12 @@ jobs:
         with:
           node-version: 24
           cache: npm
-          cache-dependency-path: ui/package-lock.json
+          cache-dependency-path: apps/desktop/ui/package-lock.json
       - name: Install UI dependencies
-        working-directory: ui
+        working-directory: apps/desktop/ui
         run: npm ci
       - name: Build universal DMG
-        run: node ui/node_modules/@tauri-apps/cli/tauri.js build --target universal-apple-darwin --bundles dmg ${{ matrix.edition.config }}
+        run: node apps/desktop/ui/node_modules/@tauri-apps/cli/tauri.js build --target universal-apple-darwin --bundles dmg ${{ matrix.edition.config }}
       - name: Stage DMG
         run: |
           mkdir dist
