@@ -173,7 +173,7 @@ impl McpApp for Desktop {
 
     fn host(&self, critter: &str, flow: &str) -> Box<dyn ToolHost> {
         let (critter, flow) = (critter.to_string(), flow.to_string());
-        Box::new(DesktopHost { app: self.app.clone(), critter, flow, interactive: true })
+        Box::new(DesktopHost::new(self.app.clone(), critter, flow, true))
     }
 
     fn changed(&self, change: Change) {

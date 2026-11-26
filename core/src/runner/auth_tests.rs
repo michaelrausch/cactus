@@ -94,6 +94,29 @@ async fn an_explicit_cookie_header_wins_over_the_jar() {
     assert_eq!(send(p, "echo.yml", &echo, Some("bob")).await.body, r#"{"cookie": "own=1"}"#);
 }
 
+#[tokio::test]
+async fn a_probe_sends_the_jar_but_keeps_none_of_its_cookies() {
+    let dir = project(|request| match request.path.as_str() {
+        "/login" => (200, vec![("set-cookie", "sid=abc".into())], "{}".into()),
+        "/logout" => (200, vec![("set-cookie", "sid=; Max-Age=0".into())], "{}".into()),
+        "/me" if request.header("cookie") == Some("sid=abc") => ok("{}"),
+        _ => unauthorized(),
+    })
+    .await;
+    let p = dir.path();
+    critter::create(p, "bob", &Critter::default()).unwrap();
+    let login = request(p, "login.yml", "info: {name: Login}\nhttp: {method: POST, url: '{{base}}/login'}\n");
+    let logout = request(p, "logout.yml", "info: {name: Logout}\nhttp: {method: POST, url: '{{base}}/logout'}\n");
+    let me = request(p, "me.yml", "info: {name: Me}\nhttp: {method: GET, url: '{{base}}/me'}\n");
+    send(p, "login.yml", &login, Some("bob")).await;
+
+    let scope = Scope { critter: Some("bob".into()), ..Scope::env(p, None) };
+    let client = build_client();
+    assert_eq!(send_probe(&client, p, &path("me.yml"), &me, &scope).await.unwrap().status, 200, "the jar is sent");
+    send_probe(&client, p, &path("logout.yml"), &logout, &scope).await.unwrap();
+    assert_eq!(send(p, "me.yml", &me, Some("bob")).await.status, 200, "the logout's cookie wasn't kept");
+}
+
 const DIGEST_CHALLENGE: &str = r#"Digest realm="api", nonce="n0nce", qop="auth", algorithm=MD5"#;
 
 /// Whether `authorization` answers [`DIGEST_CHALLENGE`] for `u`:`secret`.
@@ -199,6 +222,18 @@ async fn client_credentials_tokens_are_cached_and_replaced_when_refused() {
     assert!(response.warnings.iter().any(|w| w.contains("sent again with a new one")));
     assert_eq!(server.issued.load(Ordering::SeqCst), 3);
     assert!(layout::tokens_file(p).exists() && !layout::critter_tokens_file(p, "bob").exists());
+}
+
+#[tokio::test]
+async fn a_probe_keeps_the_401_when_its_token_is_refused() {
+    let (dir, server) = id_server(None, 3600).await;
+    let p = dir.path();
+    let api = request(p, "api.yml", CLIENT_CREDENTIALS);
+    assert_eq!(send(p, "api.yml", &api, None).await.status, 200);
+
+    server.issued.fetch_add(1, Ordering::SeqCst);
+    let probe = send_probe(&build_client(), p, &path("api.yml"), &api, &Scope::env(p, None)).await.unwrap();
+    assert_eq!((probe.status, server.issued.load(Ordering::SeqCst)), (401, 2), "no new token");
 }
 
 #[tokio::test]

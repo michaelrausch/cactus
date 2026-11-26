@@ -13,13 +13,14 @@ use crate::env::ensure_critter_workspace;
 use crate::http::Check;
 use crate::runner::{FlowRun, FlowStepResult};
 use crate::storage::{ensure_parent_dir, read_json_lenient, write_json};
+use crate::tools::{Finding, FindingKey};
 use crate::{Result, layout};
 
 /// How many runs a flow's log keeps.
 pub const MAX_RUN_RECORDS: usize = 50;
 
 /// One run, without bodies, so the log stays small.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct RunRecord {
@@ -36,7 +37,7 @@ pub struct RunRecord {
     pub error: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct StepRecord {
@@ -47,6 +48,13 @@ pub struct StepRecord {
     pub failed_checks: Vec<Check>,
     pub error: Option<String>,
     pub watched: BTreeMap<String, Option<String>>,
+    /// What a security tool found; `None` when the step didn't scan, so
+    /// an empty list means "found nothing".
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub findings: Option<Vec<FindingKey>>,
+    /// A tool's metrics, by name.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub metrics: BTreeMap<String, f64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -66,6 +74,13 @@ pub enum AlertEvent {
         expression: String,
         before: Option<String>,
         after: Option<String>,
+    },
+    /// A tool found things, or found them more severe, than when the same
+    /// step last scanned.
+    NewFindings {
+        step: u32,
+        request: String,
+        findings: Vec<FindingKey>,
     },
 }
 
@@ -103,6 +118,13 @@ pub fn record(run: &FlowRun) -> RunRecord {
 
 fn step_record(step: &FlowStepResult) -> StepRecord {
     let response = step.response.as_ref();
+    let output = step.output.as_ref();
+    let findings = output.and_then(|output| output.findings.as_ref());
+    // JSON can't hold NaN or infinity, and the log must stay readable.
+    let metrics = output.map_or_default(|output| {
+        let finite = output.metrics.iter().filter(|metric| metric.value.is_finite());
+        finite.map(|metric| (metric.name.clone(), metric.value)).collect()
+    });
     StepRecord {
         // A tool step is logged by its title, e.g. `POST https://…`.
         request: step.label().to_string(),
@@ -112,15 +134,17 @@ fn step_record(step: &FlowStepResult) -> StepRecord {
         failed_checks: response.map_or_default(|r| r.checks.iter().filter(|c| !c.ok).cloned().collect()),
         error: step.error.clone(),
         watched: step.watched.clone(),
+        findings: findings.map(|found| found.iter().map(Finding::key).collect()),
+        metrics,
     }
 }
 
-/// The alerts `current` raises after `previous`. Only changes of state
-/// alert: the first run is the baseline, and a flow that keeps failing
-/// alerts once. Watched values are compared only where both runs reached
-/// the step and both have a value.
-pub fn compare(previous: Option<&RunRecord>, current: &RunRecord, rule: &AlertRule) -> Vec<AlertEvent> {
-    let Some(previous) = previous else { return Vec::new() };
+/// The alerts `current` raises after the runs in `log`, oldest first. Only
+/// changes of state alert: the first run is the baseline, and a flow that
+/// keeps failing alerts once. Watched values are compared with the last
+/// run, only where both runs reached the step and both have a value.
+pub fn compare(log: &[RunRecord], current: &RunRecord, rule: &AlertRule) -> Vec<AlertEvent> {
+    let Some(previous) = log.last() else { return Vec::new() };
     let mut events = Vec::new();
     if rule.on.contains(&AlertOn::Failure) {
         match (previous.ok, current.ok) {
@@ -150,7 +174,44 @@ pub fn compare(previous: Option<&RunRecord>, current: &RunRecord, rule: &AlertRu
             }
         }
     }
+    if rule.on.contains(&AlertOn::Findings) {
+        events.extend(new_findings(log, current));
+    }
     events
+}
+
+/// Findings each step has, or has at a higher severity, that the same step
+/// didn't in the last run that got as far as scanning it.
+fn new_findings(log: &[RunRecord], current: &RunRecord) -> Vec<AlertEvent> {
+    let mut events = Vec::new();
+    for (index, after) in current.steps.iter().enumerate() {
+        let Some(new) = &after.findings else { continue };
+        let Some(old) = last_scan(log, index, &after.request) else { continue };
+        let already_reported = |key: &FindingKey| old.iter().any(|seen| seen.covers(key));
+        let fresh: Vec<FindingKey> = new.iter().filter(|key| !already_reported(key)).cloned().collect();
+        if !fresh.is_empty() {
+            events.push(AlertEvent::NewFindings {
+                step: u32::try_from(index).unwrap_or(u32::MAX),
+                request: after.request.clone(),
+                findings: fresh,
+            });
+        }
+    }
+    events
+}
+
+/// What step `index` found in the newest run of `log` where it scanned and
+/// was still `request`.
+fn last_scan<'a>(log: &'a [RunRecord], index: usize, request: &str) -> Option<&'a [FindingKey]> {
+    for run in log.iter().rev() {
+        let Some(step) = run.steps.get(index) else { continue };
+        if step.request == request
+            && let Some(found) = &step.findings
+        {
+            return Some(found);
+        }
+    }
+    None
 }
 
 fn failing(run: &RunRecord) -> AlertEvent {
@@ -199,6 +260,9 @@ pub fn load_log(project: &Path, critter: &str, flow: &str) -> Vec<RunRecord> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::slice::from_ref;
+
+    use crate::tools::{Metric, Severity, ToolOutput};
 
     fn step(ok: bool, watched: &[(&str, Option<&str>)]) -> StepRecord {
         StepRecord {
@@ -209,7 +273,46 @@ mod tests {
             failed_checks: Vec::new(),
             error: None,
             watched: watched.iter().map(|(k, v)| ((*k).to_string(), v.map(str::to_string))).collect(),
+            findings: None,
+            metrics: BTreeMap::new(),
         }
+    }
+
+    fn scan(rules: Option<&[&str]>) -> RunRecord {
+        let mut scanned = step(true, &[]);
+        scanned.findings = rules.map(|rules| {
+            let key = |rule: &&str| FindingKey { severity: Severity::High, rule: (*rule).into(), location: "/".into() };
+            rules.iter().map(key).collect()
+        });
+        run(vec![scanned])
+    }
+
+    #[test]
+    fn alerts_on_findings_the_previous_scan_did_not_have() {
+        let findings = rule(&[AlertOn::Findings]);
+        let new_csp = |events: &[AlertEvent]| matches!(events, [AlertEvent::NewFindings { step: 0, findings, .. }] if findings.len() == 1 && findings[0].rule == "csp");
+        assert_eq!(compare(&[], &scan(Some(&["hsts"])), &findings), QUIET, "the first run is the baseline");
+        assert_eq!(compare(&[scan(Some(&["hsts"]))], &scan(Some(&["hsts"])), &findings), QUIET);
+        assert_eq!(compare(&[scan(Some(&["hsts"]))], &scan(Some(&[])), &findings), QUIET);
+        assert!(new_csp(&compare(&[scan(Some(&["hsts"]))], &scan(Some(&["hsts", "csp"])), &findings)));
+        assert_eq!(compare(&[scan(None)], &scan(Some(&["csp"])), &findings), QUIET, "the step never scanned before");
+        assert!(
+            new_csp(&compare(&[scan(Some(&[])), scan(None)], &scan(Some(&["csp"])), &findings)),
+            "compared with the last run that scanned"
+        );
+        assert_eq!(compare(&[scan(Some(&[]))], &scan(Some(&["csp"])), &AlertRule::default()), QUIET);
+    }
+
+    #[test]
+    fn alerts_on_findings_that_got_more_severe() {
+        let findings = rule(&[AlertOn::Findings]);
+        let mut low = scan(Some(&["csp"]));
+        low.steps[0].findings.as_mut().unwrap()[0].severity = Severity::Low;
+        assert_eq!(compare(&[scan(Some(&["csp"]))], &low, &findings), QUIET);
+        let events = compare(&[low], &scan(Some(&["csp"])), &findings);
+        assert!(
+            matches!(&events[..], [AlertEvent::NewFindings { findings, .. }] if findings[0].severity == Severity::High)
+        );
     }
 
     fn run(steps: Vec<StepRecord>) -> RunRecord {
@@ -229,15 +332,15 @@ mod tests {
         let both = rule(&[AlertOn::Failure, AlertOn::Change]);
         let ok = run(vec![step(true, &[])]);
         let failing = run(vec![step(false, &[])]);
-        assert_eq!(compare(None, &failing, &both), QUIET, "the first run is the baseline");
-        assert_eq!(compare(Some(&ok), &ok, &both), QUIET);
+        assert_eq!(compare(&[], &failing, &both), QUIET, "the first run is the baseline");
+        assert_eq!(compare(from_ref(&ok), &ok, &both), QUIET);
         assert_eq!(
-            compare(Some(&ok), &failing, &both),
+            compare(from_ref(&ok), &failing, &both),
             [AlertEvent::Failing { step: Some(0), request: Some("status.yml".into()), reason: "status 500".into() }]
         );
-        assert_eq!(compare(Some(&failing), &failing, &both), QUIET);
-        assert_eq!(compare(Some(&failing), &ok, &both), [AlertEvent::Recovered]);
-        assert_eq!(compare(Some(&ok), &failing, &rule(&[AlertOn::Change])), QUIET);
+        assert_eq!(compare(from_ref(&failing), &failing, &both), QUIET);
+        assert_eq!(compare(from_ref(&failing), &ok, &both), [AlertEvent::Recovered]);
+        assert_eq!(compare(&[ok], &failing, &rule(&[AlertOn::Change])), QUIET);
     }
 
     #[test]
@@ -245,13 +348,13 @@ mod tests {
         let mut bad = step(false, &[]);
         bad.failed_checks = vec![Check { name: "res.body.db".into(), ok: false, detail: "expected eq ok".into() }];
         let ok = run(vec![step(true, &[])]);
-        let events = compare(Some(&ok), &run(vec![step(true, &[]), bad]), &AlertRule::default());
+        let events = compare(from_ref(&ok), &run(vec![step(true, &[]), bad]), &AlertRule::default());
         assert!(
             matches!(&events[..], [AlertEvent::Failing { step: Some(1), reason, .. }] if reason == "res.body.db: expected eq ok")
         );
         let broken = RunRecord::errored(2, None, "yaml: bad".into());
         assert_eq!(
-            compare(Some(&ok), &broken, &AlertRule::default()),
+            compare(&[ok], &broken, &AlertRule::default()),
             [AlertEvent::Failing { step: None, request: None, reason: "yaml: bad".into() }]
         );
     }
@@ -261,7 +364,7 @@ mod tests {
         let change = rule(&[AlertOn::Change]);
         let v = |value: Option<&str>| run(vec![step(true, &[("res.body.version", value)])]);
         assert_eq!(
-            compare(Some(&v(Some("1.4.2"))), &v(Some("1.5.0")), &change),
+            compare(&[v(Some("1.4.2"))], &v(Some("1.5.0")), &change),
             [AlertEvent::Changed {
                 step: 0,
                 expression: "res.body.version".into(),
@@ -269,12 +372,39 @@ mod tests {
                 after: Some("1.5.0".into())
             }]
         );
-        assert_eq!(compare(Some(&v(Some("1"))), &v(None), &change), QUIET);
-        assert_eq!(compare(Some(&v(None)), &v(Some("1")), &change), QUIET);
+        assert_eq!(compare(&[v(Some("1"))], &v(None), &change), QUIET);
+        assert_eq!(compare(&[v(None)], &v(Some("1")), &change), QUIET);
         let mut skipped = v(Some("2"));
         skipped.steps[0].skipped = true;
-        assert_eq!(compare(Some(&v(Some("1"))), &skipped, &change), QUIET);
-        assert_eq!(compare(Some(&v(Some("1"))), &v(Some("2")), &AlertRule::default()), QUIET);
+        assert_eq!(compare(&[v(Some("1"))], &skipped, &change), QUIET);
+        assert_eq!(compare(&[v(Some("1"))], &v(Some("2")), &AlertRule::default()), QUIET);
+    }
+
+    #[test]
+    fn a_metric_json_cannot_hold_does_not_break_the_log() {
+        let output = ToolOutput {
+            metrics: vec![Metric::new("errors", "Errors", f64::NAN, "%"), Metric::new("rps", "RPS", 12.0, "/s")],
+            ..ToolOutput::default()
+        };
+        let tool = FlowStepResult {
+            index: 0,
+            request: String::new(),
+            tool: Some("loadtest".into()),
+            output: Some(output),
+            title: "Load".into(),
+            method: String::new(),
+            url: String::new(),
+            ok: true,
+            skipped: false,
+            response: None,
+            error: None,
+            watched: BTreeMap::new(),
+        };
+        let recorded = record(&FlowRun { at: 1, env: None, ok: true, elapsed_ms: 1, steps: vec![tool] });
+        assert_eq!(recorded.steps[0].metrics, BTreeMap::from([("rps".to_string(), 12.0)]));
+        let dir = tempfile::tempdir().unwrap();
+        append(dir.path(), "bob", "load", recorded).unwrap();
+        assert_eq!(load_log(dir.path(), "bob", "load").len(), 1);
     }
 
     #[test]

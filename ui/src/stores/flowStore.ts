@@ -47,6 +47,14 @@ export interface FlowRunState {
   following: boolean;
   /** The flow was edited after this run, so the results may no longer match it. */
   stale: boolean;
+  /** How far the running tool step has got, when it reports that. */
+  progress: ToolProgress | null;
+}
+
+export interface ToolProgress {
+  index: number;
+  done: number;
+  total: number;
 }
 
 const NO_RUN: FlowRunState = {
@@ -57,6 +65,7 @@ const NO_RUN: FlowRunState = {
   last: null,
   following: false,
   stale: false,
+  progress: null,
 };
 
 interface FlowState {
@@ -109,6 +118,7 @@ interface FlowState {
   runStarted: (steps: number) => void;
   stepStarted: (start: FlowStepStart) => void;
   stepFinished: (result: FlowStepResult) => void;
+  toolProgressed: (progress: ToolProgress) => void;
   runFinished: (run: FlowRun | null) => void;
   conflicted: () => void;
   saveStatusChanged: (status: SaveStatus) => void;
@@ -231,6 +241,7 @@ export const useFlowStore = create<FlowState>()((set) => ({
         last: null,
         following: true,
         stale: false,
+        progress: null,
       },
       panel: "run",
       selected: steps > 0 ? 0 : null,
@@ -240,7 +251,7 @@ export const useFlowStore = create<FlowState>()((set) => ({
       const started = [...state.run.started];
       started[start.index] = start;
       return {
-        run: { ...state.run, started, current: start.index },
+        run: { ...state.run, started, current: start.index, progress: null },
         selected: state.run.following ? start.index : state.selected,
       };
     }),
@@ -248,14 +259,16 @@ export const useFlowStore = create<FlowState>()((set) => ({
     set((state) => {
       const results = [...state.run.results];
       results[result.index] = result;
-      return { run: { ...state.run, results, current: result.skipped ? null : result.index + 1 } };
+      return { run: { ...state.run, results, current: result.skipped ? null : result.index + 1, progress: null } };
     }),
+  toolProgressed: (progress) =>
+    set((state) => (state.run.current === progress.index ? { run: { ...state.run, progress } } : {})),
   runFinished: (last) =>
     set((state) => {
-      if (!last) return { run: { ...state.run, running: false, current: null } };
+      if (!last) return { run: { ...state.run, running: false, current: null, progress: null } };
       const failedAt = last.steps.findIndex((step) => !step.ok && !step.skipped);
       return {
-        run: { ...state.run, running: false, results: last.steps, current: null, last, stale: false },
+        run: { ...state.run, running: false, results: last.steps, current: null, last, stale: false, progress: null },
         selected: state.run.following && failedAt >= 0 ? failedAt : state.selected,
       };
     }),

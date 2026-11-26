@@ -261,6 +261,8 @@ pub enum AlertOn {
     Failure,
     /// A watched value differing from the previous run.
     Change,
+    /// A security tool finding something the previous run didn't.
+    Findings,
 }
 
 /// A captured value in `.cactus/critters/<id>/context.json`.

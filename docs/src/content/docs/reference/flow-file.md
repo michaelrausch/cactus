@@ -57,6 +57,7 @@ A step with a `tool` key is a [tool step](/reference/flow-tools/). Any other ste
 | --- | --- |
 | `failure` | When it starts failing, and when it recovers (the default) |
 | `change` | When a `watch` value changes |
+| `findings` | When a security tool finds something the previous run didn't |
 
 ## Critter file
 

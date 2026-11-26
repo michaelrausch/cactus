@@ -4,7 +4,14 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { handleFilesChanged } from "@/actions/fsSync";
 import { scheduledRunFinished, showAlert, showFlowNotification } from "@/actions/alerts";
 import { refreshContext } from "@/actions/critters";
-import { flowAskClosed, flowAsked, flowDisplayed, flowStepFinished, flowStepStarted } from "@/actions/flows";
+import {
+  flowAskClosed,
+  flowAsked,
+  flowDisplayed,
+  flowStepFinished,
+  flowStepStarted,
+  flowToolProgressed,
+} from "@/actions/flows";
 import { refreshGitStatus } from "@/actions/git";
 import { restoreLastProject } from "@/actions/project";
 import { historyChanged } from "@/actions/request";
@@ -96,6 +103,7 @@ export function useAppLifecycle(): void {
         flowStepStarted(payload.critter, payload.flow, payload.start),
       ),
       backendEvents.flowProgress.listen(({ payload }) => flowStepFinished(payload.critter, payload.flow, payload.step)),
+      backendEvents.flowToolProgress.listen(({ payload }) => flowToolProgressed(payload)),
       // Tool steps: a question for the person running the flow, and notifications.
       backendEvents.flowAsked.listen(({ payload }) => flowAsked(payload)),
       backendEvents.flowAskClosed.listen(({ payload }) => flowAskClosed(payload.id)),

@@ -7,7 +7,7 @@ use std::time::Instant;
 
 use serde::{Deserialize, Serialize};
 
-use super::{SendOptions, send_and_record, send_as};
+use super::{SendOptions, send_and_record, send_as, send_probe};
 use crate::clock::now_unix_millis;
 use crate::critter::{self, Flow, FlowStep, Step};
 use crate::env::{self, Env, Scope};
@@ -362,13 +362,17 @@ async fn run_tool(
     let mut result = FlowStepResult::started(&start);
     on_event(FlowEvent::Started(&start));
     let runner = RunAccess { context, run_vars: run_vars.clone() };
-    let mut cx = ToolCx::new(context.client, context.host, &runner, &visible);
+    let mut cx = ToolCx::new(context.client, context.host, &runner, &visible).at(saturating_u32(index));
     match tool.run(&mut cx).await {
         Ok(mut output) => {
             let (set, shown) = cx.finish();
             run_vars.extend(set);
             output.values = shown;
-            result.ok = true;
+            if let Some(findings) = &mut output.findings {
+                findings.sort_by_key(|finding| std::cmp::Reverse(finding.severity));
+            }
+            result.error = tool.verdict(&output);
+            result.ok = result.error.is_none();
             result.output = Some(output);
         }
         Err(error) => result.error = Some(error.to_string()),
@@ -390,6 +394,19 @@ impl FlowRunner for RunAccess<'_> {
             let response = self.context.send(&prepared.path, &prepared.scenario, &prepared.scope).await?;
             let passed = scenario_passed(&prepared.scenario, &response);
             Ok((response, passed))
+        })
+    }
+
+    fn probe<'a>(
+        &'a self,
+        step: &'a FlowStep,
+        edit: &'a (dyn Fn(&mut Scenario) + Sync),
+    ) -> BoxFuture<'a, Result<Response>> {
+        Box::pin(async move {
+            let mut prepared = prepare_step(self.context, 0, step, &self.run_vars)?;
+            edit(&mut prepared.scenario);
+            send_probe(self.context.client, self.context.project, &prepared.path, &prepared.scenario, &prepared.scope)
+                .await
         })
     }
 

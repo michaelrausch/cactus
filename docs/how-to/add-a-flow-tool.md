@@ -87,11 +87,29 @@ What `run` can use, all through `cx: &mut ToolCx`:
 | Ask the person something and wait        | `cx.host.ask(Ask::Fields { … })`; handle `Answer::Unattended`     |
 | Show a message / send an OS notification | `cx.host.show(…)` / `cx.host.notify(…)`                           |
 | Send a request step, or run another flow | `cx.runner.send(&step)` / `cx.runner.run_flow(critter, flow)`     |
+| Send many variants (fuzz, load)          | `cx.runner.probe(&step, &edit)`: no history, captures or re-login |
+| Report how far a long run has got        | `cx.progress(done, total)`                                        |
 
 Values set with `cx.set` last for the rest of the run only; they are never
 written to disk. Remember a tool also runs **headless** (schedules, re-login
 after a 401, CI): `ask` returns `Answer::Unattended` there, so fall back to a
 default or fail clearly.
+
+### Security tools
+
+Return what was found in `ToolOutput::findings` (`Some(vec![Finding {
+severity, title, rule, location, detail, evidence }])`, `Some(vec![])` when
+nothing was found) and numbers in `ToolOutput::metrics`. Don't return `Err`
+for findings: implement `Tool::verdict` so the step fails and still shows
+them.
+
+| Fails on      | Field                    | `verdict`                                               |
+| ------------- | ------------------------ | ------------------------------------------------------- |
+| Findings      | `fail_on: FailOn`        | `findings_verdict(self.fail_on, o.findings.as_deref())` |
+| Metric limits | `checks: Vec<Assertion>` | `metrics_verdict(&self.checks, &o.metrics)`             |
+
+`rule` must be stable between runs: findings are matched by `rule` and
+`location`.
 
 ## 2. Register it
 

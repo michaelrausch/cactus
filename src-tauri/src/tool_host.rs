@@ -7,6 +7,7 @@
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Mutex, PoisonError};
+use std::time::{Duration, Instant};
 
 use cactus_core::env::Env;
 use cactus_core::tools::{Answer, Ask, BoxFuture, ToolHost};
@@ -15,7 +16,7 @@ use tauri::{AppHandle, Manager};
 use tauri_plugin_opener::OpenerExt;
 use tokio::sync::oneshot;
 
-use crate::events::{FlowAskClosed, FlowAsked, FlowDisplayed, FlowNotified, notify};
+use crate::events::{FlowAskClosed, FlowAsked, FlowDisplayed, FlowNotified, FlowToolProgress, notify};
 use crate::state::AppState;
 
 /// Questions waiting for an answer from the UI, by id.
@@ -65,10 +66,34 @@ impl Drop for Closing<'_> {
 /// The desktop app running a flow. A run the person started can ask and
 /// open pages; a scheduled one can only notify.
 pub struct DesktopHost {
-    pub app: AppHandle,
-    pub critter: String,
-    pub flow: String,
-    pub interactive: bool,
+    app: AppHandle,
+    critter: String,
+    flow: String,
+    interactive: bool,
+    /// When progress was last sent, to send at most every [`PROGRESS_EVERY`].
+    progressed: Mutex<Option<Instant>>,
+}
+
+const PROGRESS_EVERY: Duration = Duration::from_millis(100);
+
+impl DesktopHost {
+    pub fn new(app: AppHandle, critter: String, flow: String, interactive: bool) -> Self {
+        Self { app, critter, flow, interactive, progressed: Mutex::new(None) }
+    }
+
+    /// Whether to send progress now: always the last update, otherwise at
+    /// most every [`PROGRESS_EVERY`].
+    fn progress_due(&self, done: u32, total: u32) -> bool {
+        let mut progressed = self.progressed.lock().unwrap_or_else(PoisonError::into_inner);
+        let now = Instant::now();
+        let finished = done >= total;
+        let recently = progressed.is_some_and(|at| now.duration_since(at) < PROGRESS_EVERY);
+        if !finished && recently {
+            return false;
+        }
+        *progressed = Some(now);
+        true
+    }
 }
 
 impl ToolHost for DesktopHost {
@@ -108,6 +133,15 @@ impl ToolHost for DesktopHost {
             return Ok(());
         }
         self.app.opener().open_url(url, None::<&str>).map_err(|e| Error::Tool(format!("Couldn't open {url}: {e}")))
+    }
+
+    fn progress(&self, index: u32, done: u32, total: u32) {
+        // Without a total there's nothing to show.
+        if !self.interactive || total == 0 || !self.progress_due(done, total) {
+            return;
+        }
+        let (critter, flow) = (self.critter.clone(), self.flow.clone());
+        notify(&FlowToolProgress { critter, flow, index, done, total }, &self.app);
     }
 }
 

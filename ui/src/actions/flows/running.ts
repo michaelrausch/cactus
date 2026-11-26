@@ -1,4 +1,4 @@
-import { backend, type FlowStepResult, type FlowStepStart } from "@/api/client";
+import { backend, type FlowStepResult, type FlowStepStart, type FlowToolProgress } from "@/api/client";
 import { reportErrors } from "@/lib/errors";
 import { selectFlowDirty } from "@/stores/flowStore";
 import { useResponseStore } from "@/stores/responseStore";
@@ -52,6 +52,11 @@ export function flowStepStarted(critter: string, flow: string, start: FlowStepSt
 /** A step of a run finished (the `FlowProgress` event). */
 export function flowStepFinished(critter: string, flow: string, step: FlowStepResult): void {
   if (isOpen(critter, flow) && flowStore().run.running) flowStore().stepFinished(step);
+}
+
+/** A long-running tool step reported how far it has got (the `FlowToolProgress` event). */
+export function flowToolProgressed(progress: FlowToolProgress): void {
+  if (isOpen(progress.critter, progress.flow) && flowStore().run.running) flowStore().toolProgressed(progress);
 }
 
 /** Show a step's response in the response pane, next to its request. */

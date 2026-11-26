@@ -30,6 +30,14 @@ use crate::{Error, ProjectPath, Result, cookies, critter, env};
 /// The status that makes a critter log in again.
 const UNAUTHORIZED: u16 = 401;
 
+/// Whether a send may change the critter's credentials: keep the cookies
+/// responses set, and replace an OAuth2 token the server refuses.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Credentials {
+    Update,
+    ReadOnly,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SendOptions {
     pub record_history: bool,
@@ -55,7 +63,7 @@ pub async fn send_and_record(
     options: SendOptions,
 ) -> Result<Response> {
     let resolved = env::resolve_for_request(project, scope, path.dir(), &scenario.runtime.variables)?;
-    let mut response = send_with_credentials(client, project, scenario, &resolved, scope).await?;
+    let mut response = send_with_credentials(client, project, scenario, &resolved, scope, Credentials::Update).await?;
     response.critter.clone_from(&scope.critter);
     if !response.captured.is_empty() {
         match &scope.critter {
@@ -69,29 +77,51 @@ pub async fn send_and_record(
     Ok(response)
 }
 
+/// Send one request as [`send_and_record`] does, but keep nothing: no
+/// history, and neither captured values nor cookies are saved. Never logs
+/// in again or replaces an OAuth2 token on a 401, which a probe may be
+/// looking for. For tools that send many variants of a request, such as
+/// fuzzers and load tests.
+pub(crate) async fn send_probe(
+    client: &reqwest::Client,
+    project: &Path,
+    path: &ProjectPath,
+    scenario: &Scenario,
+    scope: &Scope,
+) -> Result<Response> {
+    let resolved = env::resolve_for_request(project, scope, path.dir(), &scenario.runtime.variables)?;
+    let mut response =
+        send_with_credentials(client, project, scenario, &resolved, scope, Credentials::ReadOnly).await?;
+    response.critter.clone_from(&scope.critter);
+    Ok(response)
+}
+
 /// Send with the request's OAuth2 token, if it uses one, and the critter's
-/// cookie jar, if there is a critter. A cached token the server refuses with
-/// a 401 is refreshed or replaced, and the request sent once more.
+/// cookie jar, if there is a critter. With [`Credentials::Update`], a cached
+/// token the server refuses with a 401 is refreshed or replaced, and the
+/// request sent once more.
 async fn send_with_credentials(
     client: &reqwest::Client,
     project: &Path,
     scenario: &Scenario,
     resolved: &RequestScope,
     scope: &Scope,
+    credentials: Credentials,
 ) -> Result<Response> {
     let critter = scope.critter.as_deref();
+    let send = |token| send_once(client, project, scenario, resolved, critter, token, credentials);
     let Some(oauth2) = http::effective_oauth2(scenario, &resolved.inherited) else {
-        return send_once(client, project, scenario, resolved, critter, None).await;
+        return send(None).await;
     };
     let token = oauth2::token_for_send(client, project, critter, oauth2, &resolved.vars).await?;
-    let response = send_once(client, project, scenario, resolved, critter, Some(&token.token)).await?;
-    if response.status != UNAUTHORIZED || token.fresh {
+    let response = send(Some(&token.token)).await?;
+    if response.status != UNAUTHORIZED || token.fresh || credentials == Credentials::ReadOnly {
         return Ok(response);
     }
     oauth2::expire(project, critter, oauth2, &resolved.vars)?;
     match oauth2::token_for_send(client, project, critter, oauth2, &resolved.vars).await {
         Ok(token) => {
-            let mut again = send_once(client, project, scenario, resolved, critter, Some(&token.token)).await?;
+            let mut again = send(Some(&token.token)).await?;
             again.warnings.push("Got 401 with the cached OAuth2 token; sent again with a new one".into());
             Ok(again)
         }
@@ -110,11 +140,12 @@ async fn send_once(
     resolved: &RequestScope,
     critter: Option<&str>,
     token: Option<&StoredToken>,
+    credentials: Credentials,
 ) -> Result<Response> {
     let send =
         http::send(client, project, scenario, &resolved.inherited, &resolved.vars, token.map(StoredToken::bearer));
     match critter {
-        Some(critter) => cookies::with_jar(project, critter, send).await?,
+        Some(critter) => cookies::with_jar(project, critter, credentials == Credentials::Update, send).await?,
         None => send.await,
     }
 }

@@ -1,4 +1,5 @@
 import type { AlertEvent } from "@/api/client";
+import { findingsSummary } from "./findings";
 
 export type AlertTone = "warning" | "success" | "info";
 
@@ -25,6 +26,12 @@ export function alertMessage(
         title: `${flow}: ${event.expression} changed`,
         description: `${event.before ?? "—"} → ${event.after ?? "—"}`,
         tone: "info",
+      };
+    case "newFindings":
+      return {
+        title: `${flow}: new findings`,
+        description: `Step ${event.step + 1} (${event.request}): ${findingsSummary(event.findings)}`,
+        tone: "warning",
       };
   }
 }

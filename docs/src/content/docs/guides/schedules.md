@@ -29,6 +29,7 @@ steps:
 | --- | --- |
 | `failure` | The flow starts failing, and again when it recovers |
 | `change` | A `watch` value differs from the previous run |
+| `findings` | A security tool finds something the previous run didn't |
 
 Alerts fire only when the state changes. A flow that keeps failing alerts once.
 

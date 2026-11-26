@@ -23,6 +23,7 @@
 
 mod assert;
 mod display;
+mod findings;
 mod notify;
 mod open;
 mod pick;
@@ -41,6 +42,7 @@ use std::pin::Pin;
 
 use serde::{Deserialize, Serialize};
 
+pub use self::findings::{FailOn, Finding, FindingKey, Metric, Severity, findings_verdict, metrics_verdict};
 pub use self::pick::CHOICE;
 pub use self::prompt::PromptVar;
 pub use self::random::GENERATORS;
@@ -49,6 +51,7 @@ use crate::critter::FlowStep;
 use crate::env::Env;
 use crate::http::Response;
 use crate::runner::FlowRun;
+use crate::scenario::Scenario;
 
 /// One kind of flow step.
 pub trait Tool {
@@ -62,6 +65,11 @@ pub trait Tool {
     }
 
     fn run(&self, cx: &mut ToolCx<'_>) -> impl Future<Output = Result<ToolOutput>> + Send;
+
+    /// Why `output` fails the step, if it does. The output is still shown.
+    fn verdict(&self, _output: &ToolOutput) -> Option<String> {
+        None
+    }
 }
 
 /// The registry: every tool, as `module::Struct`. Generates [`ToolStep`],
@@ -105,6 +113,12 @@ macro_rules! tools {
                     $(Self::$tool(tool) => tool.run(cx).await,)*
                 }
             }
+
+            pub fn verdict(&self, output: &ToolOutput) -> Option<String> {
+                match self {
+                    $(Self::$tool(tool) => tool.verdict(output),)*
+                }
+            }
         }
     };
 }
@@ -125,7 +139,7 @@ tools! {
 }
 
 /// What a tool step did, for the step card, the run panel and the CLI.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct ToolOutput {
@@ -137,11 +151,23 @@ pub struct ToolOutput {
     /// The variables it set for later steps; secret ones as `••••`.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub values: BTreeMap<String, String>,
+    /// What a security tool found, most severe first; `None` from a tool
+    /// that doesn't scan, so an empty list means "found nothing".
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub findings: Option<Vec<Finding>>,
+    /// Numbers a tool measured, e.g. a load test's latencies.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub metrics: Vec<Metric>,
 }
 
 impl ToolOutput {
     pub fn text(text: impl Into<String>) -> Self {
         Self { text: Some(text.into()), ..Self::default() }
+    }
+
+    /// What it found; empty when it didn't scan.
+    pub fn found(&self) -> &[Finding] {
+        self.findings.as_deref().unwrap_or_default()
     }
 }
 
@@ -190,6 +216,9 @@ pub trait ToolHost: Send + Sync {
     fn show(&self, title: &str, text: &str);
     fn notify(&self, title: &str, body: &str);
     fn open_url(&self, url: &str) -> Result<()>;
+    /// How far the long-running tool at step `index` has got. Called
+    /// often; hosts throttle as they need.
+    fn progress(&self, _index: u32, _done: u32, _total: u32) {}
 }
 
 /// No one is watching: questions go unanswered, notifications and URLs are
@@ -216,6 +245,15 @@ pub trait FlowRunner: Send + Sync {
     /// variables so far). Also says whether its checks passed.
     fn send<'a>(&'a self, step: &'a FlowStep) -> BoxFuture<'a, Result<(Response, bool)>>;
 
+    /// Send a request step changed by `edit`, as this run would, keeping
+    /// nothing: no history, no captured values, no logging in again on a
+    /// 401. For fuzzers and load tests; safe to call concurrently.
+    fn probe<'a>(
+        &'a self,
+        step: &'a FlowStep,
+        edit: &'a (dyn Fn(&mut Scenario) + Sync),
+    ) -> BoxFuture<'a, Result<Response>>;
+
     /// Run another flow, of `critter` or else the same critter, in this
     /// run's env. Its steps aren't reported one by one.
     fn run_flow<'a>(&'a self, critter: Option<&'a str>, flow: &'a str) -> BoxFuture<'a, Result<FlowRun>>;
@@ -230,11 +268,25 @@ pub struct ToolCx<'a> {
     vars: &'a Env,
     set: Env,
     secret: BTreeSet<String>,
+    /// The step's place in its flow.
+    index: u32,
 }
 
 impl<'a> ToolCx<'a> {
     pub fn new(client: &'a reqwest::Client, host: &'a dyn ToolHost, runner: &'a dyn FlowRunner, vars: &'a Env) -> Self {
-        Self { client, host, runner, vars, set: Env::new(), secret: BTreeSet::new() }
+        Self { client, host, runner, vars, set: Env::new(), secret: BTreeSet::new(), index: 0 }
+    }
+
+    /// The same, for step `index` of its flow.
+    #[must_use]
+    pub fn at(mut self, index: u32) -> Self {
+        self.index = index;
+        self
+    }
+
+    /// Report how far a long-running tool has got, e.g. requests sent.
+    pub fn progress(&self, done: u32, total: u32) {
+        self.host.progress(self.index, done, total);
     }
 
     /// Every variable the step can use, for tools that read values
@@ -302,6 +354,14 @@ mod tests {
         }
 
         fn run_flow<'a>(&'a self, _critter: Option<&'a str>, _flow: &'a str) -> BoxFuture<'a, Result<FlowRun>> {
+            Box::pin(async { Err(crate::Error::Tool("no runner".into())) })
+        }
+
+        fn probe<'a>(
+            &'a self,
+            _step: &'a FlowStep,
+            _edit: &'a (dyn Fn(&mut Scenario) + Sync),
+        ) -> BoxFuture<'a, Result<Response>> {
             Box::pin(async { Err(crate::Error::Tool("no runner".into())) })
         }
     }
