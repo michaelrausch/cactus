@@ -9,12 +9,6 @@ const features = [
   { title: "Early access", body: "New features land in Pro first." },
 ];
 
-const steps = [
-  { title: "Support cactus", body: "Get cactus pro from the Ko-fi shop." },
-  { title: "Get your key", body: "It's emailed to the address you give Ko-fi, usually within a minute." },
-  { title: "Activate", body: "Open cactus pro and paste the key in. It works offline, on any version." },
-];
-
 const windowsIcon = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 5.5 10.5 4.5v7H3zm0 13 7.5 1v-7H3zm8.5 1.1L21 21v-8.5h-9.5zm0-15.2V11.5H21V3z"/></svg>`;
 const appleIcon = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M16.4 12.6c0-2.6 2.1-3.8 2.2-3.9-1.2-1.8-3.1-2-3.7-2-1.6-.2-3.1.9-3.9.9-.8 0-2-.9-3.4-.9-1.7 0-3.3 1-4.2 2.6-1.8 3.1-.5 7.7 1.3 10.2.8 1.2 1.8 2.6 3.1 2.6 1.2 0 1.7-.8 3.2-.8s1.9.8 3.2.8c1.3 0 2.2-1.2 3-2.4.9-1.4 1.3-2.7 1.3-2.8 0 0-2.6-1-2.6-4zM13.9 5c.7-.8 1.1-1.9 1-3-1 0-2.1.6-2.8 1.4-.6.7-1.2 1.8-1 2.9 1.1.1 2.1-.5 2.8-1.3z"/></svg>`;
 const downloadIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v12m0 0-5-5m5 5 5-5M5 20h14"/></svg>`;
@@ -46,7 +40,7 @@ const heartIcon = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s
 
       <div class="hero">
         <h1>cactus <span class="accent">pro</span></h1>
-        <p>Security testing, Slack and webhooks in your flows, plus everything in cactus. Support cactus on Ko-fi and your license key is emailed to you.</p>
+        <p>cactus is donationware. If you want to support it, buy cactus pro on Ko-fi. Pro adds security testing, Slack and webhook steps, more themes and early access to new features.</p>
         <div class="buttons">
           <a class="btn primary" href={KOFI_PRO_URL}><Fragment set:html={heartIcon} />Get cactus pro</a>
           <a class="btn" href={proDownloads.macos}><Fragment set:html={appleIcon} />macOS</a>
@@ -70,23 +64,6 @@ const heartIcon = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s
             </div>
           ))}
         </div>
-      </div>
-    </section>
-
-    <section class="tight">
-      <div class="wrap">
-        <h2>How it works</h2>
-        <ol class="steps">
-          {steps.map((s, i) => (
-            <li>
-              <span class="step-number">{i + 1}</span>
-              <div>
-                <h3>{s.title}</h3>
-                <p>{s.body}</p>
-              </div>
-            </li>
-          ))}
-        </ol>
       </div>
     </section>
 
