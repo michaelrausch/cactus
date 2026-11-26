@@ -13,9 +13,14 @@ env:
 
 jobs:
   windows:
-    name: Windows
+    name: Windows (${{ matrix.edition.name }})
     runs-on: windows-latest
     timeout-minutes: 45
+    strategy:
+      matrix:
+        edition:
+          - { name: free, prefix: cactus, config: "" }
+          - { name: pro, prefix: cactus-pro, config: "--config src-tauri/tauri.pro.conf.json" }
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
@@ -31,25 +36,31 @@ jobs:
       # Run from the repository root: the CLI finds src-tauri/ (and the UI's
       # package.json for beforeBuildCommand) by searching below the current folder.
       - name: Build NSIS installer
-        run: node ui/node_modules/@tauri-apps/cli/tauri.js build --bundles nsis
+        run: node ui/node_modules/@tauri-apps/cli/tauri.js build --bundles nsis ${{ matrix.edition.config }}
       # The release binary embeds the UI and runs without installing
       # (WebView2 ships with Windows 10/11).
       - name: Stage portable exe
         shell: bash
         run: |
           mkdir dist
-          cp target/release/cactus.exe "dist/cactus_${GITHUB_REF_NAME}_x64_portable.exe"
-          cp target/release/bundle/nsis/*.exe dist/
+          cp target/release/cactus.exe "dist/${{ matrix.edition.prefix }}_${GITHUB_REF_NAME}_x64_portable.exe"
+          # Named by prefix, not productName: "cactus pro" would have a space in it.
+          cp target/release/bundle/nsis/*.exe "dist/${{ matrix.edition.prefix }}_${GITHUB_REF_NAME#v}_x64-setup.exe"
       - uses: actions/upload-artifact@v4
         with:
-          name: cactus-windows
+          name: ${{ matrix.edition.prefix }}-windows
           path: dist/*.exe
           if-no-files-found: error
 
   macos:
-    name: macOS
+    name: macOS (${{ matrix.edition.name }})
     runs-on: macos-latest
     timeout-minutes: 45
+    strategy:
+      matrix:
+        edition:
+          - { name: free, prefix: cactus, config: "" }
+          - { name: pro, prefix: cactus-pro, config: "--config src-tauri/tauri.pro.conf.json" }
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
@@ -65,11 +76,15 @@ jobs:
         working-directory: ui
         run: npm ci
       - name: Build universal DMG
-        run: node ui/node_modules/@tauri-apps/cli/tauri.js build --target universal-apple-darwin --bundles dmg
+        run: node ui/node_modules/@tauri-apps/cli/tauri.js build --target universal-apple-darwin --bundles dmg ${{ matrix.edition.config }}
+      - name: Stage DMG
+        run: |
+          mkdir dist
+          cp target/universal-apple-darwin/release/bundle/dmg/*.dmg "dist/${{ matrix.edition.prefix }}_${GITHUB_REF_NAME#v}_universal.dmg"
       - uses: actions/upload-artifact@v4
         with:
-          name: cactus-macos
-          path: target/universal-apple-darwin/release/bundle/dmg/*.dmg
+          name: ${{ matrix.edition.prefix }}-macos
+          path: dist/*.dmg
           if-no-files-found: error
 
   publish:

@@ -100,8 +100,12 @@ export function ThemePicker({ columns }: { columns: string }) {
   return (
     <div role="radiogroup" aria-label="Theme" className="flex flex-col gap-4">
       <div className="grid grid-cols-2 gap-2">{MAIN_THEMES.map(card)}</div>
-      <div className="h-px bg-border" />
-      <div className={cn("grid gap-2", columns)}>{OTHER_THEMES.map(card)}</div>
+      {OTHER_THEMES.length > 0 && (
+        <>
+          <div className="h-px bg-border" />
+          <div className={cn("grid gap-2", columns)}>{OTHER_THEMES.map(card)}</div>
+        </>
+      )}
     </div>
   );
 }

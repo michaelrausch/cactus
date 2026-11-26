@@ -20,7 +20,7 @@ const MCP_SETTINGS_FILE: &str = "mcp.json";
 /// If the Tauri runtime fails to start.
 pub fn run() {
     let bindings = bindings::builder();
-    #[cfg(debug_assertions)]
+    #[cfg(all(debug_assertions, feature = "pro"))]
     bindings::export_typescript(&bindings);
 
     tauri::Builder::default()
@@ -32,11 +32,20 @@ pub fn run() {
         .setup(move |app| {
             bindings.mount_events(app);
             let config_dir = app.path().app_config_dir()?;
+            #[cfg(feature = "pro")]
+            {
+                cactus_core::license::load(&config_dir);
+                // The window title is in tauri.conf.json, which tauri.pro.conf.json can't
+                // change without replacing each platform's window settings.
+                if let Some(window) = app.get_webview_window("main") {
+                    window.set_title("cactus pro")?;
+                }
+            }
             app.manage(AppState::new(config_dir.join(RECENT_PROJECTS_FILE), config_dir.join(MCP_SETTINGS_FILE)));
-            let handle = app.handle().clone();
-            tauri::async_runtime::spawn(async move {
-                handle.state::<AppState>().mcp.start(&handle).await;
-            });
+            if commands::license::is_licensed() {
+                let handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move { start_services(&handle).await });
+            }
             Ok(())
         })
         .build(tauri::generate_context!())
@@ -48,4 +57,10 @@ pub fn run() {
                 state.mcp.stop();
             }
         });
+}
+
+/// What runs in the background once the app may be used: at launch, or in
+/// the Pro edition once a license key is entered.
+async fn start_services(app: &tauri::AppHandle) {
+    app.state::<AppState>().mcp.start(app).await;
 }

@@ -24,6 +24,8 @@ pub mod http;
 pub mod import;
 pub mod jsonpath;
 pub mod layout;
+#[cfg(feature = "pro")]
+pub mod license;
 pub mod monitor;
 pub mod oauth2;
 pub mod recent;

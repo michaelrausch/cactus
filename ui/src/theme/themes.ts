@@ -1,4 +1,5 @@
-/** The themes in `themes.css`, in the order the picker shows them. */
+/** The themes in `themes.css`, then the Pro edition's, in the order the picker shows them. */
+import { PRO_THEMES } from "@edition/themes";
 
 export interface Theme {
   id: string;
@@ -6,49 +7,25 @@ export interface Theme {
   scheme: "dark" | "light";
 }
 
-export const THEMES = [
+/** Every edition's themes: the main dark and light ones. */
+const BASE_THEMES = [
   { id: "cactus", name: "Default dark", scheme: "dark" },
   { id: "vanilla", name: "Default light", scheme: "light" },
-  { id: "agave", name: "Agave", scheme: "dark" },
-  { id: "prickly-pear", name: "Prickly Pear", scheme: "dark" },
-  { id: "sage", name: "Sage", scheme: "dark" },
-  { id: "oasis", name: "Oasis", scheme: "dark" },
-  { id: "jacaranda", name: "Jacaranda", scheme: "dark" },
-  { id: "ember", name: "Ember", scheme: "dark" },
-  { id: "aurora", name: "Aurora", scheme: "dark" },
-  { id: "stargazer", name: "Stargazer", scheme: "dark" },
-  { id: "sunset-mesa", name: "Sunset Mesa", scheme: "dark" },
-  { id: "bloom", name: "Bloom", scheme: "dark" },
-  { id: "synthwave", name: "Synthwave", scheme: "dark" },
-  { id: "ocean-drive", name: "Ocean Drive", scheme: "dark" },
-  { id: "phosphor", name: "Phosphor", scheme: "dark" },
-  { id: "amber", name: "Amber", scheme: "dark" },
-  { id: "blueprint", name: "Blueprint", scheme: "dark" },
-  { id: "desert-day", name: "Desert Day", scheme: "light" },
-  { id: "salt-flat", name: "Salt Flat", scheme: "light" },
-  { id: "adobe", name: "Adobe", scheme: "light" },
-  { id: "matcha", name: "Matcha", scheme: "light" },
-  { id: "paper", name: "Paper", scheme: "light" },
-  { id: "citrus", name: "Citrus", scheme: "light" },
-  { id: "bubblegum", name: "Bubblegum", scheme: "light" },
-  { id: "aqua", name: "Aqua", scheme: "light" },
-  { id: "win95", name: "Windows 95", scheme: "light" },
 ] as const satisfies readonly Theme[];
 
-export type ThemeEntry = (typeof THEMES)[number];
-export type ThemeId = ThemeEntry["id"];
+export const THEMES: readonly [Theme, ...Theme[]] = [...BASE_THEMES, ...PRO_THEMES];
+
+export type ThemeEntry = Theme;
+export type ThemeId = string;
 
 export const DEFAULT_THEME: ThemeId = "cactus";
 
 /** The main dark and light themes, shown apart from (and above) the rest in the picker. */
-export const MAIN_THEME_IDS: readonly ThemeId[] = ["cactus", "vanilla"];
+export const MAIN_THEME_IDS: readonly ThemeId[] = BASE_THEMES.map((theme) => theme.id);
 
-const isThemeId = (id: string): id is ThemeId => THEMES.some((theme) => theme.id === id);
-
-/** The theme for `id`, or the default if it is unknown (e.g. removed since it was saved). */
+/** The theme for `id`, or the default if it is unknown (e.g. removed since it was saved, or a Pro theme in the free edition). */
 export function resolveTheme(id: string | null | undefined): ThemeEntry {
-  const found = id && isThemeId(id) ? id : DEFAULT_THEME;
-  return THEMES.find((theme) => theme.id === found) ?? THEMES[0];
+  return THEMES.find((theme) => theme.id === id) ?? THEMES.find((theme) => theme.id === DEFAULT_THEME) ?? THEMES[0];
 }
 
 /** Show `theme` on the whole app: the `data-theme` the CSS keys on, plus `.dark` for shadcn's `dark:` variants. */

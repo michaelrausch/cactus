@@ -1,4 +1,5 @@
 import { useState, type ComponentType } from "react";
+import { PRO } from "@edition/flag";
 import { Bot, FolderOpen, GitBranch, Import, Users, Workflow, type LucideIcon } from "lucide-react";
 import { finishOnboarding, importCollection, openProject } from "@/actions/project";
 import { CritterSprite } from "@/components/critters/CritterSprite";
@@ -25,7 +26,9 @@ function WelcomeStep() {
   return (
     <div className="flex flex-col items-center gap-4 text-center">
       <Logo className="size-20 drop-shadow-[0_0_18px_color-mix(in_oklch,var(--color-brand-2)_40%,transparent)]" />
-      <DialogTitle className="text-brand text-3xl font-semibold tracking-tight">cactus</DialogTitle>
+      <DialogTitle className="text-brand text-3xl font-semibold tracking-tight">
+        {PRO ? "cactus pro" : "cactus"}
+      </DialogTitle>
       <p className="max-w-md text-muted-foreground">An API client for building and testing APIs.</p>
       <ul className="mt-4 grid w-full max-w-xl grid-cols-1 gap-3 text-left sm:grid-cols-2">
         {FEATURES.map(({ icon: Icon, name, detail }) => (

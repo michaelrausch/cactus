@@ -1,31 +1,28 @@
 /**
  * Every flow tool the editor offers. To add one, write `<id>.tsx` with
- * `defineTool` next to these, and list it here; until then this file
- * doesn't typecheck, since `TOOLS` needs one entry per tool the backend
- * has (see `core/src/tools/mod.rs`).
+ * `defineTool` next to these, and list it here (or in `edition/pro` for a
+ * Pro tool); until then this file doesn't typecheck, since `CORE_TOOLS`
+ * needs one entry per free tool the backend has (see
+ * `core/src/tools/mod.rs`).
  */
+import { PRO_TOOLS } from "@edition";
+import type { ProToolId } from "@/edition/types";
 import type { ToolStep } from "@/api/client";
 import type { ToolDataflow } from "@/domain/flowDataflow";
 import { assert } from "./assert";
-import { cert } from "./cert";
 import { display } from "./display";
-import { fuzz } from "./fuzz";
-import { headers } from "./headers";
-import { loadtest } from "./loadtest";
+import { lockedTool } from "./locked";
 import { notify } from "./notify";
 import { open } from "./open";
 import { pick } from "./pick";
 import { poll } from "./poll";
 import { prompt } from "./prompt";
-import { ratelimit } from "./ratelimit";
 import { run } from "./run";
 import { set } from "./set";
-import { slack } from "./slack";
 import type { ToolDef, ToolId, ToolOf } from "./types";
 import { wait } from "./wait";
-import { webhook } from "./webhook";
 
-export const TOOLS: { readonly [T in ToolId]: ToolDef<T> } = {
+const CORE_TOOLS: { readonly [T in Exclude<ToolId, ProToolId>]: ToolDef<T> } = {
   prompt,
   pick,
   display,
@@ -35,30 +32,36 @@ export const TOOLS: { readonly [T in ToolId]: ToolDef<T> } = {
   wait,
   run,
   open,
-  webhook,
-  slack,
   notify,
-  fuzz,
-  headers,
-  cert,
-  ratelimit,
-  loadtest,
 };
+
+/** The tools this edition has. */
+export const TOOLS: { readonly [T in ToolId]?: ToolDef<T> } = { ...CORE_TOOLS, ...PRO_TOOLS };
 
 export const TOOL_IDS = Object.keys(TOOLS) as ToolId[];
 
-/** The palette's sections, in order. Every tool is in exactly one (checked in `tools.test.ts`). */
-export const TOOL_SECTIONS: readonly { label: string; tools: readonly ToolId[] }[] = [
+/** Every tool's palette section, in order. Every tool is in exactly one (checked in `tools.test.ts`). */
+const ALL_SECTIONS: readonly { label: string; tools: readonly ToolId[] }[] = [
   { label: "Input", tools: ["prompt", "pick", "set"] },
   { label: "Flow", tools: ["assert", "poll", "wait", "run"] },
   { label: "Output", tools: ["display", "open", "webhook", "slack", "notify"] },
   { label: "Security", tools: ["fuzz", "headers", "cert", "ratelimit", "loadtest"] },
 ];
 
+/** The palette's sections, with the tools this edition has. */
+export const TOOL_SECTIONS = ALL_SECTIONS.map(({ label, tools }) => ({
+  label,
+  tools: tools.filter((id) => id in TOOLS),
+})).filter((section) => section.tools.length > 0);
+
 export const isToolId = (id: string): id is ToolId => id in TOOLS;
 
+/** The definition of the tool `id`, or a locked stand-in for one this edition doesn't have. */
+export const toolDef = <T extends ToolId>(id: T): ToolDef<T> =>
+  (TOOLS[id] as ToolDef<T> | undefined) ?? (lockedTool(id) as unknown as ToolDef<T>);
+
 /** The definition of the tool `step` is. */
-export const toolOf = <T extends ToolId>(step: ToolOf<T>): ToolDef<T> => TOOLS[step.tool as T];
+export const toolOf = <T extends ToolId>(step: ToolOf<T>): ToolDef<T> => toolDef(step.tool as T);
 
 /** What a tool step reads and sets, for `flowDataflow`. */
 export function toolDataflow(step: ToolStep): ToolDataflow {

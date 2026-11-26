@@ -29,8 +29,8 @@ pub struct Critter {
     pub variables: Vec<Variable>,
 }
 
-/// What the critter looks like. An unknown species reads as the default.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
+/// What the critter looks like.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "kebab-case")]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub enum Species {
@@ -43,6 +43,11 @@ pub enum Species {
     Scorpion,
     Jackalope,
     Tumbleweed,
+    /// One this build doesn't draw, such as a Pro species in the free
+    /// edition: shown as the default, and kept as written.
+    #[serde(untagged)]
+    #[cfg_attr(feature = "specta", specta(skip))]
+    Other(String),
 }
 
 impl<'de> Deserialize<'de> for Species {
@@ -60,8 +65,8 @@ impl<'de> Deserialize<'de> for Species {
             Tumbleweed,
         }
         let value = serde_json::Value::deserialize(deserializer)?;
-        Ok(match serde_json::from_value::<Known>(value) {
-            Ok(Known::Roadrunner) | Err(_) => Self::Roadrunner,
+        Ok(match serde_json::from_value::<Known>(value.clone()) {
+            Ok(Known::Roadrunner) => Self::Roadrunner,
             Ok(Known::Tortoise) => Self::Tortoise,
             Ok(Known::Gecko) => Self::Gecko,
             Ok(Known::ElfOwl) => Self::ElfOwl,
@@ -69,6 +74,10 @@ impl<'de> Deserialize<'de> for Species {
             Ok(Known::Scorpion) => Self::Scorpion,
             Ok(Known::Jackalope) => Self::Jackalope,
             Ok(Known::Tumbleweed) => Self::Tumbleweed,
+            Err(_) => match value {
+                serde_json::Value::String(species) => Self::Other(species),
+                _ => Self::Roadrunner,
+            },
         })
     }
 }
@@ -95,6 +104,22 @@ pub struct Flow {
 pub enum Step {
     Tool(ToolStep),
     Request(FlowStep),
+    /// Bindings are made with every tool, so this reads as a `Tool` there.
+    #[cfg_attr(feature = "specta", specta(skip))]
+    Unsupported(UnsupportedStep),
+}
+
+/// A Pro tool step in the free edition: kept as written, so saving the flow
+/// doesn't lose it, and an error when run.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(transparent)]
+pub struct UnsupportedStep(serde_json::Map<String, serde_json::Value>);
+
+impl UnsupportedStep {
+    /// Its `tool:`.
+    pub fn tool(&self) -> &str {
+        self.0.get("tool").and_then(serde_json::Value::as_str).unwrap_or_default()
+    }
 }
 
 impl Step {
@@ -105,7 +130,7 @@ impl Step {
     pub fn as_request(&self) -> Option<&FlowStep> {
         match self {
             Self::Request(step) => Some(step),
-            Self::Tool(_) => None,
+            Self::Tool(_) | Self::Unsupported(_) => None,
         }
     }
 }
@@ -115,10 +140,12 @@ impl Step {
 impl<'de> Deserialize<'de> for Step {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> std::result::Result<Self, D::Error> {
         let value = serde_json::Value::deserialize(deserializer)?;
-        let parsed = if value.get("tool").is_some() {
-            serde_json::from_value(value).map(Self::Tool)
-        } else {
-            serde_json::from_value(value).map(Self::Request)
+        let parsed = match value.get("tool").map(|tool| tool.as_str()) {
+            Some(Some(tool)) if !ToolStep::IDS.contains(&tool) && ToolStep::PRO_IDS.contains(&tool) => {
+                serde_json::from_value(value).map(|fields| Self::Unsupported(UnsupportedStep(fields)))
+            }
+            Some(_) => serde_json::from_value(value).map(Self::Tool),
+            None => serde_json::from_value(value).map(Self::Request),
         };
         parsed.map_err(serde::de::Error::custom)
     }
@@ -364,11 +391,23 @@ steps:
     }
 
     #[test]
-    fn unknown_species_reads_as_default() {
+    #[cfg(not(feature = "pro"))]
+    fn the_free_edition_keeps_pro_steps_as_written() {
+        let yaml = "name: ''\nsteps:\n- tool: fuzz\n  request: api.yml\n  seed: 7\n- tool: wait\n";
+        let flow: Flow = serde_yaml_ng::from_str(yaml).unwrap();
+        assert!(matches!(&flow.steps[0], Step::Unsupported(step) if step.tool() == "fuzz"));
+        assert_eq!(serde_yaml_ng::to_string(&flow).unwrap(), yaml);
+    }
+
+    #[test]
+    fn unknown_species_are_kept_as_written() {
         let critter: Critter = serde_yaml_ng::from_str("name: 42\nspecies: dragon").unwrap();
-        assert_eq!((critter.name.as_str(), critter.species), ("42", Species::Roadrunner));
+        assert_eq!((critter.name.as_str(), &critter.species), ("42", &Species::Other("dragon".into())));
+        assert_eq!(serde_yaml_ng::to_string(&critter.species).unwrap(), "dragon\n");
         let owl: Critter = serde_yaml_ng::from_str("species: elf-owl").unwrap();
         assert_eq!(owl.species, Species::ElfOwl);
+        let odd: Critter = serde_yaml_ng::from_str("species: 7").unwrap();
+        assert_eq!(odd.species, Species::Roadrunner);
     }
 
     #[test]

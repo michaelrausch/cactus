@@ -110,6 +110,7 @@ impl FlowStepResult {
                 (request.clone(), request, None)
             }
             Step::Tool(tool) => (String::new(), tool.title(), Some(tool.id().to_string())),
+            Step::Unsupported(step) => (String::new(), step.tool().to_string(), Some(step.tool().to_string())),
         };
         Self {
             index: saturating_u32(index),
@@ -267,6 +268,9 @@ pub(super) async fn run_steps(
             _ if failed => FlowStepResult::skipped(index, step),
             Step::Request(request) => run_step(context, index, request, &run_vars, &mut on_event).await,
             Step::Tool(tool) => run_tool(context, index, tool, &mut run_vars, &mut on_event).await,
+            Step::Unsupported(unsupported) => {
+                FlowStepResult::errored(index, step, &Error::RequiresPro(unsupported.tool().to_string()))
+            }
         };
         failed = !result.ok;
         on_event(FlowEvent::Finished(&result));

@@ -228,6 +228,9 @@ export const SPECIES: Record<Species, SpeciesInfo> = {
 
 export const SPECIES_IDS = Object.keys(SPECIES) as Species[];
 
+/** How `species` looks: one this build doesn't draw (e.g. a Pro species in the free edition) looks like the default. */
+export const speciesInfo = (species: Species): SpeciesInfo => SPECIES[species] ?? SPECIES.roadrunner;
+
 const withEyes = (rows: readonly string[], eye: string): string[] => rows.map((row) => row.replaceAll(EYE, eye));
 
 /** The frames of each state, as rows of characters. */
@@ -287,7 +290,7 @@ export function spriteFrames(species: Species, state: CritterState): SpriteFrame
   const cacheKey = `${species}:${state}`;
   let frames = cache.get(cacheKey);
   if (!frames) {
-    const info = SPECIES[species];
+    const info = speciesInfo(species);
     frames = framesOf(info)[state].map((rows, index) => ({
       key: `${state}-${index}`,
       index,
@@ -309,7 +312,7 @@ const offsets = new Map<Species, number>();
 export function verticalOffset(species: Species): number {
   let offset = offsets.get(species);
   if (offset === undefined) {
-    const frames = Object.values(framesOf(SPECIES[species])).flat();
+    const frames = Object.values(framesOf(speciesInfo(species))).flat();
     const drawn = (y: number) => frames.some((frame) => /[^.]/.test(frame[y] ?? ""));
     const lines = Array.from({ length: SPRITE_SIZE }, (_, y) => y).filter(drawn);
     const top = lines[0] ?? 0;

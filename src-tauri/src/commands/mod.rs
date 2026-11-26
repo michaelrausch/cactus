@@ -7,6 +7,7 @@ pub mod env;
 pub mod flow;
 pub mod git;
 pub mod import;
+pub mod license;
 pub mod mcp;
 pub mod project;
 pub mod request;

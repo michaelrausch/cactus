@@ -4,6 +4,8 @@ import App from "./app/App";
 import { useSettingsStore } from "./stores/settingsStore";
 import { applyTheme, resolveTheme } from "./theme/themes";
 import "./index.css";
+// After index.css: a theme's block wins over the base block by coming later.
+import "@edition/themes.css";
 
 const root = document.getElementById("root");
 if (!root) throw new Error("index.html is missing the #root element");

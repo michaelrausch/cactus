@@ -15,7 +15,9 @@
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
     "noFallthroughCasesInSwitch": true,
-    "paths": { "@/*": ["./src/*"] },
+    // Pro's edition module has the wider types; free's is checked against
+    // them in `edition/check.ts`.
+    "paths": { "@/*": ["./src/*"], "@edition": ["./src/edition/pro"], "@edition/*": ["./src/edition/pro/*"] },
     "types": ["node"]
   },
   "include": ["src", "vite.config.ts", "vitest.config.ts"]

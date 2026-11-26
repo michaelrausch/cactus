@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 import { useFlowStore, type FlowRunState } from "@/stores/flowStore";
 import { REQUEST_MIME, STEP_MIME, TOOL_MIME } from "./dragTypes";
 import { StepCard, type StepPhase } from "./StepCard";
-import { isToolId, TOOLS } from "./tools";
+import { isToolId, toolDef } from "./tools";
 
 function phaseOf(index: number, run: FlowRunState): StepPhase {
   if (!run.running) return run.results[index] ? "done" : "idle";
@@ -85,7 +85,7 @@ export function StepLane({ critter, steps, dataflow }: StepLaneProps) {
     }
     const tool = event.dataTransfer.getData(TOOL_MIME);
     if (isToolId(tool)) {
-      editFlow((flow) => insertTool(flow, at, TOOLS[tool].create()));
+      editFlow((flow) => insertTool(flow, at, toolDef(tool).create()));
       select(at);
       return;
     }

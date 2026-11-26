@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { PRO } from "@edition";
 import { DEFAULT_THEME, THEMES, applyTheme, resolveTheme } from "./themes";
 
 /** Each `[data-theme…] { … }` block in themes.css: its id (null for the base) and the tokens it sets. */
@@ -13,7 +14,9 @@ function themeBlocks(source: string): { id: string | null; tokens: string[] }[] 
 }
 
 // Read from disk: Vitest replaces CSS imports, `?raw` included, with empty strings.
-const css = readFileSync(path.join(import.meta.dirname, "themes.css"), "utf8");
+// The base themes, then this edition's (as `@edition/themes.css` loads them).
+const read = (...parts: string[]) => readFileSync(path.join(import.meta.dirname, ...parts), "utf8");
+const css = read("themes.css") + read("..", "edition", PRO ? "pro" : "free", "themes.css");
 const blocks = themeBlocks(css);
 const base = blocks.find((block) => block.id === null);
 const named = blocks.filter((block) => block.id !== null);
@@ -102,9 +105,13 @@ describe("components", () => {
 
 describe("resolveTheme", () => {
   it("falls back to the default for unknown or missing ids", () => {
-    expect(resolveTheme("phosphor").id).toBe("phosphor");
+    expect(resolveTheme("vanilla").id).toBe("vanilla");
     expect(resolveTheme("removed-theme").id).toBe(DEFAULT_THEME);
     expect(resolveTheme(undefined).id).toBe(DEFAULT_THEME);
+  });
+
+  it("has Pro's themes only in the Pro edition", () => {
+    expect(resolveTheme("phosphor").id).toBe(PRO ? "phosphor" : DEFAULT_THEME);
   });
 });
 
@@ -116,11 +123,11 @@ describe("applyTheme", () => {
       classList: { toggle: (name: string, on: boolean) => (on ? classes.add(name) : classes.delete(name)) },
     } as unknown as HTMLElement;
 
-    applyTheme(resolveTheme("desert-day"), root);
-    expect(root.dataset.theme).toBe("desert-day");
+    applyTheme(resolveTheme("vanilla"), root);
+    expect(root.dataset.theme).toBe("vanilla");
     expect(classes.has("dark")).toBe(false);
 
-    applyTheme(resolveTheme("synthwave"), root);
+    applyTheme(resolveTheme("cactus"), root);
     expect(classes.has("dark")).toBe(true);
   });
 });

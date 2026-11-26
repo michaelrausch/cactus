@@ -18,8 +18,11 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 
+#[cfg(feature = "pro")]
 use super::{ToolCx, ToolOutput};
+#[cfg(feature = "pro")]
 use crate::Error;
+#[cfg(feature = "pro")]
 use crate::collection::LenientString;
 use crate::http::check_value;
 use crate::scenario::Assertion;
@@ -221,13 +224,16 @@ pub fn metrics_verdict(checks: &[Assertion], metrics: &[Metric]) -> Option<Strin
 
 /// What a security tool can hand to later steps: the names of its
 /// metrics, and whether it reports findings.
+#[cfg(feature = "pro")]
 pub struct Exports {
     pub metrics: &'static [&'static str],
     pub findings: bool,
 }
 
+#[cfg(feature = "pro")]
 const SEVERITIES: [Severity; 5] = [Severity::Info, Severity::Low, Severity::Medium, Severity::High, Severity::Critical];
 
+#[cfg(feature = "pro")]
 impl Exports {
     /// Fail before anything is sent if `set` names something this tool
     /// never reports.
@@ -258,6 +264,7 @@ impl Exports {
 
 /// Give later steps what `set` asks for from `output`, already checked
 /// with [`Exports::check`]. A metric the run didn't measure is empty.
+#[cfg(feature = "pro")]
 pub fn export(cx: &mut ToolCx<'_>, set: &BTreeMap<String, LenientString>, output: &ToolOutput) -> crate::Result<()> {
     for (name, source) in set {
         let value = exported(source.trim(), output)?;
@@ -268,6 +275,7 @@ pub fn export(cx: &mut ToolCx<'_>, set: &BTreeMap<String, LenientString>, output
 }
 
 /// The value `source` names in `output`.
+#[cfg(feature = "pro")]
 fn exported(source: &str, output: &ToolOutput) -> crate::Result<String> {
     let found = output.found();
 
@@ -288,6 +296,7 @@ fn exported(source: &str, output: &ToolOutput) -> crate::Result<String> {
 }
 
 /// A metric's value as a variable: `412`, `412.5`; empty when it has none.
+#[cfg(feature = "pro")]
 fn number(metric: &Metric) -> String {
     match metric.value {
         value if !value.is_finite() => String::new(),
@@ -339,6 +348,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "pro")]
     fn set_may_name_only_what_the_tool_reports() {
         let set = |source: &str| BTreeMap::from([("x".to_string(), LenientString::from(source))]);
         let scan = Exports { metrics: &["requests"], findings: true };
@@ -353,6 +363,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "pro")]
     fn metrics_are_set_as_plain_numbers() {
         assert_eq!(number(&Metric::new("p95", "P95", 412.0, "ms")), "412");
         assert_eq!(number(&Metric::new("rps", "Rate", 12.345, "/s")), "12.3");
