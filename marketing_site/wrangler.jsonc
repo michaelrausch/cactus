@@ -9,7 +9,8 @@
     "binding": "ASSETS"
   },
   "vars": {
-    "LICENSE_FROM": "cactus <licenses@usecactus.dev>"
+    "LICENSE_FROM": "cactus <licenses@usecactus.dev>",
+    "LICENSE_REPLY_TO": "michael@rausch.nz"
   }
   // Secrets, set with `npx wrangler secret put <NAME>`:
   //   KOFI_VERIFICATION_TOKEN, LICENSE_SIGNING_KEY, RESEND_API_KEY
