@@ -80,6 +80,20 @@ impl DesktopHost {
     pub fn new(app: AppHandle, critter: String, flow: String, interactive: bool) -> Self {
         Self { app, critter, flow, interactive, progressed: Mutex::new(None) }
     }
+
+    /// Whether to send progress now: always the last update, otherwise at
+    /// most every [`PROGRESS_EVERY`].
+    fn progress_due(&self, done: u32, total: u32) -> bool {
+        let mut progressed = self.progressed.lock().unwrap_or_else(PoisonError::into_inner);
+        let now = Instant::now();
+        let finished = done >= total;
+        let recently = progressed.is_some_and(|at| now.duration_since(at) < PROGRESS_EVERY);
+        if !finished && recently {
+            return false;
+        }
+        *progressed = Some(now);
+        true
+    }
 }
 
 impl ToolHost for DesktopHost {
@@ -123,16 +137,8 @@ impl ToolHost for DesktopHost {
 
     fn progress(&self, index: u32, done: u32, total: u32) {
         // Without a total there's nothing to show.
-        if !self.interactive || total == 0 {
+        if !self.interactive || total == 0 || !self.progress_due(done, total) {
             return;
-        }
-        {
-            let mut progressed = self.progressed.lock().unwrap_or_else(PoisonError::into_inner);
-            let now = Instant::now();
-            if done < total && progressed.is_some_and(|at| now.duration_since(at) < PROGRESS_EVERY) {
-                return;
-            }
-            *progressed = Some(now);
         }
         let (critter, flow) = (self.critter.clone(), self.flow.clone());
         notify(&FlowToolProgress { critter, flow, index, done, total }, &self.app);

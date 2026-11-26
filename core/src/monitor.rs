@@ -118,6 +118,13 @@ pub fn record(run: &FlowRun) -> RunRecord {
 
 fn step_record(step: &FlowStepResult) -> StepRecord {
     let response = step.response.as_ref();
+    let output = step.output.as_ref();
+    let findings = output.and_then(|output| output.findings.as_ref());
+    // JSON can't hold NaN or infinity, and the log must stay readable.
+    let metrics = output.map_or_default(|output| {
+        let finite = output.metrics.iter().filter(|metric| metric.value.is_finite());
+        finite.map(|metric| (metric.name.clone(), metric.value)).collect()
+    });
     StepRecord {
         // A tool step is logged by its title, e.g. `POST https://…`.
         request: step.label().to_string(),
@@ -127,20 +134,8 @@ fn step_record(step: &FlowStepResult) -> StepRecord {
         failed_checks: response.map_or_default(|r| r.checks.iter().filter(|c| !c.ok).cloned().collect()),
         error: step.error.clone(),
         watched: step.watched.clone(),
-        findings: step
-            .output
-            .as_ref()
-            .and_then(|output| output.findings.as_ref())
-            .map(|found| found.iter().map(Finding::key).collect()),
-        // JSON can't hold NaN or infinity, and the log must stay readable.
-        metrics: step.output.as_ref().map_or_default(|output| {
-            output
-                .metrics
-                .iter()
-                .filter(|metric| metric.value.is_finite())
-                .map(|metric| (metric.name.clone(), metric.value))
-                .collect()
-        }),
+        findings: findings.map(|found| found.iter().map(Finding::key).collect()),
+        metrics,
     }
 }
 
@@ -188,25 +183,35 @@ pub fn compare(log: &[RunRecord], current: &RunRecord, rule: &AlertRule) -> Vec<
 /// Findings each step has, or has at a higher severity, that the same step
 /// didn't in the last run that got as far as scanning it.
 fn new_findings(log: &[RunRecord], current: &RunRecord) -> Vec<AlertEvent> {
-    current
-        .steps
-        .iter()
-        .enumerate()
-        .filter_map(|(index, after)| {
-            let new = after.findings.as_ref()?;
-            let old = log.iter().rev().find_map(|run| {
-                let before = run.steps.get(index).filter(|before| before.request == after.request)?;
-                before.findings.as_ref()
-            })?;
-            let fresh: Vec<FindingKey> =
-                new.iter().filter(|key| !old.iter().any(|seen| seen.covers(key))).cloned().collect();
-            (!fresh.is_empty()).then(|| AlertEvent::NewFindings {
+    let mut events = Vec::new();
+    for (index, after) in current.steps.iter().enumerate() {
+        let Some(new) = &after.findings else { continue };
+        let Some(old) = last_scan(log, index, &after.request) else { continue };
+        let already_reported = |key: &FindingKey| old.iter().any(|seen| seen.covers(key));
+        let fresh: Vec<FindingKey> = new.iter().filter(|key| !already_reported(key)).cloned().collect();
+        if !fresh.is_empty() {
+            events.push(AlertEvent::NewFindings {
                 step: u32::try_from(index).unwrap_or(u32::MAX),
                 request: after.request.clone(),
                 findings: fresh,
-            })
-        })
-        .collect()
+            });
+        }
+    }
+    events
+}
+
+/// What step `index` found in the newest run of `log` where it scanned and
+/// was still `request`.
+fn last_scan<'a>(log: &'a [RunRecord], index: usize, request: &str) -> Option<&'a [FindingKey]> {
+    for run in log.iter().rev() {
+        let Some(step) = run.steps.get(index) else { continue };
+        if step.request == request
+            && let Some(found) = &step.findings
+        {
+            return Some(found);
+        }
+    }
+    None
 }
 
 fn failing(run: &RunRecord) -> AlertEvent {

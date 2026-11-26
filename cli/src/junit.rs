@@ -4,7 +4,7 @@
 use std::fmt::Write;
 
 use cactus_core::runner::{FlowRun, FlowStepResult};
-use cactus_core::tools::Finding;
+use cactus_core::tools::{Finding, ToolOutput};
 
 /// `runs` as `(critter, flow, run)`, in the order they ran.
 // The `let _ = write!` calls below write to a `String`, which can't fail.
@@ -61,8 +61,10 @@ fn write_case(xml: &mut String, critter: &str, flow: &str, step: &FlowStepResult
 /// Every failed check, or the error, one per line; then a tool's findings.
 fn failure_details(step: &FlowStepResult) -> String {
     if let Some(error) = &step.error {
-        let findings = step.output.iter().flat_map(|output| output.findings.iter().flatten()).map(Finding::line);
-        return std::iter::once(error.clone()).chain(findings).collect::<Vec<_>>().join("\n");
+        let found = step.output.as_ref().map_or_default(ToolOutput::found);
+        let mut lines = vec![error.clone()];
+        lines.extend(found.iter().map(Finding::line));
+        return lines.join("\n");
     }
     let Some(response) = &step.response else { return String::new() };
     let failed: Vec<String> =
@@ -100,7 +102,7 @@ mod tests {
     use std::collections::BTreeMap;
 
     use cactus_core::http::{Check, Response};
-    use cactus_core::tools::{Severity, ToolOutput};
+    use cactus_core::tools::Severity;
 
     use super::*;
 

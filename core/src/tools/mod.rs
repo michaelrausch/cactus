@@ -164,6 +164,11 @@ impl ToolOutput {
     pub fn text(text: impl Into<String>) -> Self {
         Self { text: Some(text.into()), ..Self::default() }
     }
+
+    /// What it found; empty when it didn't scan.
+    pub fn found(&self) -> &[Finding] {
+        self.findings.as_deref().unwrap_or_default()
+    }
 }
 
 /// Shown in place of a secret value.

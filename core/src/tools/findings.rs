@@ -182,11 +182,12 @@ pub fn findings_verdict(fail_on: FailOn, findings: Option<&[Finding]>) -> Option
 
 /// The first of `checks` that `metrics` fail, by metric name.
 pub fn metrics_verdict(checks: &[Assertion], metrics: &[Metric]) -> Option<String> {
-    checks.iter().filter(|check| !check.disabled).find_map(|assertion| {
+    checks.iter().filter(|assertion| !assertion.disabled).find_map(|assertion| {
         let name = assertion.expression.trim();
-        let value = metrics.iter().find(|metric| metric.name == name).map(|metric| Value::from(metric.value));
-        let check = check_value(assertion, value.as_ref());
-        (!check.ok).then(|| format!("{}: {}", check.name, check.detail))
+        let metric = metrics.iter().find(|metric| metric.name == name);
+        let value = metric.map(|metric| Value::from(metric.value));
+        let outcome = check_value(assertion, value.as_ref());
+        (!outcome.ok).then(|| format!("{}: {}", outcome.name, outcome.detail))
     })
 }
 
