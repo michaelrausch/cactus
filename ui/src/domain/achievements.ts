@@ -166,22 +166,27 @@ export const ACHIEVEMENTS: readonly Achievement[] = [
     stat: "projectsOpened",
     goal: 5,
   },
-  {
-    id: "themes-5",
-    name: "Window Shopper",
-    description: "Try 5 themes",
-    icon: "palette",
-    stat: "themesTried",
-    goal: 5,
-  },
-  {
-    id: "themes-all",
-    name: "Chameleon",
-    description: "Try every theme",
-    icon: "swatch",
-    stat: "themesTried",
-    goal: THEMES.length,
-  },
+  // The free edition has only the two main themes.
+  ...(THEMES.length >= 5
+    ? ([
+        {
+          id: "themes-5",
+          name: "Window Shopper",
+          description: "Try 5 themes",
+          icon: "palette",
+          stat: "themesTried",
+          goal: 5,
+        },
+        {
+          id: "themes-all",
+          name: "Chameleon",
+          description: "Try every theme",
+          icon: "swatch",
+          stat: "themesTried",
+          goal: THEMES.length,
+        },
+      ] as const)
+    : []),
 ];
 
 /** Achievements `counts` reaches that aren't in `unlocked` yet. */

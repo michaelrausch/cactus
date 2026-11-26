@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:pro": "vite --mode pro",
     "build": "tsc -b && vite build",
+    "build:pro": "tsc -b && vite build --mode pro",
     "typecheck": "tsc -b",
     "lint": "oxlint --deny-warnings",
     "format": "prettier --write .",

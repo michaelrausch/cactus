@@ -1,4 +1,5 @@
 import { GitBranch, PanelRight, Play, Save, TriangleAlert } from "lucide-react";
+import { PRO } from "@edition/flag";
 import { openChanges } from "@/actions/git";
 import { runFolder } from "@/actions/request";
 import { saveScenario } from "@/actions/saving";
@@ -148,6 +149,16 @@ export function Header() {
             )}
           </div>
         </>
+      )}
+      {PRO && (
+        <span
+          className={cn(
+            "shrink-0 rounded-sm px-1.5 py-0.5 text-2xs font-semibold tracking-wider text-brand-2 ring-1 ring-brand-2/50",
+            !project && "ml-auto",
+          )}
+        >
+          PRO
+        </span>
       )}
       {!isMac && <WindowControls />}
     </header>

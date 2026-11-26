@@ -1,0 +1,104 @@
+---
+import "../styles/global.css";
+import { KOFI_URL, proDownloads } from "../downloads";
+
+const features = [
+  { title: "Security tooling", body: "Flow steps for fuzzing, security headers, certificates, rate limits and load testing." },
+  { title: "Slack and webhooks", body: "Post a flow's results to Slack or any URL." },
+  { title: "Extra themes", body: "24 more, from Synthwave to Windows 95." },
+  { title: "Early access", body: "New features land in Pro first." },
+];
+
+const steps = [
+  { title: "Donate", body: "Any amount from $5 on Ko-fi." },
+  { title: "Get your key", body: "It's emailed to the address you give Ko-fi, usually within a minute." },
+  { title: "Activate", body: "Open cactus pro and paste the key in. It works offline, on any version." },
+];
+
+const windowsIcon = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 5.5 10.5 4.5v7H3zm0 13 7.5 1v-7H3zm8.5 1.1L21 21v-8.5h-9.5zm0-15.2V11.5H21V3z"/></svg>`;
+const appleIcon = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M16.4 12.6c0-2.6 2.1-3.8 2.2-3.9-1.2-1.8-3.1-2-3.7-2-1.6-.2-3.1.9-3.9.9-.8 0-2-.9-3.4-.9-1.7 0-3.3 1-4.2 2.6-1.8 3.1-.5 7.7 1.3 10.2.8 1.2 1.8 2.6 3.1 2.6 1.2 0 1.7-.8 3.2-.8s1.9.8 3.2.8c1.3 0 2.2-1.2 3-2.4.9-1.4 1.3-2.7 1.3-2.8 0 0-2.6-1-2.6-4zM13.9 5c.7-.8 1.1-1.9 1-3-1 0-2.1.6-2.8 1.4-.6.7-1.2 1.8-1 2.9 1.1.1 2.1-.5 2.8-1.3z"/></svg>`;
+const downloadIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v12m0 0-5-5m5 5 5-5M5 20h14"/></svg>`;
+const heartIcon = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-7.5-4.6-9.6-9.2C.9 8.4 3 4.5 6.7 4.5c2.1 0 3.6 1.2 5.3 3.1 1.7-1.9 3.2-3.1 5.3-3.1 3.7 0 5.8 3.9 4.3 7.3C19.5 16.4 12 21 12 21z"/></svg>`;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>cactus pro</title>
+    <meta name="description" content="cactus pro: security tooling, Slack and webhooks, extra themes and early access. Donate on Ko-fi for a license key." />
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <a class="logo" href="/"><img src="/favicon.svg" alt="" />cactus</a>
+        <nav>
+          <a href="/#flows">Flows</a>
+          <a href="/#features">Features</a>
+          <a href="/pro">Pro</a>
+          <a href="https://docs.usecactus.dev">Docs</a>
+          <a href="https://github.com/michaelrausch/cactus">GitHub</a>
+          <a href="/#download">Download</a>
+        </nav>
+      </header>
+
+      <div class="hero">
+        <h1>cactus <span class="accent">pro</span></h1>
+        <p>Security testing, Slack and webhooks in your flows, plus everything in cactus. Donate $5 or more and your license key is emailed to you.</p>
+        <div class="buttons">
+          <a class="btn primary" href={KOFI_URL}><Fragment set:html={heartIcon} />Donate on Ko-fi</a>
+          <a class="btn" href={proDownloads.macos}><Fragment set:html={appleIcon} />macOS</a>
+          <a class="btn" href={proDownloads.windowsInstaller}><Fragment set:html={windowsIcon} />Windows</a>
+        </div>
+        <p class="alt">
+          Windows without installing? <a href={proDownloads.windowsStandalone}><Fragment set:html={downloadIcon} />Standalone .exe</a>
+        </p>
+        <div class="shot"><img src="/flow.png" alt="The flow editor with a request, an assert and a Slack step" width="2558" height="1596" /></div>
+      </div>
+    </div>
+
+    <section class="tight">
+      <div class="wrap">
+        <h2>What's in Pro</h2>
+        <div class="features four">
+          {features.map((f) => (
+            <div class="card">
+              <h3>{f.title}</h3>
+              <p>{f.body}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+
+    <section class="tight">
+      <div class="wrap">
+        <h2>How it works</h2>
+        <ol class="steps">
+          {steps.map((s, i) => (
+            <li>
+              <span class="step-number">{i + 1}</span>
+              <div>
+                <h3>{s.title}</h3>
+                <p>{s.body}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
+      </div>
+    </section>
+
+    <footer>
+      <div class="wrap">
+        <span>© {new Date().getFullYear()} Michael Rausch</span>
+        <span class="footer-links">
+          <a href="https://docs.usecactus.dev">Docs</a>
+          <a href="https://github.com/michaelrausch/cactus">GitHub</a>
+          <a href="/#download">Download</a>
+        </span>
+      </div>
+    </footer>
+  </body>
+</html>

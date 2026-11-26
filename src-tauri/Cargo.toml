@@ -31,6 +31,10 @@ specta = { version = "=2.0.0-rc.28", features = ["derive"] }
 specta-typescript = "=0.0.15"
 tauri-specta = { version = "=2.0.0-rc.29", features = ["derive", "typescript"] }
 
+[features]
+# The Pro edition: a separate binary that asks for a license key first.
+pro = ["cactus-core/pro"]
+
 [dev-dependencies]
 tokio = { version = "1", features = ["sync", "macros", "rt", "rt-multi-thread", "io-util"] }
 tempfile = "3"

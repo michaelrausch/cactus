@@ -2,13 +2,13 @@
 
 use tauri_specta::{Builder, collect_commands, collect_events};
 
-use crate::commands::{critter, env, flow, git, import, mcp, project, request, scenario, schedule, update};
+use crate::commands::{critter, env, flow, git, import, license, mcp, project, request, scenario, schedule, update};
 use crate::events::{
     ContextChanged, FlowAskClosed, FlowAsked, FlowDisplayed, FlowNotified, FlowProgress, FlowStepStarted,
     FlowToolProgress, FsChanged, HistoryChanged, MatrixProgress, MonitorAlert, RunProgress, ScheduledRunFinished,
 };
 
-#[cfg(debug_assertions)]
+#[cfg(all(debug_assertions, feature = "pro"))]
 const TYPESCRIPT_BINDINGS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../ui/src/api/bindings.ts");
 
 #[allow(clippy::too_many_lines)] // One line per command and event.
@@ -105,6 +105,9 @@ pub fn builder() -> Builder<tauri::Wry> {
             mcp::regenerate_mcp_token,
             update::check_for_update,
             update::open_website,
+            update::open_pro_page,
+            license::edition,
+            license::activate_license,
         ])
         .events(collect_events![
             FsChanged,
@@ -125,18 +128,20 @@ pub fn builder() -> Builder<tauri::Wry> {
 }
 
 /// Regenerate `ui/src/api/bindings.ts`; debug builds only, so the UI's types
-/// always match the commands it is talking to.
+/// always match the commands it is talking to. Pro builds only too: the
+/// bindings have every tool, and both editions' UIs build against them.
 ///
 /// # Panics
 /// If the types can't be exported, which is a programming error.
-#[cfg(debug_assertions)]
+#[cfg(all(debug_assertions, feature = "pro"))]
 pub fn export_typescript(builder: &Builder<tauri::Wry>) {
     builder.export(specta_typescript::Typescript::default(), TYPESCRIPT_BINDINGS).expect("TypeScript bindings export");
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "pro"))]
 mod tests {
-    /// `cargo test -p cactus` regenerates the bindings without starting the app.
+    /// `cargo test -p cactus --features pro` regenerates the bindings without
+    /// starting the app.
     #[test]
     fn export_typescript_bindings() {
         super::export_typescript(&super::builder());

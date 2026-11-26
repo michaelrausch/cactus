@@ -1,0 +1,10 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "cactus pro",
+  "identifier": "dev.rausch.cactus.pro",
+  "build": {
+    "beforeDevCommand": { "script": "npm run dev:pro", "cwd": "../ui" },
+    "beforeBuildCommand": { "script": "npm run build:pro", "cwd": "../ui" },
+    "features": ["pro"]
+  }
+}

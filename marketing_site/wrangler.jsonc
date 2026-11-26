@@ -1,8 +1,16 @@
 {
-  // Cloudflare Workers: serve the built Astro site as static files.
+  // Cloudflare Workers: the built Astro site as static files, and
+  // worker/index.ts for the rest (Ko-fi's webhook at /api/kofi).
   "name": "cactus",
   "compatibility_date": "2026-11-25",
+  "main": "worker/index.ts",
   "assets": {
-    "directory": "./dist"
+    "directory": "./dist",
+    "binding": "ASSETS"
+  },
+  "vars": {
+    "LICENSE_FROM": "cactus <licenses@usecactus.dev>"
   }
+  // Secrets, set with `npx wrangler secret put <NAME>`:
+  //   KOFI_VERIFICATION_TOKEN, LICENSE_SIGNING_KEY, RESEND_API_KEY
 }

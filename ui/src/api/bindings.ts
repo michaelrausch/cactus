@@ -181,6 +181,12 @@ export const commands = {
 	checkForUpdate: (options?: InvokeOptions) => __TAURI_INVOKE<string | null>("check_for_update", undefined, options),
 	/**  Open the website's downloads in the browser. */
 	openWebsite: (options?: InvokeOptions) => __TAURI_INVOKE<null>("open_website", undefined, options),
+	/**  Open where to buy a Pro license key in the browser. */
+	openProPage: (options?: InvokeOptions) => __TAURI_INVOKE<null>("open_pro_page", undefined, options),
+	/**  Which edition this is, and who it's licensed to. */
+	edition: (options?: InvokeOptions) => __TAURI_INVOKE<Edition_Serialize>("edition", undefined, options),
+	/**  Check the key, keep it for next time and start what waited for it. */
+	activateLicense: (key: string, options?: InvokeOptions) => __TAURI_INVOKE<Edition_Serialize>("activate_license", { key }, options),
 };
 
 /** Events */
@@ -690,6 +696,23 @@ export type Display_Serialize = {
 	title?: LenientString,
 	text?: LenientString,
 	pause?: boolean,
+};
+
+/**  Which edition this is, and who it's licensed to. */
+export type Edition = Edition_Serialize | Edition_Deserialize;
+
+/**  Which edition this is, and who it's licensed to. */
+export type Edition_Deserialize = {
+	pro: boolean,
+	/**  The Pro license's holder, once a key is entered. */
+	licensee?: string | null,
+};
+
+/**  Which edition this is, and who it's licensed to. */
+export type Edition_Serialize = {
+	pro: boolean,
+	/**  The Pro license's holder, once a key is entered. */
+	licensee: string | null,
 };
 
 /**  One env layer. Later layers override earlier ones; see [`resolve_for_request`]. */
@@ -2239,7 +2262,7 @@ export type Slack_Serialize = {
 	text?: LenientString,
 };
 
-/**  What the critter looks like. An unknown species reads as the default. */
+/**  What the critter looks like. */
 export type Species = "roadrunner" | "tortoise" | "gecko" | "elf-owl" | "armadillo" | "scorpion" | "jackalope" | "tumbleweed";
 
 export type StatusCount = {
@@ -2367,10 +2390,6 @@ export type ToolStep_Deserialize = {
 } & Prompt_Deserialize | {
 	tool: "display",
 } & Display_Deserialize | {
-	tool: "webhook",
-} & Webhook_Deserialize | {
-	tool: "slack",
-} & Slack_Deserialize | {
 	tool: "wait",
 } & Wait_Deserialize | {
 	tool: "open",
@@ -2387,6 +2406,10 @@ export type ToolStep_Deserialize = {
 } & Run_Deserialize | {
 	tool: "pick",
 } & Pick_Deserialize | {
+	tool: "webhook",
+} & Webhook_Deserialize | {
+	tool: "slack",
+} & Slack_Deserialize | {
 	tool: "fuzz",
 } & Fuzz_Deserialize | {
 	tool: "headers",
@@ -2404,10 +2427,6 @@ export type ToolStep_Serialize = {
 } & Prompt_Serialize | {
 	tool: "display",
 } & Display_Serialize | {
-	tool: "webhook",
-} & Webhook_Serialize | {
-	tool: "slack",
-} & Slack_Serialize | {
 	tool: "wait",
 } & Wait_Serialize | {
 	tool: "open",
@@ -2424,6 +2443,10 @@ export type ToolStep_Serialize = {
 } & Run_Serialize | {
 	tool: "pick",
 } & Pick_Serialize | {
+	tool: "webhook",
+} & Webhook_Serialize | {
+	tool: "slack",
+} & Slack_Serialize | {
 	tool: "fuzz",
 } & Fuzz_Serialize | {
 	tool: "headers",

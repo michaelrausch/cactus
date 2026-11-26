@@ -272,7 +272,7 @@ pub fn follow_moved_request(project: &Path, from: &str, to: &str) -> Result<()> 
             let request = match step {
                 Step::Request(step) => &mut step.request,
                 Step::Tool(ToolStep::Poll(poll)) => &mut poll.request,
-                Step::Tool(_) => continue,
+                Step::Tool(_) | Step::Unsupported(_) => continue,
             };
             if request.trim() == from {
                 *request = to.into();
@@ -529,7 +529,7 @@ mod tests {
         let critters = list(p);
         assert_eq!(critters.len(), 1);
         let summary = &critters[0];
-        assert_eq!((summary.id.as_str(), summary.name.as_str(), summary.species), ("bob", "Bob", Species::Gecko));
+        assert_eq!((summary.id.as_str(), summary.name.as_str(), &summary.species), ("bob", "Bob", &Species::Gecko));
         let flows: Vec<_> = summary.flows.iter().map(|f| (f.id.as_str(), f.steps, f.error.is_some())).collect();
         assert_eq!(flows, [("broken", 0, true), ("login", 1, false)]);
 

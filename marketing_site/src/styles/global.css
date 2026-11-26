@@ -58,6 +58,15 @@ header {
 nav { display: flex; gap: 24px; color: var(--muted-foreground); font-size: 14px; }
 nav a:hover { color: var(--foreground); }
 
+/* Phones: the links get their own row under the logo. */
+@media (max-width: 640px) {
+  header { flex-wrap: wrap; gap: 14px; }
+  nav { width: 100%; justify-content: space-between; gap: 12px; }
+  /* The main button on a row of its own, the rest side by side under it. */
+  .hero .btn { flex: 1; justify-content: center; }
+  .hero .btn.primary { flex-basis: 100%; }
+}
+
 .hero { text-align: center; padding: 96px 0 56px; }
 .hero h1 {
   font-size: clamp(40px, 7vw, 68px);
@@ -134,6 +143,36 @@ section .lead { color: var(--muted-foreground); margin: 0 0 40px; font-size: 17p
 .card p { color: var(--muted-foreground); margin: 0; font-size: 14px; }
 
 section .lead { max-width: 640px; }
+
+/* The Pro page: shorter sections, four features in a row, numbered steps. */
+section.tight { padding: 56px 0; }
+.features.four { grid-template-columns: repeat(4, 1fr); }
+@media (max-width: 960px) { .features.four { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 560px) { .features.four { grid-template-columns: 1fr; } }
+
+.steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 32px;
+}
+.steps li { display: flex; gap: 14px; align-items: flex-start; }
+.steps h3 { font-size: 16px; margin: 2px 0 6px; }
+.steps p { color: var(--muted-foreground); margin: 0; font-size: 14px; }
+.step-number {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: color-mix(in oklch, var(--brand-2) 15%, transparent);
+  color: var(--brand-2);
+  font-size: 14px;
+  font-weight: 600;
+}
 .flow-shot { margin: 0 0 24px; }
 
 footer {

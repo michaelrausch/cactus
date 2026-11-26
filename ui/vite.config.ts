@@ -20,9 +20,21 @@ const tauriConfig = JSON.parse(
   readFileSync(path.resolve(import.meta.dirname, "../src-tauri/tauri.conf.json"), "utf8"),
 ) as { version: string };
 
-export default defineConfig({
+/**
+ * `--mode pro` (`npm run dev:pro`, `build:pro`) or `CACTUS_EDITION=pro`
+ * (`vitest`) builds the Pro edition's UI; anything else, the free one.
+ */
+const editionOf = (mode: string) => (mode === "pro" || process.env.CACTUS_EDITION === "pro" ? "pro" : "free");
+
+export default defineConfig(({ mode }) => ({
   plugins: [react(), tailwindcss()],
-  resolve: { alias: { "@": path.resolve(import.meta.dirname, "./src") } },
+  resolve: {
+    alias: {
+      // Before `@`, which would otherwise match `@edition`.
+      "@edition": path.resolve(import.meta.dirname, `./src/edition/${editionOf(mode)}`),
+      "@": path.resolve(import.meta.dirname, "./src"),
+    },
+  },
   clearScreen: false,
   server: { port: 5173, strictPort: true },
   build: { target: "es2022", chunkSizeWarningLimit: 1000 },
@@ -33,4 +45,4 @@ export default defineConfig({
     "import.meta.env.GIT_DIRTY": JSON.stringify(git("status --porcelain", "") !== ""),
     "import.meta.env.BUILD_DATE": JSON.stringify(new Date().toISOString()),
   },
-});
+}));

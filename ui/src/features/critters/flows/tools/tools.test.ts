@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { setField } from "@/domain/flowEdit";
 import { generatorSuggester } from "@/domain/generators";
-import { TOOL_IDS, TOOL_SECTIONS, TOOLS, toolDataflow } from ".";
+import { PRO } from "@edition";
+import { TOOL_IDS, TOOL_SECTIONS, toolDataflow, toolDef } from ".";
 
 describe("the tool registry", () => {
   it("creates each tool as the backend writes it: tagged, with no empty fields", () => {
     for (const id of TOOL_IDS) {
-      const step = TOOLS[id].create();
+      const step = toolDef(id).create();
       expect(step.tool).toBe(id);
       // Re-setting every field drops any the backend would leave out.
       const normalised = Object.entries(step).reduce<object>(
@@ -22,6 +23,12 @@ describe("the tool registry", () => {
     expect(listed.toSorted()).toEqual(TOOL_IDS.toSorted());
   });
 
+  it.runIf(!PRO)("locks Pro tools in the free edition", () => {
+    expect(TOOL_IDS).not.toContain("fuzz");
+    expect(toolDef("fuzz")).toMatchObject({ label: "Fuzz", summary: expect.any(Function) });
+    expect(toolDataflow({ tool: "fuzz" })).toEqual({ templates: [], sets: [], problems: [] });
+  });
+
   it("describes what tools read and set", () => {
     expect(toolDataflow({ tool: "prompt", vars: [{ name: "code" }, {}] })).toEqual({
       templates: ["", "", "", "", ""],
@@ -29,7 +36,6 @@ describe("the tool registry", () => {
       problems: ["A variable has no name"],
     });
     expect(toolDataflow({ tool: "set", values: { id: "$uuid", note: "{{id}}" } }).sets).toEqual(["id", "note"]);
-    expect(toolDataflow({ tool: "webhook" }).problems).toEqual(["No URL"]);
     expect(toolDataflow({ tool: "wait", seconds: 601 }).problems).toEqual(["Wait at most 600 seconds"]);
     expect(toolDataflow({ tool: "notify", title: "{{a}}" })).toEqual({
       templates: ["{{a}}", ""],
@@ -69,7 +75,8 @@ describe("the tool registry", () => {
     expect(toolDataflow({ tool: "assert", each: { list: "{{items}}" } }).problems).toEqual(["No checks for each item"]);
   });
 
-  it("describes the security tools", () => {
+  it.runIf(PRO)("describes the security tools", () => {
+    expect(toolDataflow({ tool: "webhook" }).problems).toEqual(["No URL"]);
     expect(toolDataflow({ tool: "fuzz" }).problems).toEqual(["No request"]);
     expect(toolDataflow({ tool: "fuzz", request: "a.yml", with: { id: "{{id}}" }, concurrency: 33 })).toEqual({
       templates: ["{{id}}"],
@@ -94,7 +101,7 @@ describe("the tool registry", () => {
     ]);
   });
 
-  it("hands findings and metrics on to later steps", () => {
+  it.runIf(PRO)("hands findings and metrics on to later steps", () => {
     const fuzz = toolDataflow({ tool: "fuzz", request: "a.yml", set: { issues: "findings", highs: "findings.high" } });
     expect(fuzz).toEqual({ templates: [], sets: ["issues", "highs"], problems: [] });
     expect(toolDataflow({ tool: "loadtest", request: "a.yml", set: { latency: "p95" } }).sets).toEqual(["latency"]);

@@ -7,6 +7,9 @@ use crate::Result;
 /// The download buttons on the landing page.
 pub const DOWNLOAD_PAGE: &str = "https://usecactus.dev/#download";
 
+/// Where to buy a Pro license key.
+pub const PRO_PAGE: &str = "https://usecactus.dev/pro";
+
 /// The latest released version, as `{ "version": "1.2.0" }`.
 const VERSION_URL: &str = "https://usecactus.dev/version.json";
 

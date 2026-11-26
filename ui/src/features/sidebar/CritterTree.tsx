@@ -19,7 +19,7 @@ import {
 } from "@/actions/flows";
 import type { CritterSummary, FlowSummary } from "@/api/client";
 import { CritterSprite } from "@/components/critters/CritterSprite";
-import { SPECIES } from "@/components/critters/species";
+import { speciesInfo } from "@/components/critters/species";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -188,7 +188,7 @@ function CritterRow({ critter, expanded, onToggle }: CritterRowProps) {
   const active = useCritterStore((s) => s.activeId === critter.id);
   const alerted = useMonitorStore((s) => s.flashing === critter.id);
   const problems = useProblems(critter);
-  const species = SPECIES[critter.species];
+  const species = speciesInfo(critter.species);
   return (
     <div onContextMenu={menu.onContextMenu} className={cn(ROW, showing && ROW_SELECTED)}>
       <SelectedBar selected={showing} />

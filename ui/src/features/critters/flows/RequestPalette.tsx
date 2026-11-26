@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 import { useFlowStore } from "@/stores/flowStore";
 import { useProjectStore } from "@/stores/projectStore";
 import { REQUEST_MIME, STEP_MIME, TOOL_MIME } from "./dragTypes";
-import { TOOL_SECTIONS, TOOLS } from "./tools";
+import { TOOL_SECTIONS, toolDef } from "./tools";
 
 const matches = (query: string, ...texts: string[]): boolean => {
   const q = query.trim().toLowerCase();
@@ -77,7 +77,7 @@ export function RequestPalette() {
   const requests = authFirst(entries.filter((entry) => matches(query, entry.title, entry.relPath, entry.method)));
   const sections = TOOL_SECTIONS.map(({ label, tools }) => ({
     label,
-    tools: tools.filter((id) => matches(query, TOOLS[id].label, id, label)),
+    tools: tools.filter((id) => matches(query, toolDef(id).label, id, label)),
   })).filter((section) => section.tools.length > 0);
 
   const onDragOver = (event: DragEvent) => {
@@ -138,7 +138,7 @@ export function RequestPalette() {
             </h4>
             <ul aria-label={section.label}>
               {section.tools.map((id) => {
-                const { label, icon: Icon, create } = TOOLS[id];
+                const { label, icon: Icon, create } = toolDef(id);
                 return (
                   <PaletteRow
                     key={id}

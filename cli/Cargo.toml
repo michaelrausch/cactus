@@ -4,7 +4,8 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-cactus-core = { path = "../core" }
+# Every tool, Pro ones included: the CLI needs no license key.
+cactus-core = { path = "../core", features = ["pro"] }
 clap = { version = "4.6.9", features = ["derive"] }
 # Secret values a flow's prompt asks for.
 rpassword = "7.5.5"

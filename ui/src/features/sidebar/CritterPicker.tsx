@@ -4,7 +4,7 @@ import { runFlow } from "@/actions/flows";
 import { refreshSchedules, setSchedulesPaused } from "@/actions/monitors";
 import type { CritterSummary } from "@/api/client";
 import { CritterSprite } from "@/components/critters/CritterSprite";
-import { SPECIES } from "@/components/critters/species";
+import { speciesInfo } from "@/components/critters/species";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,7 +24,7 @@ function CritterRow({ critter, active }: { critter: CritterSummary; active: bool
       <CritterSprite
         species={critter.species}
         size={16}
-        label={`${critter.name}, ${SPECIES[critter.species].name}`}
+        label={`${critter.name}, ${speciesInfo(critter.species).name}`}
         seed={critter.id}
       />
       <span className="min-w-0 flex-1 truncate">{critter.name}</span>

@@ -55,17 +55,24 @@ jobs:
           npm run lint
           npm run format:check
           npm test
+          CACTUS_EDITION=pro npm test
 
       - name: rustfmt
         run: cargo fmt --all --check
 
+      # The CLI and license-gen build core with `pro`, so the workspace is the
+      # Pro edition; the free one is the desktop app on its own.
       - name: clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
+        run: |
+          cargo clippy --workspace --all-targets --features cactus/pro -- -D warnings
+          cargo clippy -p cactus -p cactus-core --all-targets -- -D warnings
 
       - name: Rust tests
-        run: cargo test --workspace
+        run: |
+          cargo test --workspace --features cactus/pro
+          cargo test -p cactus -p cactus-core
 
-      # `cargo test -p cactus` regenerates the TypeScript bindings.
+      # `cargo test -p cactus --features pro` regenerates the TypeScript bindings.
       - name: Bindings are up to date
         run: git diff --exit-code ui/src/api/bindings.ts
 

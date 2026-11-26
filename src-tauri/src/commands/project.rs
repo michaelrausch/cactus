@@ -7,6 +7,7 @@ use cactus_core::secrets::{self, TotpSetup, Unlocked, VaultStatus};
 use cactus_core::{Result, recent};
 use tauri::{AppHandle, Manager, State};
 
+use crate::commands::license::require_license;
 use crate::state::AppState;
 use crate::watcher::ProjectWatcher;
 
@@ -15,6 +16,7 @@ use crate::watcher::ProjectWatcher;
 #[tauri::command(async)]
 #[specta::specta]
 pub fn open_project(app: AppHandle, state: State<'_, AppState>, project: PathBuf) -> Result<Vec<ScenarioEntry>> {
+    require_license()?;
     let entries = scenario::list(&project)?;
     recent::push(&state.recent_projects_file, &project.to_string_lossy())?;
     state.set_project(project.clone());

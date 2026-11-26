@@ -22,6 +22,7 @@ pub async fn set_mcp_settings(
     allow_edits: bool,
     port: u16,
 ) -> Result<McpStatus> {
+    crate::commands::license::require_license()?;
     if port < 1024 {
         return Err(Error::InvalidPort(port));
     }

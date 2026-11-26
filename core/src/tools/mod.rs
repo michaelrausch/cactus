@@ -22,25 +22,35 @@
 #![allow(clippy::unused_async_trait_impl)]
 
 mod assert;
-mod cert;
 mod display;
 mod findings;
-mod fuzz;
-mod headers;
-mod loadtest;
-mod mutate;
 mod notify;
 mod open;
 mod pick;
 mod poll;
 mod prompt;
 mod random;
-mod ratelimit;
 mod run;
 mod set;
-mod slack;
-mod stats;
 mod wait;
+
+#[cfg(feature = "pro")]
+mod cert;
+#[cfg(feature = "pro")]
+mod fuzz;
+#[cfg(feature = "pro")]
+mod headers;
+#[cfg(feature = "pro")]
+mod loadtest;
+#[cfg(feature = "pro")]
+mod mutate;
+#[cfg(feature = "pro")]
+mod ratelimit;
+#[cfg(feature = "pro")]
+mod slack;
+#[cfg(feature = "pro")]
+mod stats;
+#[cfg(feature = "pro")]
 mod webhook;
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -56,6 +66,7 @@ pub use self::pick::CHOICE;
 pub use self::prompt::PromptVar;
 pub use self::random::GENERATORS;
 use crate::Result;
+#[cfg(feature = "pro")]
 use crate::collection::LenientString;
 use crate::critter::FlowStep;
 use crate::env::Env;
@@ -83,50 +94,69 @@ pub trait Tool {
 }
 
 /// The registry: every tool, as `module::Struct`. Generates [`ToolStep`],
-/// the flow file's `- tool: <id>` step, and its dispatch.
+/// the flow file's `- tool: <id>` step, and its dispatch. `pro` tools are
+/// only built with the `pro` feature.
 macro_rules! tools {
-    ($($module:ident :: $tool:ident),* $(,)?) => {
+    (
+        free: [$($module:ident :: $tool:ident),* $(,)?],
+        pro: [$($pro_module:ident :: $pro_tool:ident),* $(,)?] $(,)?
+    ) => {
         /// A tool step as written in the flow file, tagged by `tool`.
         #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         #[serde(tag = "tool", rename_all = "lowercase")]
         #[cfg_attr(feature = "specta", derive(specta::Type))]
         pub enum ToolStep {
             $($tool($module::$tool),)*
+            $(#[cfg(feature = "pro")] $pro_tool($pro_module::$pro_tool),)*
         }
 
         pub use self::{$($module::$tool),*};
+        #[cfg(feature = "pro")]
+        pub use self::{$($pro_module::$pro_tool),*};
 
         impl ToolStep {
-            /// Every tool's id, as written after `tool:`.
+            /// Every tool's id in this build, as written after `tool:`.
+            #[cfg(not(feature = "pro"))]
             pub const IDS: &[&str] = &[$(stringify!($module)),*];
+            /// Every tool's id in this build, as written after `tool:`.
+            #[cfg(feature = "pro")]
+            pub const IDS: &[&str] = &[$(stringify!($module),)* $(stringify!($pro_module)),*];
+            /// The Pro tools' ids, in every build: the free edition keeps
+            /// their steps as written instead of failing to read the flow.
+            pub const PRO_IDS: &[&str] = &[$(stringify!($pro_module)),*];
 
             pub fn id(&self) -> &'static str {
                 match self {
                     $(Self::$tool(_) => stringify!($module),)*
+                    $(#[cfg(feature = "pro")] Self::$pro_tool(_) => stringify!($pro_module),)*
                 }
             }
 
             pub fn title(&self) -> String {
                 match self {
                     $(Self::$tool(tool) => tool.title(),)*
+                    $(#[cfg(feature = "pro")] Self::$pro_tool(tool) => tool.title(),)*
                 }
             }
 
             pub fn templates(&mut self) -> Vec<&mut String> {
                 match self {
                     $(Self::$tool(tool) => tool.templates(),)*
+                    $(#[cfg(feature = "pro")] Self::$pro_tool(tool) => tool.templates(),)*
                 }
             }
 
             pub async fn run(&self, cx: &mut ToolCx<'_>) -> Result<ToolOutput> {
                 match self {
                     $(Self::$tool(tool) => tool.run(cx).await,)*
+                    $(#[cfg(feature = "pro")] Self::$pro_tool(tool) => tool.run(cx).await,)*
                 }
             }
 
             pub fn verdict(&self, output: &ToolOutput) -> Option<String> {
                 match self {
                     $(Self::$tool(tool) => tool.verdict(output),)*
+                    $(#[cfg(feature = "pro")] Self::$pro_tool(tool) => tool.verdict(output),)*
                 }
             }
         }
@@ -134,23 +164,27 @@ macro_rules! tools {
 }
 
 tools! {
-    prompt::Prompt,
-    display::Display,
-    webhook::Webhook,
-    slack::Slack,
-    wait::Wait,
-    open::Open,
-    set::Set,
-    notify::Notify,
-    assert::Assert,
-    poll::Poll,
-    run::Run,
-    pick::Pick,
-    fuzz::Fuzz,
-    headers::Headers,
-    cert::Cert,
-    ratelimit::Ratelimit,
-    loadtest::Loadtest,
+    free: [
+        prompt::Prompt,
+        display::Display,
+        wait::Wait,
+        open::Open,
+        set::Set,
+        notify::Notify,
+        assert::Assert,
+        poll::Poll,
+        run::Run,
+        pick::Pick,
+    ],
+    pro: [
+        webhook::Webhook,
+        slack::Slack,
+        fuzz::Fuzz,
+        headers::Headers,
+        cert::Cert,
+        ratelimit::Ratelimit,
+        loadtest::Loadtest,
+    ],
 }
 
 /// What a tool step did, for the step card, the run panel and the CLI.
@@ -354,11 +388,13 @@ fn is_zero(number: &u32) -> bool {
 }
 
 /// The request step that tools sending one request many times probe with.
+#[cfg(feature = "pro")]
 fn request_step(request: &LenientString, with: &BTreeMap<String, LenientString>) -> FlowStep {
     FlowStep { request: request.clone(), with: with.clone(), ..FlowStep::default() }
 }
 
 /// A probe's edit that changes nothing.
+#[cfg(feature = "pro")]
 fn unchanged(_: &mut Scenario) {}
 
 #[cfg(test)]

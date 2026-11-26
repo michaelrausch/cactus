@@ -42,20 +42,31 @@ getrandom = "0.3"
 tokio = { version = "1", features = ["time", "rt", "net", "io-util"] }
 # Already in the tree through reqwest; `fuzz`, `ratelimit` and `loadtest`
 # send their probes several at a time with it.
-futures-util = { version = "0.3", default-features = false, features = ["std"] }
+futures-util = { version = "0.3", default-features = false, features = ["std"], optional = true }
 # Already in the tree through reqwest; the `cert` tool makes its own TLS
 # handshake to look at the certificate, even one reqwest would refuse.
-rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
-tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
-webpki-roots = "1"
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"], optional = true }
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"], optional = true }
+webpki-roots = { version = "1", optional = true }
 # The `cert` tool reads the certificate: dates, names, key and signature.
-x509-parser = "0.18"
+x509-parser = { version = "0.18", optional = true }
+# Pro license keys: an Ed25519 signature over the licensee (`license`).
+ed25519-dalek = { version = "2", default-features = false, optional = true }
 
 [features]
 # Derive TypeScript-exportable types for the desktop app's generated bindings.
 specta = ["dep:specta", "dep:specta-typescript"]
 # Stage, diff and commit in the project's git repository (desktop app only).
 git = ["dep:git2"]
+# The Pro edition: its tools and critters, and license keys.
+pro = [
+    "dep:futures-util",
+    "dep:rustls",
+    "dep:tokio-rustls",
+    "dep:webpki-roots",
+    "dep:x509-parser",
+    "dep:ed25519-dalek",
+]
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "io-util", "time", "test-util"] }

@@ -407,6 +407,7 @@ async fn a_probe_keeps_neither_captures_nor_history_and_never_logs_in_again() {
 }
 
 #[tokio::test]
+#[cfg(feature = "pro")]
 async fn webhook_and_slack_post_and_fail_on_errors() {
     let received = Arc::new(std::sync::Mutex::new(Vec::new()));
     let log = Arc::clone(&received);
@@ -441,6 +442,22 @@ async fn webhook_and_slack_post_and_fail_on_errors() {
     let received = received.lock().unwrap();
     assert_eq!(received[0], ("PUT".into(), "/hook".into(), r#"{"ok": true}"#.into()));
     assert_eq!(received[1], ("POST".into(), "/slack".into(), r#"{"text":"Passed"}"#.into()));
+}
+
+#[tokio::test]
+#[cfg(not(feature = "pro"))]
+async fn the_free_edition_fails_pro_steps() {
+    let dir = tempfile::tempdir().unwrap();
+    let p = dir.path();
+    critter::create(p, "bob", &Critter::default()).unwrap();
+    let steps = vec![tool("tool: fuzz\nrequest: api.yml\n"), tool("tool: wait\n")];
+    critter::create_flow(p, "bob", "main", &tool_flow(steps)).unwrap();
+    let run =
+        run_flow(&build_client(), p, "bob", "main", None, SendOptions::BACKGROUND, &Headless, |_| {}).await.unwrap();
+    assert_eq!(run.steps[0].error.as_deref(), Some("fuzz needs cactus pro"));
+    assert_eq!(run.steps[0].tool.as_deref(), Some("fuzz"));
+    assert!(run.steps[1].skipped);
+    assert!(critter::load_flow_text(p, "bob", "main").unwrap().contains("request: api.yml"), "kept as written");
 }
 
 #[tokio::test(start_paused = true)]
@@ -574,6 +591,7 @@ async fn pick_sets_the_chosen_item() {
 }
 
 /// A project whose `api.yml` sends `GET {{base}}/api?q=shoes` to `route`.
+#[cfg(feature = "pro")]
 async fn api_project(
     route: impl Fn(&test_server::Request) -> test_server::Reply + Send + Sync + 'static,
 ) -> tempfile::TempDir {
@@ -587,6 +605,7 @@ async fn api_project(
 }
 
 /// Run a new flow of `bob`'s with one tool step, written as YAML.
+#[cfg(feature = "pro")]
 async fn run_tool_step(p: &Path, yaml: &str) -> FlowRun {
     let name = format!("flow-{}", critter::list_flows(p, "bob").unwrap().len());
     critter::create_flow(p, "bob", &name, &tool_flow(vec![tool(yaml)])).unwrap();
@@ -594,16 +613,19 @@ async fn run_tool_step(p: &Path, yaml: &str) -> FlowRun {
 }
 
 /// The first step's findings, as rule and location.
+#[cfg(feature = "pro")]
 fn found(run: &FlowRun) -> Vec<(String, String)> {
     let output = run.steps[0].output.as_ref().unwrap();
     output.found().iter().map(|finding| (finding.rule.clone(), finding.location.clone())).collect()
 }
 
+#[cfg(feature = "pro")]
 fn pair(rule: &str, location: &str) -> (String, String) {
     (rule.into(), location.into())
 }
 
 #[tokio::test]
+#[cfg(feature = "pro")]
 async fn fuzz_reports_what_payloads_give_away_and_fails_on_it() {
     let dir = api_project(|request| {
         if request.path.contains("%27") {
@@ -672,6 +694,7 @@ async fn fuzz_reports_what_payloads_give_away_and_fails_on_it() {
 }
 
 #[tokio::test]
+#[cfg(feature = "pro")]
 async fn ratelimit_checks_the_server_refuses_past_the_limit() {
     let calls = Arc::new(AtomicUsize::new(0));
     let counter = Arc::clone(&calls);
@@ -702,6 +725,7 @@ async fn ratelimit_checks_the_server_refuses_past_the_limit() {
 }
 
 #[tokio::test]
+#[cfg(feature = "pro")]
 async fn headers_checks_the_response_and_whether_cors_trusts_anyone() {
     use crate::tools::Severity;
 
@@ -735,6 +759,7 @@ async fn headers_checks_the_response_and_whether_cors_trusts_anyone() {
 }
 
 #[tokio::test]
+#[cfg(feature = "pro")]
 async fn loadtest_measures_and_fails_on_its_checks() {
     let calls = Arc::new(AtomicUsize::new(0));
     let counter = Arc::clone(&calls);
@@ -762,6 +787,7 @@ async fn loadtest_measures_and_fails_on_its_checks() {
 }
 
 #[tokio::test]
+#[cfg(feature = "pro")]
 async fn cert_reports_a_self_signed_certificate_for_another_name() {
     use rustls::pki_types::{PrivateKeyDer, PrivatePkcs8KeyDer};
 

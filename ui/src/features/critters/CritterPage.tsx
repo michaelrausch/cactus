@@ -3,7 +3,7 @@ import { UserRound } from "lucide-react";
 import { actAs, updateCritter } from "@/actions/critters";
 import type { CritterSummary } from "@/api/client";
 import { CritterSprite } from "@/components/critters/CritterSprite";
-import { SPECIES } from "@/components/critters/species";
+import { speciesInfo } from "@/components/critters/species";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { critterNameProblem } from "@/domain/critterId";
@@ -57,7 +57,7 @@ function EditableName({ critter }: { critter: CritterSummary }) {
 
 function CritterHeader({ critter }: { critter: CritterSummary }) {
   const active = useCritterStore((s) => s.activeId === critter.id);
-  const species = SPECIES[critter.species];
+  const species = speciesInfo(critter.species);
   return (
     <header className="flex items-center gap-4 border-b px-5 py-4">
       <CritterSprite species={critter.species} size={48} label={`${critter.name}, ${species.name}`} seed={critter.id} />

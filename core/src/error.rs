@@ -44,6 +44,14 @@ pub enum Error {
     /// A flow tool step failed; the message says why.
     #[error("{0}")]
     Tool(String),
+    #[error("invalid license key")]
+    InvalidLicense,
+    /// The Pro edition, used before a license key is entered.
+    #[error("enter a license key first")]
+    Unlicensed,
+    /// A Pro tool step, run by the free edition.
+    #[error("{0} needs cactus pro")]
+    RequiresPro(String),
     /// Getting or refreshing an OAuth2 token failed; the message says why.
     #[error("OAuth2: {0}")]
     OAuth2(String),
