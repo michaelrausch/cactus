@@ -61,7 +61,7 @@ fn write_case(xml: &mut String, critter: &str, flow: &str, step: &FlowStepResult
 /// Every failed check, or the error, one per line; then a tool's findings.
 fn failure_details(step: &FlowStepResult) -> String {
     if let Some(error) = &step.error {
-        let findings = step.output.iter().flat_map(|output| &output.findings).map(Finding::line);
+        let findings = step.output.iter().flat_map(|output| output.findings.iter().flatten()).map(Finding::line);
         return std::iter::once(error.clone()).chain(findings).collect::<Vec<_>>().join("\n");
     }
     let Some(response) = &step.response else { return String::new() };
@@ -179,7 +179,7 @@ mod tests {
             rule: "headers.hsts".into(),
             ..Finding::default()
         };
-        scan.output = Some(ToolOutput { findings: vec![hsts], ..ToolOutput::default() });
+        scan.output = Some(ToolOutput { findings: Some(vec![hsts]), ..ToolOutput::default() });
         assert_eq!(failure_details(&scan), "1 high finding\nhigh  headers.hsts  Missing HSTS");
     }
 }

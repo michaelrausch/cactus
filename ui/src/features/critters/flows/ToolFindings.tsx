@@ -1,7 +1,7 @@
 import { ChevronRight } from "lucide-react";
 import { useState } from "react";
 import type { Finding, Metric, Severity } from "@/api/client";
-import { bySeverity, countBySeverity, findingTitle, formatMetric, severityTone } from "@/domain/findings";
+import { countBySeverity, findingTitle, formatMetric, severityTone } from "@/domain/findings";
 import { cn } from "@/lib/utils";
 
 const DOT = { danger: "bg-danger", warning: "bg-warning", info: "bg-info", muted: "bg-muted-foreground" } as const;
@@ -73,10 +73,9 @@ function FindingRow({ finding }: { finding: Finding }) {
   );
 }
 
-/** Every finding, most severe first; click one for its detail and evidence. */
+/** Every finding, as the runner sorted them (most severe first); click one for its detail and evidence. */
 export function FindingsList({ findings, limit }: { findings: readonly Finding[]; limit?: number | undefined }) {
-  const sorted = bySeverity(findings);
-  const shown = limit === undefined ? sorted : sorted.slice(0, limit);
+  const shown = limit === undefined ? findings : findings.slice(0, limit);
   return (
     <ul aria-label="Findings" className="flex flex-col text-xs">
       {shown.map((finding, index) => (
@@ -84,8 +83,8 @@ export function FindingsList({ findings, limit }: { findings: readonly Finding[]
         // oxlint-disable-next-line react/no-array-index-key
         <FindingRow key={`${finding.rule}:${finding.location}:${index}`} finding={finding} />
       ))}
-      {shown.length < sorted.length && (
-        <li className="px-1.5 py-1 text-muted-foreground">+{sorted.length - shown.length}</li>
+      {shown.length < findings.length && (
+        <li className="px-1.5 py-1 text-muted-foreground">+{findings.length - shown.length}</li>
       )}
     </ul>
   );

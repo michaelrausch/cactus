@@ -368,7 +368,9 @@ async fn run_tool(
             let (set, shown) = cx.finish();
             run_vars.extend(set);
             output.values = shown;
-            output.findings.sort_by_key(|finding| std::cmp::Reverse(finding.severity));
+            if let Some(findings) = &mut output.findings {
+                findings.sort_by_key(|finding| std::cmp::Reverse(finding.severity));
+            }
             result.error = tool.verdict(&output);
             result.ok = result.error.is_none();
             result.output = Some(output);

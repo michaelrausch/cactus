@@ -97,16 +97,16 @@ default or fail clearly.
 
 ### Security tools
 
-Return what was found in `ToolOutput::findings` (`Finding { severity, title,
-rule, location, detail, evidence }`) and numbers in `ToolOutput::metrics`.
-Don't return `Err` for findings: implement `Tool::verdict` so the step fails
-and still shows them. Set `const SCANS: bool = true` so run logs can alert on
-new findings.
+Return what was found in `ToolOutput::findings` (`Some(vec![Finding {
+severity, title, rule, location, detail, evidence }])`, `Some(vec![])` when
+nothing was found) and numbers in `ToolOutput::metrics`. Don't return `Err`
+for findings: implement `Tool::verdict` so the step fails and still shows
+them.
 
-| Fails on      | Field                    | `verdict`                                     |
-| ------------- | ------------------------ | --------------------------------------------- |
-| Findings      | `fail_on: FailOn`        | `findings_verdict(self.fail_on, &o.findings)` |
-| Metric limits | `checks: Vec<Assertion>` | `metrics_verdict(&self.checks, &o.metrics)`   |
+| Fails on      | Field                    | `verdict`                                               |
+| ------------- | ------------------------ | ------------------------------------------------------- |
+| Findings      | `fail_on: FailOn`        | `findings_verdict(self.fail_on, o.findings.as_deref())` |
+| Metric limits | `checks: Vec<Assertion>` | `metrics_verdict(&self.checks, &o.metrics)`             |
 
 `rule` must be stable between runs: findings are matched by `rule` and
 `location`.

@@ -66,10 +66,6 @@ pub trait Tool {
 
     fn run(&self, cx: &mut ToolCx<'_>) -> impl Future<Output = Result<ToolOutput>> + Send;
 
-    /// Whether it reports [`ToolOutput::findings`], so run logs can tell
-    /// "found nothing" from "didn't look".
-    const SCANS: bool = false;
-
     /// Why `output` fails the step, if it does. The output is still shown.
     fn verdict(&self, _output: &ToolOutput) -> Option<String> {
         None
@@ -93,14 +89,6 @@ macro_rules! tools {
         impl ToolStep {
             /// Every tool's id, as written after `tool:`.
             pub const IDS: &[&str] = &[$(stringify!($module)),*];
-
-            /// Whether the tool `id` reports findings ([`Tool::SCANS`]).
-            pub fn scans(id: &str) -> bool {
-                match id {
-                    $(stringify!($module) => <$module::$tool as Tool>::SCANS,)*
-                    _ => false,
-                }
-            }
 
             pub fn id(&self) -> &'static str {
                 match self {
@@ -163,9 +151,10 @@ pub struct ToolOutput {
     /// The variables it set for later steps; secret ones as `••••`.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub values: BTreeMap<String, String>,
-    /// What a security tool found, most severe first.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub findings: Vec<Finding>,
+    /// What a security tool found, most severe first; `None` from a tool
+    /// that doesn't scan, so an empty list means "found nothing".
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub findings: Option<Vec<Finding>>,
     /// Numbers a tool measured, e.g. a load test's latencies.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub metrics: Vec<Metric>,

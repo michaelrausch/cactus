@@ -46,10 +46,14 @@ fn format_tool_output(location: &str, output: &ToolOutput, error: Option<&str>) 
     // A dash holds the time column, as for a step with no response.
     let mut lines = vec![format!("{mark} {status:>3}        -  {location}")];
     lines.extend(error.map(|error| format!("{DETAIL_INDENT}{}", paint(RED, error))));
-    lines.extend(output.findings.iter().map(|finding| {
-        let color = if finding.severity >= Severity::High { RED } else { YELLOW };
-        format!("{DETAIL_INDENT}{}", paint(color, &finding.line()))
-    }));
+    match output.findings.as_deref() {
+        Some([]) => lines.push(format!("{DETAIL_INDENT}{}", paint(DIM, "no findings"))),
+        Some(findings) => lines.extend(findings.iter().map(|finding| {
+            let color = if finding.severity >= Severity::High { RED } else { YELLOW };
+            format!("{DETAIL_INDENT}{}", paint(color, &finding.line()))
+        })),
+        None => {}
+    }
     if !output.metrics.is_empty() {
         let metrics: Vec<String> = output.metrics.iter().map(|m| format!("{} {}", m.label, m.shown())).collect();
         lines.push(format!("{DETAIL_INDENT}{}", metrics.join("  ")));
@@ -166,7 +170,7 @@ mod tests {
             ..Finding::default()
         };
         let output = ToolOutput {
-            findings: vec![finding(Severity::High, "a"), finding(Severity::Low, "b")],
+            findings: Some(vec![finding(Severity::High, "a"), finding(Severity::Low, "b")]),
             metrics: vec![Metric::new("p95", "P95", 412.0, "ms"), Metric::new("errors", "Errors", 2.5, "%")],
             ..ToolOutput::default()
         };
@@ -180,6 +184,15 @@ mod tests {
                 "      P95 412ms  Errors 2.5%",
             ]
             .join("\n")
+        );
+    }
+
+    #[test]
+    fn a_clean_scan_says_so() {
+        let output = ToolOutput { findings: Some(Vec::new()), ..ToolOutput::default() };
+        assert_eq!(
+            format_tool_output("1. Headers", &output, None),
+            "\x1b[32m✓\x1b[0m   -        -  1. Headers\n      \x1b[2mno findings\x1b[0m"
         );
     }
 }

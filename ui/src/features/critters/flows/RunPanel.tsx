@@ -85,7 +85,7 @@ function RunRow({ index, step, start, result, state, selected, critter }: RowPro
   const url = result?.url || start?.url || stepText(step);
   const response = result?.response ?? null;
   const toolStatus = result?.output?.status;
-  const findings = result?.output?.findings ?? [];
+  const findings = result?.output?.findings;
   return (
     <li>
       <button
@@ -107,15 +107,13 @@ function RunRow({ index, step, start, result, state, selected, critter }: RowPro
         </span>
         {response && <StatusCode status={response.status} className="shrink-0 font-semibold tabular-nums" />}
         {toolStatus !== undefined && <StatusCode status={toolStatus} className="shrink-0 font-semibold tabular-nums" />}
-        {findings.length > 0 && <SeverityCounts findings={findings} className="shrink-0" />}
+        {findings && <SeverityCounts findings={findings} className="shrink-0" />}
         {response && (
           <span className="w-14 shrink-0 text-right text-muted-foreground tabular-nums">
             {formatDuration(response.timeMs)}
           </span>
         )}
-        {state === "failed" && !response && findings.length === 0 && (
-          <span className="shrink-0 text-danger">error</span>
-        )}
+        {state === "failed" && !response && <span className="shrink-0 text-danger">error</span>}
       </button>
     </li>
   );
@@ -174,15 +172,12 @@ function ResponseTabs({ response }: { response: HttpResponse }) {
 
 /** A security tool's output: its findings and numbers in tabs, the rest under Output. */
 function ToolTabs({ output }: { output: ToolOutput }) {
-  const findings = output.findings ?? [];
-  const metrics = output.metrics ?? [];
-  const rest: ToolOutput = { ...output, findings: [], metrics: [] };
-  const hasRest = Boolean(output.text) || Object.keys(output.values ?? {}).length > 0 || output.status !== undefined;
-  const first = findings.length > 0 ? "findings" : "stats";
+  const { findings, metrics = [], ...rest } = output;
+  const hasRest = Boolean(rest.text) || Object.keys(rest.values ?? {}).length > 0 || rest.status !== undefined;
   return (
-    <Tabs defaultValue={first} className="min-h-0 flex-1 gap-3">
+    <Tabs defaultValue={findings ? "findings" : "stats"} className="min-h-0 flex-1 gap-3">
       <TabsList variant="line" className="h-8 gap-2">
-        {findings.length > 0 && (
+        {findings && (
           <TabsTrigger value="findings">
             Findings
             <CountBadge count={findings.length} />
@@ -191,16 +186,22 @@ function ToolTabs({ output }: { output: ToolOutput }) {
         {metrics.length > 0 && <TabsTrigger value="stats">Stats</TabsTrigger>}
         {hasRest && <TabsTrigger value="output">Output</TabsTrigger>}
       </TabsList>
-      <TabsContent value="findings" className="flex min-h-0 flex-col gap-2 overflow-auto">
-        <SeverityCounts findings={findings} className="px-1.5 text-xs" />
-        <FindingsList findings={findings} />
-      </TabsContent>
-      <TabsContent value="stats" className="min-h-0 overflow-auto">
-        <MetricStats metrics={metrics} />
-      </TabsContent>
-      <TabsContent value="output" className="min-h-0 overflow-auto">
-        <ToolResult output={rest} />
-      </TabsContent>
+      {findings && (
+        <TabsContent value="findings" className="flex min-h-0 flex-col gap-2 overflow-auto">
+          <SeverityCounts findings={findings} className="px-1.5 text-xs" />
+          <FindingsList findings={findings} />
+        </TabsContent>
+      )}
+      {metrics.length > 0 && (
+        <TabsContent value="stats" className="min-h-0 overflow-auto">
+          <MetricStats metrics={metrics} />
+        </TabsContent>
+      )}
+      {hasRest && (
+        <TabsContent value="output" className="min-h-0 overflow-auto">
+          <ToolResult output={rest} />
+        </TabsContent>
+      )}
     </Tabs>
   );
 }
@@ -225,7 +226,7 @@ function StepResult({ index, step, start, result, state }: Omit<RowProps, "selec
   const response = result?.response ?? null;
   const tool = isToolStep(step);
   const output = result?.output;
-  const scanned = Boolean(output && ((output.findings ?? []).length > 0 || (output.metrics ?? []).length > 0));
+  const scanned = Boolean(output?.findings || output?.metrics?.length);
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3 border-t p-3">
       <div className="flex items-start gap-2">

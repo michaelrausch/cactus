@@ -4,12 +4,6 @@ import { formatDuration } from "@/lib/format";
 /** Most severe first. Mirrors `Severity`'s order in Rust. */
 export const SEVERITIES: readonly Severity[] = ["critical", "high", "medium", "low", "info"];
 
-const rank = (severity: Severity | undefined): number => SEVERITIES.indexOf(severity ?? "info");
-
-/** Findings most severe first; ties keep their order. */
-export const bySeverity = <T extends { severity?: Severity }>(findings: readonly T[]): T[] =>
-  findings.toSorted((a, b) => rank(a.severity) - rank(b.severity));
-
 /** How many of each severity, most severe first, leaving out none-found. */
 export function countBySeverity(findings: readonly { severity?: Severity }[]): [Severity, number][] {
   return SEVERITIES.map((severity): [Severity, number] => [
@@ -38,10 +32,9 @@ export function severityTone(severity: Severity | undefined): "danger" | "warnin
     case "info":
       return "muted";
   }
-  return "muted";
 }
 
-/** `412ms` as a duration, `2.5%`, `120/s`, `1500`. Mirrors `Metric::shown` in Rust, except durations. */
+/** `412 ms`, `2.5%`, `120/s`, `1500`: milliseconds as a duration, the rest with one decimal at most. */
 export function formatMetric(metric: Metric): string {
   // A non-finite number reaches the UI as null.
   if (metric.value === null) return "—";

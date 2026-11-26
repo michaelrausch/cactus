@@ -1,15 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { Finding } from "@/api/client";
-import { bySeverity, countBySeverity, findingsSummary, formatMetric, severityTone } from "./findings";
+import { countBySeverity, findingsSummary, formatMetric, severityTone } from "./findings";
 
 const finding = (severity: Finding["severity"], rule: string): Finding => ({ severity, title: rule, rule });
 
 describe("findings", () => {
   const found = [finding("low", "a"), finding("critical", "b"), finding("low", "c"), finding("high", "d")];
-
-  it("sorts most severe first, keeping ties in order", () => {
-    expect(bySeverity(found).map((f) => f.rule)).toEqual(["b", "d", "a", "c"]);
-  });
 
   it("counts and summarises by severity", () => {
     expect(countBySeverity(found)).toEqual([

@@ -232,7 +232,10 @@ export type AlertEvent_Deserialize =
 { kind: "failing"; step?: number | null; request?: string | null; reason: string } | { kind: "recovered" } | 
 /**  A watched value differs from the previous run's. */
 { kind: "changed"; step: number; expression: string; before?: string | null; after?: string | null } | 
-/**  A tool found things the previous run's same step didn't. */
+/**
+ *  A tool found things, or found them more severe, than when the same
+ *  step last scanned.
+ */
 { kind: "newFindings"; step: number; request: string; findings: FindingKey_Deserialize[] };
 
 export type AlertEvent_Serialize = 
@@ -240,7 +243,10 @@ export type AlertEvent_Serialize =
 { kind: "failing"; step: number | null; request: string | null; reason: string } | { kind: "recovered" } | 
 /**  A watched value differs from the previous run's. */
 { kind: "changed"; step: number; expression: string; before: string | null; after: string | null } | 
-/**  A tool found things the previous run's same step didn't. */
+/**
+ *  A tool found things, or found them more severe, than when the same
+ *  step last scanned.
+ */
 { kind: "newFindings"; step: number; request: string; findings: FindingKey_Serialize[] };
 
 export type AlertOn = 
@@ -2111,8 +2117,11 @@ export type ToolOutput_Deserialize = {
 	status?: number | null,
 	/**  The variables it set for later steps; secret ones as `••••`. */
 	values?: { [key in string]: string },
-	/**  What a security tool found, most severe first. */
-	findings?: Finding_Deserialize[],
+	/**
+	 *  What a security tool found, most severe first; `None` from a tool
+	 *  that doesn't scan, so an empty list means "found nothing".
+	 */
+	findings?: Finding_Deserialize[] | null,
 	/**  Numbers a tool measured, e.g. a load test's latencies. */
 	metrics?: Metric_Deserialize[],
 };
@@ -2124,7 +2133,10 @@ export type ToolOutput_Serialize = {
 	status?: number,
 	/**  The variables it set for later steps; secret ones as `••••`. */
 	values?: { [key in string]: string },
-	/**  What a security tool found, most severe first. */
+	/**
+	 *  What a security tool found, most severe first; `None` from a tool
+	 *  that doesn't scan, so an empty list means "found nothing".
+	 */
 	findings?: Finding_Serialize[],
 	/**  Numbers a tool measured, e.g. a load test's latencies. */
 	metrics?: Metric_Serialize[],

@@ -147,8 +147,7 @@ pub async fn run_once(app: &AppHandle, project: &Path, critter: &str, flow: &str
         Ok(run) => monitor::record(&run),
         Err(error) => RunRecord::errored(started_at, env, error),
     };
-    let previous = monitor::load_log(project, critter, flow).pop();
-    let events = monitor::compare(previous.as_ref(), &record, &rule);
+    let events = monitor::compare(&monitor::load_log(project, critter, flow), &record, &rule);
     // A log that can't be written fails no run, but the next run then
     // compares against an older one, so say so.
     best_effort::log("write the run log", monitor::append(project, critter, flow, record.clone()));

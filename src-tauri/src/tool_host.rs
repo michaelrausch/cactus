@@ -122,7 +122,8 @@ impl ToolHost for DesktopHost {
     }
 
     fn progress(&self, index: u32, done: u32, total: u32) {
-        if !self.interactive {
+        // Without a total there's nothing to show.
+        if !self.interactive || total == 0 {
             return;
         }
         {

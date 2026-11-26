@@ -130,7 +130,7 @@ Keep `core/src/tools/slack.rs` and `ui/src/features/critters/flows/tools/slack.t
 
    Values from `cx.set` last until the end of the run and are never saved to disk.
 
-   **Security tools.** Put what was found in `ToolOutput::findings` and numbers in `ToolOutput::metrics`, and set `const SCANS: bool = true`. Fail the step with `Tool::verdict`, not `Err`, so the findings still show: `findings_verdict(self.fail_on, &output.findings)` for a `fail_on: FailOn` field, `metrics_verdict(&self.checks, &output.metrics)` for limits on metrics. Keep each finding's `rule` stable; runs are compared by `rule` and `location`.
+   **Security tools.** Put what was found in `ToolOutput::findings` (`Some(vec![])` when nothing was) and numbers in `ToolOutput::metrics`. Fail the step with `Tool::verdict`, not `Err`, so the findings still show: `findings_verdict(self.fail_on, output.findings.as_deref())` for a `fail_on: FailOn` field, `metrics_verdict(&self.checks, &output.metrics)` for limits on metrics. Keep each finding's `rule` stable; runs are compared by `rule` and `location`.
 
    **When nobody is there to answer.** Scheduled runs, re-logins and CI have no one to ask. In those cases `ask` returns `Answer::Unattended`, so handle it with a default or a clear error:
 

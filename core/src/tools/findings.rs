@@ -10,7 +10,10 @@
 //!     - {expression: p95, operator: lt, value: "500"}
 //! ```
 
-use serde::{Deserialize, Serialize};
+use std::cmp::Reverse;
+use std::collections::BTreeMap;
+
+use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 
 use crate::http::check_value;
@@ -66,6 +69,12 @@ impl Finding {
     pub fn key(&self) -> FindingKey {
         FindingKey { severity: self.severity, rule: self.rule.clone(), location: self.location.clone() }
     }
+
+    /// One line: `high  headers.hsts  https://…  Missing HSTS`.
+    pub fn line(&self) -> String {
+        let parts = [self.severity.as_str(), &self.rule, &self.location, &self.title];
+        parts.iter().filter(|part| !part.is_empty()).copied().collect::<Vec<_>>().join("  ")
+    }
 }
 
 /// A finding without its text, as the run log keeps it. `rule` and
@@ -81,8 +90,10 @@ pub struct FindingKey {
 }
 
 impl FindingKey {
-    pub fn same_as(&self, other: &Self) -> bool {
-        self.rule == other.rule && self.location == other.location
+    /// Whether `self`, from an earlier run, already reported `other`: the
+    /// same rule and location, at least as severe.
+    pub fn covers(&self, other: &Self) -> bool {
+        self.rule == other.rule && self.location == other.location && self.severity >= other.severity
     }
 }
 
@@ -95,6 +106,8 @@ pub struct Metric {
     pub name: String,
     /// How it's shown: "P95".
     pub label: String,
+    #[serde(deserialize_with = "nan_if_null")]
+    #[cfg_attr(feature = "specta", specta(type = Option<f64>))]
     pub value: f64,
     /// `ms`, `%`, `/s`, or empty for a count.
     #[serde(skip_serializing_if = "String::is_empty")]
@@ -106,20 +119,17 @@ impl Metric {
         Self { name: name.into(), label: label.into(), value, unit: unit.into() }
     }
 
-    /// The value with its unit: `412ms`, `2.5%`, `120/s`, `1500`. Mirrors
-    /// `formatMetric` in the UI.
+    /// The value with its unit: `412ms`, `2.5%`, `120/s`, `1500`.
     pub fn shown(&self) -> String {
         let value = if self.value.fract() == 0.0 { format!("{}", self.value) } else { format!("{:.1}", self.value) };
         format!("{value}{}", self.unit)
     }
 }
 
-impl Finding {
-    /// One line: `high  headers.hsts  https://…  Missing HSTS`.
-    pub fn line(&self) -> String {
-        let parts = [self.severity.as_str(), &self.rule, &self.location, &self.title];
-        parts.iter().filter(|part| !part.is_empty()).copied().collect::<Vec<_>>().join("  ")
-    }
+/// JSON has no NaN or infinity: `serde_json` writes them as `null`, which
+/// reads back as NaN.
+fn nan_if_null<'de, D: Deserializer<'de>>(deserializer: D) -> Result<f64, D::Error> {
+    Ok(Option::<f64>::deserialize(deserializer)?.unwrap_or(f64::NAN))
 }
 
 /// The lowest severity that fails a step, or never.
@@ -154,21 +164,19 @@ impl FailOn {
 }
 
 /// Why `findings` fail a step with `fail_on`: "2 high, 1 critical findings".
-pub fn findings_verdict(fail_on: FailOn, findings: &[Finding]) -> Option<String> {
+pub fn findings_verdict(fail_on: FailOn, findings: Option<&[Finding]>) -> Option<String> {
     let threshold = fail_on.threshold()?;
-    let mut counts: Vec<(Severity, usize)> = Vec::new();
-    for finding in findings.iter().filter(|finding| finding.severity >= threshold) {
-        match counts.iter_mut().find(|(severity, _)| *severity == finding.severity) {
-            Some((_, count)) => *count += 1,
-            None => counts.push((finding.severity, 1)),
-        }
+    // Most severe first.
+    let mut counts: BTreeMap<Reverse<Severity>, usize> = BTreeMap::new();
+    for finding in findings.unwrap_or_default().iter().filter(|finding| finding.severity >= threshold) {
+        *counts.entry(Reverse(finding.severity)).or_default() += 1;
     }
-    if counts.is_empty() {
+    let total: usize = counts.values().sum();
+    if total == 0 {
         return None;
     }
-    counts.sort_by_key(|(severity, _)| std::cmp::Reverse(*severity));
-    let total: usize = counts.iter().map(|(_, count)| count).sum();
-    let parts: Vec<String> = counts.iter().map(|(severity, count)| format!("{count} {}", severity.as_str())).collect();
+    let parts: Vec<String> =
+        counts.iter().map(|(Reverse(severity), count)| format!("{count} {}", severity.as_str())).collect();
     Some(format!("{} finding{}", parts.join(", "), if total == 1 { "" } else { "s" }))
 }
 
@@ -194,10 +202,11 @@ mod tests {
     fn findings_at_or_above_the_threshold_fail() {
         let found =
             [finding(Severity::Low), finding(Severity::High), finding(Severity::Critical), finding(Severity::High)];
-        assert_eq!(findings_verdict(FailOn::High, &found).as_deref(), Some("1 critical, 2 high findings"));
-        assert_eq!(findings_verdict(FailOn::Critical, &found).as_deref(), Some("1 critical finding"));
-        assert_eq!(findings_verdict(FailOn::Never, &found), None);
-        assert_eq!(findings_verdict(FailOn::High, &[finding(Severity::Medium)]), None);
+        assert_eq!(findings_verdict(FailOn::High, Some(&found)).as_deref(), Some("1 critical, 2 high findings"));
+        assert_eq!(findings_verdict(FailOn::Critical, Some(&found)).as_deref(), Some("1 critical finding"));
+        assert_eq!(findings_verdict(FailOn::Never, Some(&found)), None);
+        assert_eq!(findings_verdict(FailOn::High, Some(&[finding(Severity::Medium)])), None);
+        assert_eq!(findings_verdict(FailOn::Info, None), None);
     }
 
     #[test]
@@ -215,6 +224,12 @@ mod tests {
             Some("p95: expected lt 500, got 640.0")
         );
         assert!(metrics_verdict(&[check("p99", "500")], &metrics).is_some());
+    }
+
+    #[test]
+    fn a_metric_written_as_null_reads_back_as_nan() {
+        let json = serde_json::to_string(&Metric::new("errors", "Errors", f64::NAN, "%")).unwrap();
+        assert!(serde_json::from_str::<Metric>(&json).unwrap().value.is_nan(), "{json}");
     }
 
     #[test]

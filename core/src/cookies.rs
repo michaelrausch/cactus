@@ -82,13 +82,14 @@ fn cookie_header(store: &CookieStore, url: &Url) -> Option<HeaderValue> {
     if header.is_empty() { None } else { HeaderValue::from_str(&header).ok() }
 }
 
-/// Run `send` with `critter`'s jar, then keep the cookies its responses set.
-pub(crate) async fn with_jar<F: Future>(project: &Path, critter: &str, send: F) -> Result<F::Output> {
+/// Run `send` with `critter`'s jar, then, if `keep`, keep the cookies its
+/// responses set.
+pub(crate) async fn with_jar<F: Future>(project: &Path, critter: &str, keep: bool, send: F) -> Result<F::Output> {
     let jar =
         Arc::new(SendJar { inner: Mutex::new(SendJarInner { store: load(project, critter)?, received: vec![] }) });
     let output = ACTIVE.scope(Arc::clone(&jar), send).await;
     let received = std::mem::take(&mut jar.lock().received);
-    if !received.is_empty() {
+    if keep && !received.is_empty() {
         update(project, critter, |store| {
             for (headers, url) in &received {
                 store_set_cookies(store, headers, url);
