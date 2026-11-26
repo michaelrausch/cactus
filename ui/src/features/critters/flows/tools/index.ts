@@ -10,6 +10,7 @@ import { assert } from "./assert";
 import { cert } from "./cert";
 import { display } from "./display";
 import { fuzz } from "./fuzz";
+import { headers } from "./headers";
 import { loadtest } from "./loadtest";
 import { notify } from "./notify";
 import { open } from "./open";
@@ -38,6 +39,7 @@ export const TOOLS: { readonly [T in ToolId]: ToolDef<T> } = {
   slack,
   notify,
   fuzz,
+  headers,
   cert,
   ratelimit,
   loadtest,
@@ -50,7 +52,7 @@ export const TOOL_SECTIONS: readonly { label: string; tools: readonly ToolId[] }
   { label: "Input", tools: ["prompt", "pick", "set"] },
   { label: "Flow", tools: ["assert", "poll", "wait", "run"] },
   { label: "Output", tools: ["display", "open", "webhook", "slack", "notify"] },
-  { label: "Security", tools: ["fuzz", "cert", "ratelimit", "loadtest"] },
+  { label: "Security", tools: ["fuzz", "headers", "cert", "ratelimit", "loadtest"] },
 ];
 
 export const isToolId = (id: string): id is ToolId => id in TOOLS;

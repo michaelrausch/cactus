@@ -702,6 +702,39 @@ async fn ratelimit_checks_the_server_refuses_past_the_limit() {
 }
 
 #[tokio::test]
+async fn headers_checks_the_response_and_whether_cors_trusts_anyone() {
+    use crate::tools::Severity;
+
+    // Trusts whatever origin asks, with credentials, and sets a bare cookie.
+    let dir = api_project(|request| {
+        let mut headers = vec![("set-cookie", "sid=1; Path=/".to_string()), ("x-powered-by", "Express".into())];
+        if let Some(origin) = request.header("origin") {
+            headers.push(("access-control-allow-origin", origin.to_string()));
+            headers.push(("access-control-allow-credentials", "true".into()));
+        }
+        (200, headers, "{}".into())
+    })
+    .await;
+
+    let run = run_tool_step(dir.path(), "tool: headers\nrequest: api.yml\n").await;
+    let output = run.steps[0].output.as_ref().unwrap();
+
+    assert_eq!(output.found()[0].rule, "headers.cors-reflect");
+    assert_eq!(output.found()[0].severity, Severity::High);
+    assert_eq!(run.steps[0].reason(), "1 high finding");
+
+    let rules: Vec<&str> = output.found().iter().map(|finding| finding.rule.as_str()).collect();
+    for rule in ["headers.powered-by", "headers.cookie-httponly", "headers.cookie-samesite", "headers.nosniff"] {
+        assert!(rules.contains(&rule), "{rule} in {rules:?}");
+    }
+    assert!(!rules.contains(&"headers.cookie-secure"), "plain HTTP: no Secure to ask for");
+
+    let checked: Vec<&str> = output.coverage.iter().map(|place| place.location.as_str()).collect();
+    assert!(checked.contains(&"cookie.sid") && checked.contains(&"Server"), "{checked:?}");
+    assert_eq!(output.status, Some(200));
+}
+
+#[tokio::test]
 async fn loadtest_measures_and_fails_on_its_checks() {
     let calls = Arc::new(AtomicUsize::new(0));
     let counter = Arc::clone(&calls);

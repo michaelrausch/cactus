@@ -325,6 +325,10 @@ export const GUIDE_PAGES: GuidePage[] = [
             <b>Load test</b> sends a request many times at once and measures response times.
           </>,
           <>
+            <b>Security headers</b> checks a response&apos;s HSTS, CSP, framing, cookie flags and CORS, and whether it
+            names the server&apos;s version.
+          </>,
+          <>
             Security tools fail on findings at or above <b>Fail on</b>, and <b>Set</b> hands their findings and metrics
             to later steps.
           </>,

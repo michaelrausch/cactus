@@ -26,6 +26,7 @@ mod cert;
 mod display;
 mod findings;
 mod fuzz;
+mod headers;
 mod loadtest;
 mod mutate;
 mod notify;
@@ -146,6 +147,7 @@ tools! {
     run::Run,
     pick::Pick,
     fuzz::Fuzz,
+    headers::Headers,
     cert::Cert,
     ratelimit::Ratelimit,
     loadtest::Loadtest,

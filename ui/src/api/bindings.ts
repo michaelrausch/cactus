@@ -1246,6 +1246,26 @@ export type Header_Serialize = {
 	disabled?: boolean,
 };
 
+export type Headers = Headers_Serialize | Headers_Deserialize;
+
+export type Headers_Deserialize = {
+	request?: LenientString,
+	/**  Variables for this request only, as a request step's `with`. */
+	with?: { [key in string]: LenientString },
+	fail_on?: FailOn,
+	/**  Findings for later steps: `issues: findings`. */
+	set?: { [key in string]: LenientString },
+};
+
+export type Headers_Serialize = {
+	request?: LenientString,
+	/**  Variables for this request only, as a request step's `with`. */
+	with?: { [key in string]: LenientString },
+	fail_on?: FailOn,
+	/**  Findings for later steps: `issues: findings`. */
+	set?: { [key in string]: LenientString },
+};
+
 /**
  *  A request was sent from outside the window (an agent, over MCP), so its
  *  history has a new entry.
@@ -2369,6 +2389,8 @@ export type ToolStep_Deserialize = {
 } & Pick_Deserialize | {
 	tool: "fuzz",
 } & Fuzz_Deserialize | {
+	tool: "headers",
+} & Headers_Deserialize | {
 	tool: "cert",
 } & Cert_Deserialize | {
 	tool: "ratelimit",
@@ -2404,6 +2426,8 @@ export type ToolStep_Serialize = {
 } & Pick_Serialize | {
 	tool: "fuzz",
 } & Fuzz_Serialize | {
+	tool: "headers",
+} & Headers_Serialize | {
 	tool: "cert",
 } & Cert_Serialize | {
 	tool: "ratelimit",

@@ -77,6 +77,12 @@ describe("the tool registry", () => {
       problems: ["Send at most 32 at once"],
     });
     expect(toolDataflow({ tool: "cert" }).problems).toEqual(["No URL"]);
+    expect(toolDataflow({ tool: "headers" }).problems).toEqual(["No request"]);
+    expect(toolDataflow({ tool: "headers", request: "a.yml", set: { issues: "findings", x: "p95" } })).toEqual({
+      templates: [],
+      sets: ["issues", "x"],
+      problems: ["Set x: no p95"],
+    });
     const check = { expression: "days_left", operator: "gt", value: "{{min}}" };
     expect(toolDataflow({ tool: "cert", url: "{{host}}", checks: [check] }).templates).toEqual(["{{host}}", "{{min}}"]);
     expect(toolDataflow({ tool: "ratelimit", request: "a.yml", limit: 400 }).problems).toEqual([]);

@@ -171,7 +171,7 @@ A JSON body is sent as `application/json` unless `Content-Type` is set. A non-2x
 
 ## Security tools
 
-`fuzz`, `cert`, `ratelimit` and `loadtest` report findings and metrics. They send as the step's critter, in the run's environment, but keep nothing: no history, captures or cookies, and no logging in again on a 401.
+`fuzz`, `headers`, `cert`, `ratelimit` and `loadtest` report findings and metrics. They send as the step's critter, in the run's environment, but keep nothing: no history, captures or cookies, and no logging in again on a 401.
 
 | Field | |
 | --- | --- |
@@ -240,6 +240,35 @@ Each finding has a `repro`: a curl command that sends the request again, with `A
 | `fuzz.no-response` | medium | The connection dropped or timed out |
 
 Location: `query.<name>`, `path.<name>`, `header.<name>`, `body.<path>`, `form.<name>`. Metrics: `requests`, `errors`.
+
+## headers
+
+```yaml
+- tool: headers
+  request: home.yml
+  fail_on: medium
+```
+
+Sends the request, checks its response's headers, then sends it once more with `Origin: https://cactus-origin-check.example` to see whether CORS trusts any site. HSTS and cookie `Secure` are only checked over HTTPS, and framing only for HTML.
+
+| Rule | Severity | When |
+| --- | --- | --- |
+| `headers.cors-reflect` | high with credentials, else medium | The made-up origin is allowed back |
+| `headers.cors-credentials` | high | `Allow-Origin: *` with `Allow-Credentials: true` |
+| `headers.hsts` | medium | No `Strict-Transport-Security` |
+| `headers.csp` | medium for HTML, else info | No `Content-Security-Policy` |
+| `headers.clickjacking` | medium | HTML with no `X-Frame-Options` or CSP `frame-ancestors` |
+| `headers.cookie-secure` | medium | A cookie without `Secure` |
+| `headers.hsts-short` | low | HSTS `max-age` under 180 days |
+| `headers.csp-unsafe` | low | CSP scripts allow `'unsafe-inline'` or `'unsafe-eval'` |
+| `headers.nosniff` | low | No `X-Content-Type-Options: nosniff` |
+| `headers.referrer-policy` | low | No `Referrer-Policy`, or `unsafe-url` |
+| `headers.server-version` | low | `Server` has a version number |
+| `headers.powered-by` | low | `X-Powered-By`, `X-AspNet-Version` or `X-AspNetMvc-Version` |
+| `headers.cookie-httponly` | low | A cookie without `HttpOnly` |
+| `headers.cookie-samesite` | low | A cookie without `SameSite` |
+
+Location: the header name, or `cookie.<name>`. `coverage` lists every header and cookie checked, passed or not.
 
 ## cert
 
