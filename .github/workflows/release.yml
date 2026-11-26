@@ -29,14 +29,11 @@ jobs:
         with:
           node-version: 24
           cache: npm
-          cache-dependency-path: apps/desktop/ui/package-lock.json
-      - name: Install UI dependencies
-        working-directory: apps/desktop/ui
+          cache-dependency-path: package-lock.json
+      - name: Install JavaScript dependencies
         run: npm ci
-      # Run from the repository root: the CLI finds apps/desktop/src-tauri/ (and the UI's
-      # package.json for beforeBuildCommand) by searching below the current folder.
       - name: Build NSIS installer
-        run: node apps/desktop/ui/node_modules/@tauri-apps/cli/tauri.js build --bundles nsis ${{ matrix.edition.config }}
+        run: npm run build:desktop -- --bundles nsis ${{ matrix.edition.config }}
       # The release binary embeds the UI and runs without installing
       # (WebView2 ships with Windows 10/11).
       - name: Stage portable exe
@@ -71,12 +68,11 @@ jobs:
         with:
           node-version: 24
           cache: npm
-          cache-dependency-path: apps/desktop/ui/package-lock.json
-      - name: Install UI dependencies
-        working-directory: apps/desktop/ui
+          cache-dependency-path: package-lock.json
+      - name: Install JavaScript dependencies
         run: npm ci
       - name: Build universal DMG
-        run: node apps/desktop/ui/node_modules/@tauri-apps/cli/tauri.js build --target universal-apple-darwin --bundles dmg ${{ matrix.edition.config }}
+        run: npm run build:desktop -- --target universal-apple-darwin --bundles dmg ${{ matrix.edition.config }}
       - name: Stage DMG
         run: |
           mkdir dist

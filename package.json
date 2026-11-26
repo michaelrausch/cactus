@@ -1,0 +1,16 @@
+{
+  "name": "cactus",
+  "private": true,
+  "workspaces": [
+    "apps/desktop/ui",
+    "apps/site",
+    "apps/docs"
+  ],
+  "scripts": {
+    "dev:desktop": "tauri dev",
+    "build:desktop": "tauri build",
+    "dev:site": "npm run dev -w cactus-marketing-site",
+    "dev:docs": "npm run dev -w cactus-docs",
+    "check": "npm run typecheck -w cactus-ui && npm run lint -w cactus-ui && npm run format:check -w cactus-ui && npm test -w cactus-ui && npm run build -w cactus-ui && npm run build -w cactus-marketing-site && npm run build -w cactus-docs"
+  }
+}
