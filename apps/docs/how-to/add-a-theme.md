@@ -86,7 +86,7 @@ theme, and only light themes, is in that list.
 ## 4. Check it
 
 ```sh
-npm test -w cactus-ui -- themes species && npm run format:check -w cactus-ui
+npm test --prefix apps/desktop/ui -- themes species && npm run format:check --prefix apps/desktop/ui
 ```
 
 Then look at it in the app (Settings → Theme): the request editor with a JSON

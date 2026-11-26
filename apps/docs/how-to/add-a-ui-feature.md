@@ -22,10 +22,10 @@ The folder rules (what may import what) are in the UI section of
 Run the UI checks from the repository root:
 
 ```sh
-npm run typecheck -w cactus-ui && npm run lint -w cactus-ui && npm run format:check -w cactus-ui && npm test -w cactus-ui
+npm run typecheck --prefix apps/desktop/ui && npm run lint --prefix apps/desktop/ui && npm run format:check --prefix apps/desktop/ui && npm test --prefix apps/desktop/ui
 ```
 
-`npm run dev -w cactus-ui` serves the UI in a plain browser at `localhost:5173`, which is
+`npm run dev --prefix apps/desktop/ui` serves the UI in a plain browser at `localhost:5173`, which is
 quick for layout work, but backend calls only work inside the Tauri app.
 
 ## Recipe: a new piece of state and a workflow

@@ -55,7 +55,7 @@ value-less operator `is…`, or update that rule.
 ```sh
 cargo test -p cactus-core --test ui_contract
 cargo test -p cactus-core http::assertions
-npm test -w cactus-ui -- assertions suggestions
+npm test --prefix apps/desktop/ui -- assertions suggestions
 ```
 
 ---

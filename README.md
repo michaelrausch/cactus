@@ -39,11 +39,13 @@ examples/           A demo project (examples/demo) to open in the app or run wit
 - On Linux, Tauri's system libraries:
   `libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev`.
 
-The JavaScript apps are one npm workspace, so install once at the root:
+Each JavaScript app has its own lockfile. Install the desktop UI's dependencies:
 
 ```sh
-npm ci
+npm ci --prefix apps/desktop/ui
 ```
+
+The site and docs install the same way, with `--prefix apps/site` and `--prefix apps/docs`.
 
 ### Run the desktop app
 
@@ -84,7 +86,7 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace            # also regenerates apps/desktop/ui/src/api/bindings.ts
 
 npm run check                     # UI typecheck, lint, format, tests; site and docs builds
-CACTUS_EDITION=pro npm test -w cactus-ui
+CACTUS_EDITION=pro npm test --prefix apps/desktop/ui
 ```
 
 ## Documentation

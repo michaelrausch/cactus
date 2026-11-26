@@ -29,9 +29,9 @@ jobs:
         with:
           node-version: 24
           cache: npm
-          cache-dependency-path: package-lock.json
-      - name: Install JavaScript dependencies
-        run: npm ci
+          cache-dependency-path: apps/desktop/ui/package-lock.json
+      - name: Install UI dependencies
+        run: npm ci --prefix apps/desktop/ui
       - name: Build NSIS installer
         run: npm run build:desktop -- --bundles nsis ${{ matrix.edition.config }}
       # The release binary embeds the UI and runs without installing
@@ -68,9 +68,9 @@ jobs:
         with:
           node-version: 24
           cache: npm
-          cache-dependency-path: package-lock.json
-      - name: Install JavaScript dependencies
-        run: npm ci
+          cache-dependency-path: apps/desktop/ui/package-lock.json
+      - name: Install UI dependencies
+        run: npm ci --prefix apps/desktop/ui
       # Tauri signs with the Developer ID certificate and notarizes when these are set.
       - name: Build universal DMG
         env:

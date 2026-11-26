@@ -78,7 +78,7 @@ You'll touch these files:
 
    The `Species` type in `apps/desktop/ui/src/api/bindings.ts` now includes `"gila-monster"`.
 
-   **Check:** `npm run typecheck -w cactus-ui` **fails** in `species.ts`. `SPECIES` is a `Record<Species, SpeciesInfo>`, so it needs an entry for every species and doesn't have one for the new one yet.
+   **Check:** `npm run typecheck --prefix apps/desktop/ui` **fails** in `species.ts`. `SPECIES` is a `Record<Species, SpeciesInfo>`, so it needs an entry for every species and doesn't have one for the new one yet.
 
 3. ### Draw the sprite
 
@@ -134,14 +134,14 @@ You'll touch these files:
 
    Only `body` and `stride` are drawn by hand. The app derives blinking (`e` → `lid`) and the pass/fail eyes (`e` → `w` / `x`).
 
-   **Check:** `npm run typecheck -w cactus-ui` passes again.
+   **Check:** `npm run typecheck --prefix apps/desktop/ui` passes again.
 
 4. ### Update the test
 
    In `apps/desktop/ui/src/components/critters/species.test.ts`, the test `covers every species the backend knows` has a list of every species. Add `"gila-monster"` to it.
 
    ```sh
-   npm test -w cactus-ui -- species
+   npm test --prefix apps/desktop/ui -- species
    ```
 
    The other tests in the file then check your drawing:

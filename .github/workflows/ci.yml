@@ -38,26 +38,31 @@ jobs:
         with:
           node-version: 24
           cache: npm
-          cache-dependency-path: package-lock.json
+          cache-dependency-path: |
+            apps/desktop/ui/package-lock.json
+            apps/site/package-lock.json
+            apps/docs/package-lock.json
 
-      - name: Install JavaScript dependencies
-        run: npm ci
+      - name: Install UI dependencies
+        run: npm ci --prefix apps/desktop/ui
 
       # The desktop crate embeds apps/desktop/ui/dist at compile time, so build it first.
       - name: Build UI
-        run: npm run build -w cactus-ui
+        run: npm run build --prefix apps/desktop/ui
 
       - name: UI checks
         run: |
-          npm run lint -w cactus-ui
-          npm run format:check -w cactus-ui
-          npm test -w cactus-ui
-          CACTUS_EDITION=pro npm test -w cactus-ui
+          npm run lint --prefix apps/desktop/ui
+          npm run format:check --prefix apps/desktop/ui
+          npm test --prefix apps/desktop/ui
+          CACTUS_EDITION=pro npm test --prefix apps/desktop/ui
 
       - name: Site and docs build
         run: |
-          npm run build -w cactus-marketing-site
-          npm run build -w cactus-docs
+          npm ci --prefix apps/site
+          npm run build --prefix apps/site
+          npm ci --prefix apps/docs
+          npm run build --prefix apps/docs
 
       - name: rustfmt
         run: cargo fmt --all --check

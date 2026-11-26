@@ -97,7 +97,7 @@ the drawing: every frame is 16×16, every character is in the palette, there
 are eyes to blink, the stride fits, and no frame needs more than 90 rects.
 
 ```sh
-npm test -w cactus-ui -- species
+npm test --prefix apps/desktop/ui -- species
 ```
 
 Then run the app in debug and open `/#sprites` (the dev-only sprite gallery)

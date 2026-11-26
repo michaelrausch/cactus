@@ -138,7 +138,7 @@ cargo test -p cactus
 ```
 
 `apps/desktop/ui/src/api/bindings.ts` now has a `{ tool: "teams"; webhook?: string; text?: string }`
-variant of `ToolStep`. Until the UI has an editor for it, `npm run typecheck -w cactus-ui`
+variant of `ToolStep`. Until the UI has an editor for it, `npm run typecheck --prefix apps/desktop/ui`
 fails in `tools/index.ts`. That is deliberate.
 
 ## 4. Write the editor

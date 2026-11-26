@@ -5,8 +5,9 @@ site (Astro Starlight; pages in `src/content/docs/`). To work on the site, from
 the repository root:
 
 ```sh
-npm ci && npm run dev:docs         # http://localhost:4321
-npm run build -w cactus-docs       # static output in apps/docs/dist
+npm ci --prefix apps/docs          # once
+npm run dev --prefix apps/docs     # http://localhost:4321
+npm run build --prefix apps/docs   # static output in apps/docs/dist
 ```
 
 Start with [ARCHITECTURE.md](../../ARCHITECTURE.md): the crates, what lives on disk,

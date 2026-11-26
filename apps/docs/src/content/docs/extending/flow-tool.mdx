@@ -188,7 +188,7 @@ Keep `crates/core/src/tools/slack.rs` and `apps/desktop/ui/src/features/critters
 
    Don't edit `bindings.ts` by hand; CI fails if it doesn't match the Rust.
 
-   **Check:** `npm run typecheck -w cactus-ui` now **fails** in `tools/index.ts`. That's expected: the UI needs an editor for every tool, and `teams` doesn't have one yet.
+   **Check:** `npm run typecheck --prefix apps/desktop/ui` now **fails** in `tools/index.ts`. That's expected: the UI needs an editor for every tool, and `teams` doesn't have one yet.
 
 5. ### Write the editor
 
@@ -245,7 +245,7 @@ Keep `crates/core/src/tools/slack.rs` and `apps/desktop/ui/src/features/critters
    };
    ```
 
-   **Check:** `npm run typecheck -w cactus-ui` passes again.
+   **Check:** `npm run typecheck --prefix apps/desktop/ui` passes again.
 
 7. ### Test that it runs
 
@@ -286,7 +286,7 @@ Keep `crates/core/src/tools/slack.rs` and `apps/desktop/ui/src/features/critters
 
    ```sh
    cargo fmt --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace
-   npm run typecheck -w cactus-ui && npm run lint -w cactus-ui && npm test -w cactus-ui
+   npm run typecheck --prefix apps/desktop/ui && npm run lint --prefix apps/desktop/ui && npm test --prefix apps/desktop/ui
    ```
 
    Then in the app:
