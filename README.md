@@ -95,3 +95,5 @@ CACTUS_EDITION=pro npm test --prefix apps/desktop/ui
   rules each layer follows. Read this first.
 - [apps/docs/](apps/docs/README.md): the docs index, including
   [how-to guides](apps/docs/README.md#how-to-guides) for extending cactus.
+- [Rust API docs](https://michaelrausch.github.io/cactus/): the crates' API,
+  rebuilt on every push to `main`.

@@ -1,0 +1,66 @@
+name: Rust docs
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      # The desktop crate's build script needs Tauri's system libraries.
+      - name: Install Tauri system dependencies
+        timeout-minutes: 10
+        run: |
+          sudo apt-get update -o Acquire::Retries=3
+          sudo apt-get install -y --no-install-recommends -o Acquire::Retries=3 \
+            libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Generate docs
+        run: cargo doc --workspace --no-deps --features cactus/pro
+
+      # cargo writes one folder per crate; send the root to the core crate's docs.
+      - name: Add index page
+        run: |
+          cat > target/doc/index.html <<'EOF'
+          <!DOCTYPE html>
+          <meta charset="utf-8">
+          <meta http-equiv="refresh" content="0; url=cactus_core/index.html">
+          <title>cactus docs</title>
+          <a href="cactus_core/index.html">cactus docs</a>
+          EOF
+
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: target/doc
+
+  deploy:
+    name: Deploy
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
