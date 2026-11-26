@@ -128,7 +128,7 @@ mod tests {
         assert_eq!(parse_with(&key, &public_key(&SIGNING_KEY)).unwrap(), licensee());
     }
 
-    /// The website issues keys too (`marketing_site/worker/license.ts`); its
+    /// The website issues keys too (`apps/site/worker/license.ts`); its
     /// test expects this same key, so the two can't drift apart.
     #[test]
     fn keys_match_the_websites() {

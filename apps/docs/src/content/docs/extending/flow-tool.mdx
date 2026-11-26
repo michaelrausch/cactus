@@ -19,24 +19,24 @@ Every tool has two halves:
 
 | Half | Language | Decides |
 | --- | --- | --- |
-| `core/src/tools/<id>.rs` | Rust | Which fields the YAML has, and what happens when the step runs |
-| `ui/src/features/critters/flows/tools/<id>.tsx` | TypeScript | How the step looks in the flow editor |
+| `crates/core/src/tools/<id>.rs` | Rust | Which fields the YAML has, and what happens when the step runs |
+| `apps/desktop/ui/src/features/critters/flows/tools/<id>.tsx` | TypeScript | How the step looks in the flow editor |
 
-They're joined by a generated file, `ui/src/api/bindings.ts`, which gives the UI the Rust struct as a TypeScript type.
+They're joined by a generated file, `apps/desktop/ui/src/api/bindings.ts`, which gives the UI the Rust struct as a TypeScript type.
 
 You'll touch these files:
 
 <FileTree>
-- core/src/tools/
+- crates/core/src/tools/
   - **teams.rs** new: the tool
   - **mod.rs** register it
-- ui/src/features/critters/flows/tools/
+- apps/desktop/ui/src/features/critters/flows/tools/
   - **teams.tsx** new: the editor
   - **index.ts** register it
-- core/src/runner/tests.rs a test
+- crates/core/src/runner/tests.rs a test
 </FileTree>
 
-Keep `core/src/tools/slack.rs` and `ui/src/features/critters/flows/tools/slack.tsx` open while you work. Slack is the smallest existing tool, and Teams is almost identical to it.
+Keep `crates/core/src/tools/slack.rs` and `apps/desktop/ui/src/features/critters/flows/tools/slack.tsx` open while you work. Slack is the smallest existing tool, and Teams is almost identical to it.
 
 ## Steps
 
@@ -44,11 +44,11 @@ Keep `core/src/tools/slack.rs` and `ui/src/features/critters/flows/tools/slack.t
 
 1. ### Create the Rust file
 
-   Create `core/src/tools/teams.rs`. The file name matters: the module name is the id written after `tool:`.
+   Create `crates/core/src/tools/teams.rs`. The file name matters: the module name is the id written after `tool:`.
 
    Start with a struct that holds the step's fields. Each field is one key in the YAML.
 
-   ```rust title="core/src/tools/teams.rs"
+   ```rust title="crates/core/src/tools/teams.rs"
    //! `- tool: teams`: post a message to a Microsoft Teams incoming webhook.
 
    use serde::{Deserialize, Serialize};
@@ -82,7 +82,7 @@ Keep `core/src/tools/slack.rs` and `ui/src/features/critters/flows/tools/slack.t
 
    Add this below the struct, in the same file. The trait has three methods.
 
-   ```rust title="core/src/tools/teams.rs"
+   ```rust title="crates/core/src/tools/teams.rs"
    impl Tool for Teams {
        fn title(&self) -> String {
            "Teams".into()
@@ -146,9 +146,9 @@ Keep `core/src/tools/slack.rs` and `ui/src/features/critters/flows/tools/slack.t
 
 3. ### Register it
 
-   In `core/src/tools/mod.rs`, declare the module and add it to the `tools!` list:
+   In `crates/core/src/tools/mod.rs`, declare the module and add it to the `tools!` list:
 
-   ```rust title="core/src/tools/mod.rs" ins={2,9}
+   ```rust title="crates/core/src/tools/mod.rs" ins={2,9}
    mod slack;
    mod teams;
    mod wait;
@@ -180,7 +180,7 @@ Keep `core/src/tools/slack.rs` and `ui/src/features/critters/flows/tools/slack.t
    cargo test -p cactus
    ```
 
-   This rewrites `ui/src/api/bindings.ts`. It now includes a `teams` variant of `ToolStep`:
+   This rewrites `apps/desktop/ui/src/api/bindings.ts`. It now includes a `teams` variant of `ToolStep`:
 
    ```ts
    { tool: "teams"; webhook?: string; text?: string }
@@ -188,13 +188,13 @@ Keep `core/src/tools/slack.rs` and `ui/src/features/critters/flows/tools/slack.t
 
    Don't edit `bindings.ts` by hand; CI fails if it doesn't match the Rust.
 
-   **Check:** `cd ui && npm run typecheck` now **fails** in `tools/index.ts`. That's expected: the UI needs an editor for every tool, and `teams` doesn't have one yet.
+   **Check:** `npm run typecheck -w cactus-ui` now **fails** in `tools/index.ts`. That's expected: the UI needs an editor for every tool, and `teams` doesn't have one yet.
 
 5. ### Write the editor
 
-   Create `ui/src/features/critters/flows/tools/teams.tsx`:
+   Create `apps/desktop/ui/src/features/critters/flows/tools/teams.tsx`:
 
-   ```tsx title="ui/src/features/critters/flows/tools/teams.tsx"
+   ```tsx title="apps/desktop/ui/src/features/critters/flows/tools/teams.tsx"
    import { MessageSquare } from "lucide-react";
    import { bind, Fields, TextInput } from "./fields";
    import { defineTool } from "./types";
@@ -232,9 +232,9 @@ Keep `core/src/tools/slack.rs` and `ui/src/features/critters/flows/tools/slack.t
 
 6. ### Add it to the palette
 
-   In `ui/src/features/critters/flows/tools/index.ts`, import it and add it to `TOOLS`. The palette lists tools in the order of this object.
+   In `apps/desktop/ui/src/features/critters/flows/tools/index.ts`, import it and add it to `TOOLS`. The palette lists tools in the order of this object.
 
-   ```ts title="ui/src/features/critters/flows/tools/index.ts" ins={1,6}
+   ```ts title="apps/desktop/ui/src/features/critters/flows/tools/index.ts" ins={1,6}
    import { teams } from "./teams";
 
    export const TOOLS = {
@@ -245,13 +245,13 @@ Keep `core/src/tools/slack.rs` and `ui/src/features/critters/flows/tools/slack.t
    };
    ```
 
-   **Check:** `cd ui && npm run typecheck` passes again.
+   **Check:** `npm run typecheck -w cactus-ui` passes again.
 
 7. ### Test that it runs
 
-   Add a test in `core/src/runner/tests.rs`. It starts a local HTTP server, runs a flow containing the step, and checks what the server received. This is modelled on `webhook_and_slack_post_and_fail_on_errors`:
+   Add a test in `crates/core/src/runner/tests.rs`. It starts a local HTTP server, runs a flow containing the step, and checks what the server received. This is modelled on `webhook_and_slack_post_and_fail_on_errors`:
 
-   ```rust title="core/src/runner/tests.rs"
+   ```rust title="crates/core/src/runner/tests.rs"
    #[tokio::test]
    async fn teams_posts_the_message() {
        let received = Arc::new(std::sync::Mutex::new(Vec::new()));
@@ -286,7 +286,7 @@ Keep `core/src/tools/slack.rs` and `ui/src/features/critters/flows/tools/slack.t
 
    ```sh
    cargo fmt --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace
-   cd ui && npm run typecheck && npm run lint && npm test
+   npm run typecheck -w cactus-ui && npm run lint -w cactus-ui && npm test -w cactus-ui
    ```
 
    Then in the app:

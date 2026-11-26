@@ -20,12 +20,14 @@ On top of plain requests, cactus has:
 ## Repository layout
 
 ```
-core/       cactus-core: all behaviour. Knows nothing about Tauri or the terminal.
-cli/        cactus-cli: headless runner for CI (clap).
-src-tauri/  cactus: desktop backend, thin Tauri commands over core.
-ui/         React + TypeScript front end for the desktop app.
-examples/   A demo project (examples/demo) to open in the app or run with the CLI.
-docs/       Architecture notes, how-to guides and design plans.
+crates/core/        cactus-core: all behaviour. Knows nothing about Tauri or the terminal.
+crates/cli/         cactus-cli: headless runner for CI (clap).
+crates/license-gen/ Issues pro license keys. Never shipped.
+apps/desktop/src-tauri/  cactus: desktop backend, thin Tauri commands over core.
+apps/desktop/ui/         React + TypeScript front end for the desktop app.
+apps/site/          Marketing site and the pro license worker (Astro).
+apps/docs/          Documentation site (Starlight), plus how-to guides and design plans.
+examples/           A demo project (examples/demo) to open in the app or run with the CLI.
 ```
 
 ## Getting started
@@ -37,24 +39,27 @@ docs/       Architecture notes, how-to guides and design plans.
 - On Linux, Tauri's system libraries:
   `libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev`.
 
+The JavaScript apps are one npm workspace, so install once at the root:
+
 ```sh
-cd ui && npm ci
+npm ci
 ```
 
 ### Run the desktop app
 
-From the repository root (the Tauri CLI finds `src-tauri/` and `ui/package.json`
-by searching below the current folder):
+From the repository root:
 
 ```sh
-node ui/node_modules/@tauri-apps/cli/tauri.js dev
+npm run dev:desktop
 ```
 
 This starts Vite on `localhost:5173` and the Tauri shell around it. Debug
-builds regenerate `ui/src/api/bindings.ts` from the Rust types on start-up.
+builds regenerate `apps/desktop/ui/src/api/bindings.ts` from the Rust types on start-up.
 Open `examples/demo` to look around.
 
-To build installers, run the same command with `build` instead of `dev`.
+To build installers, run `npm run build:desktop`.
+
+The marketing site and docs run with `npm run dev:site` and `npm run dev:docs`.
 
 ### Run the CLI
 
@@ -76,15 +81,15 @@ Everything CI runs:
 ```sh
 cargo fmt --check
 cargo clippy --workspace --all-targets -- -D warnings
-cargo test --workspace            # also regenerates ui/src/api/bindings.ts
+cargo test --workspace            # also regenerates apps/desktop/ui/src/api/bindings.ts
 
-cd ui
-npm run typecheck && npm run lint && npm run format:check && npm test && npm run build
+npm run check                     # UI typecheck, lint, format, tests; site and docs builds
+CACTUS_EDITION=pro npm test -w cactus-ui
 ```
 
 ## Documentation
 
 - [ARCHITECTURE.md](ARCHITECTURE.md): how the pieces fit, what's on disk, and the
   rules each layer follows. Read this first.
-- [docs/](docs/README.md): the docs index, including
-  [how-to guides](docs/README.md#how-to-guides) for extending cactus.
+- [apps/docs/](apps/docs/README.md): the docs index, including
+  [how-to guides](apps/docs/README.md#how-to-guides) for extending cactus.

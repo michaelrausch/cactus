@@ -8,7 +8,7 @@ This guide adds a `gila-monster`.
 
 ## 1. Core
 
-In `core/src/critter/model.rs`, add the variant to **both** enums: `Species`
+In `crates/core/src/critter/model.rs`, add the variant to **both** enums: `Species`
 and the private `Known` enum inside its `Deserialize` impl, and the match arm
 between them:
 
@@ -44,7 +44,7 @@ cargo test -p cactus
 
 ## 2. Draw it
 
-In `ui/src/components/critters/species.ts`, add an entry to `SPECIES`. It's
+In `apps/desktop/ui/src/components/critters/species.ts`, add an entry to `SPECIES`. It's
 typed `Record<Species, SpeciesInfo>`, so typecheck fails until you do.
 
 ```ts
@@ -91,13 +91,13 @@ failing swaps it for `w` / `x`. Sprites are drawn as merged horizontal runs of
 
 ## 3. Test and look at it
 
-Update the expected list in `ui/src/components/critters/species.test.ts`
+Update the expected list in `apps/desktop/ui/src/components/critters/species.test.ts`
 (`covers every species the backend knows`). The per-species tests then check
 the drawing: every frame is 16×16, every character is in the palette, there
 are eyes to blink, the stride fits, and no frame needs more than 90 rects.
 
 ```sh
-cd ui && npm test -- species
+npm test -w cactus-ui -- species
 ```
 
 Then run the app in debug and open `/#sprites` (the dev-only sprite gallery)
@@ -106,8 +106,8 @@ themes outline sprites, so pale colours still need to read.
 
 ## Checklist
 
-- [ ] `Species` variant, `Known` variant and match arm in `core/src/critter/model.rs`
+- [ ] `Species` variant, `Known` variant and match arm in `crates/core/src/critter/model.rs`
 - [ ] `cargo test -p cactus` to regenerate bindings
-- [ ] entry in `SPECIES` (`ui/src/components/critters/species.ts`)
+- [ ] entry in `SPECIES` (`apps/desktop/ui/src/components/critters/species.ts`)
 - [ ] expected list in `species.test.ts`
 - [ ] checked in `/#sprites` on a dark and a light theme

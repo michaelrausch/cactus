@@ -1,7 +1,7 @@
 # Add an assertion operator or a generator
 
 Both are small lists defined in core that the UI keeps a copy of, so it can
-offer completions without a round trip. `core/tests/ui_contract.rs` fails if
+offer completions without a round trip. `crates/core/tests/ui_contract.rs` fails if
 the two copies differ, so always change both together.
 
 ## Assertion operators
@@ -21,7 +21,7 @@ To add an operator, for example `isUuid`:
 
 ### 1. Core
 
-In `core/src/http/assertions.rs`:
+In `crates/core/src/http/assertions.rs`:
 
 1. Add it to `ASSERTION_OPERATORS` and bump the array length
    (`[&str; 28]` → `[&str; 29]`). The order is the order the editor suggests
@@ -46,8 +46,8 @@ portable.
 ### 2. UI
 
 Add the same string, at the same position, to `ASSERTION_OPERATORS` in
-`ui/src/domain/http.ts`. Operators whose names start with `is` are treated as
-taking no value (`UNARY` in `ui/src/domain/suggestions.ts`), so name a
+`apps/desktop/ui/src/domain/http.ts`. Operators whose names start with `is` are treated as
+taking no value (`UNARY` in `apps/desktop/ui/src/domain/suggestions.ts`), so name a
 value-less operator `is…`, or update that rule.
 
 ### 3. Check
@@ -55,7 +55,7 @@ value-less operator `is…`, or update that rule.
 ```sh
 cargo test -p cactus-core --test ui_contract
 cargo test -p cactus-core http::assertions
-cd ui && npm test -- assertions suggestions
+npm test -w cactus-ui -- assertions suggestions
 ```
 
 ---
@@ -76,7 +76,7 @@ To add one, for example `$randomHex`:
 
 ### 1. Core
 
-In `core/src/tools/random.rs`, add it to `GENERATORS` and to the `match` in
+In `crates/core/src/tools/random.rs`, add it to `GENERATORS` and to the `match` in
 `generate`:
 
 ```rust
@@ -91,7 +91,7 @@ Add a test beside the others in the file.
 ### 2. UI
 
 Add the same name, in the same position, to `GENERATORS` in
-`ui/src/domain/generators.ts`. The `set` tool's editor offers it as soon as a
+`apps/desktop/ui/src/domain/generators.ts`. The `set` tool's editor offers it as soon as a
 value starts with `$`.
 
 ### 3. Check

@@ -9,10 +9,10 @@ Both are short lists defined in Rust. The UI keeps a copy of each so it can sugg
 
 | List | Rust | UI copy |
 | --- | --- | --- |
-| Check operators | `core/src/http/assertions.rs` → `ASSERTION_OPERATORS` | `ui/src/domain/http.ts` |
-| Generators | `core/src/tools/random.rs` → `GENERATORS` | `ui/src/domain/generators.ts` |
+| Check operators | `crates/core/src/http/assertions.rs` → `ASSERTION_OPERATORS` | `apps/desktop/ui/src/domain/http.ts` |
+| Generators | `crates/core/src/tools/random.rs` → `GENERATORS` | `apps/desktop/ui/src/domain/generators.ts` |
 
-The test that compares them is `core/tests/ui_contract.rs`.
+The test that compares them is `crates/core/tests/ui_contract.rs`.
 
 ## Add an operator
 
@@ -29,9 +29,9 @@ runtime:
 
 1. ### Add it to the list
 
-   In `core/src/http/assertions.rs`, add the name to `ASSERTION_OPERATORS` and increase the array length by one. The editor suggests operators in this order.
+   In `crates/core/src/http/assertions.rs`, add the name to `ASSERTION_OPERATORS` and increase the array length by one. The editor suggests operators in this order.
 
-   ```rust title="core/src/http/assertions.rs" ins={1,5}
+   ```rust title="crates/core/src/http/assertions.rs" ins={1,5}
    pub const ASSERTION_OPERATORS: [&str; 29] = [
        "eq",
        // …
@@ -44,7 +44,7 @@ runtime:
 
    In the same file, `holds(operator, actual, expected)` is a `match` on the operator name. Add an arm:
 
-   ```rust title="core/src/http/assertions.rs" ins={4}
+   ```rust title="crates/core/src/http/assertions.rs" ins={4}
    Ok(match operator {
        "eq" => actual.is_some_and(|a| loosely_equal(a, &value())),
        // …
@@ -66,7 +66,7 @@ runtime:
 
    Then write `is_uuid`:
 
-   ```rust title="core/src/http/assertions.rs"
+   ```rust title="crates/core/src/http/assertions.rs"
    fn is_uuid(text: &str) -> bool {
        let parts: Vec<&str> = text.split('-').collect();
        parts.iter().map(|p| p.len()).eq([8, 4, 4, 4, 12])
@@ -86,7 +86,7 @@ runtime:
 
 4. ### Copy it to the UI
 
-   Add `"isUuid"` to `ASSERTION_OPERATORS` in `ui/src/domain/http.ts`, at the same position as in Rust.
+   Add `"isUuid"` to `ASSERTION_OPERATORS` in `apps/desktop/ui/src/domain/http.ts`, at the same position as in Rust.
 
    Operators whose names start with `is` are treated as taking no value: the editor hides the value field and suggests no value. Name a value-less operator `is…`; name an operator that takes a value anything else.
 
@@ -118,9 +118,9 @@ Generators are values the [`set`](/reference/flow-tools/#set) tool fills in when
 
 1. ### Add it in Rust
 
-   In `core/src/tools/random.rs`, add the name to `GENERATORS` and an arm to the `match` in `generate`:
+   In `crates/core/src/tools/random.rs`, add the name to `GENERATORS` and an arm to the `match` in `generate`:
 
-   ```rust title="core/src/tools/random.rs" ins={1,9}
+   ```rust title="crates/core/src/tools/random.rs" ins={1,9}
    pub const GENERATORS: &[&str] = &["$uuid", "$timestamp", "$isoTime", "$randomInt", "$randomEmail", "$randomHex"];
 
    pub fn generate(name: &str) -> Option<String> {
@@ -147,7 +147,7 @@ Generators are values the [`set`](/reference/flow-tools/#set) tool fills in when
 
 3. ### Copy it to the UI
 
-   Add `"$randomHex"` to `GENERATORS` in `ui/src/domain/generators.ts`, at the same position. The `set` editor suggests it once a value starts with `$`.
+   Add `"$randomHex"` to `GENERATORS` in `apps/desktop/ui/src/domain/generators.ts`, at the same position. The `set` editor suggests it once a value starts with `$`.
 
    **Check:**
 

@@ -6,10 +6,13 @@ YAML files in the layout Bruno uses, one file per request ("scenario" in the
 code), so projects can be versioned and reviewed like code and opened in Bruno.
 
 ```
-core/       cactus-core: all behaviour. Knows nothing about Tauri or the terminal.
-cli/        cactus-cli: headless runner for CI (clap).
-src-tauri/  cactus: desktop backend, thin Tauri commands over core.
-ui/         React front end for the desktop app.
+crates/core/             cactus-core: all behaviour. Knows nothing about Tauri or the terminal.
+crates/cli/              cactus-cli: headless runner for CI (clap).
+crates/license-gen/      pro license keys (never shipped).
+apps/desktop/src-tauri/  cactus: desktop backend, thin Tauri commands over core.
+apps/desktop/ui/         React front end for the desktop app.
+apps/site/               marketing site and pro license worker.
+apps/docs/               documentation site.
 ```
 
 ## On disk
@@ -33,7 +36,7 @@ ui/         React front end for the desktop app.
 | `.cactus/state.json`                     | Active environment and critter                                                | no        |
 | `.cactus/history/*.json`                 | Last responses per request (`a/b.yml` → `a%2Fb.json`)                         | no        |
 
-All path rules live in `core/src/layout.rs`. Paths in the project (requests,
+All path rules live in `crates/core/src/layout.rs`. Paths in the project (requests,
 attachments, the files git lists) are a validated newtype (`ProjectPath`) that
 can never escape the project. Attachments are read through it too, so a
 request file from someone else can't upload a file from outside the project. Requests are listed
@@ -61,7 +64,7 @@ skips the rest. On a 401, a critter with a `login` flow runs it and sends the
 request once more (`runner::send_as`). Steps of the login flow itself never do
 this, so it can't loop.
 
-**Cookies** are kept per critter (`core/src/cookies.rs`); sending as no one
+**Cookies** are kept per critter (`crates/core/src/cookies.rs`); sending as no one
 uses no jar. The process shares one HTTP client, whose cookie provider reads
 the jar of the send it's called from, a task-local `with_jar` sets, so
 cookies set on redirects are kept too. What responses set is applied to the
@@ -69,7 +72,7 @@ jar on disk when the send ends, under the context write lock.
 
 **Auth** beyond bearer, basic and API keys: digest is answered in
 `http::send`, which sends once and, on a 401 with a `Digest` challenge, builds
-the request again with the answer. OAuth2 (`core/src/oauth2.rs`: client
+the request again with the answer. OAuth2 (`crates/core/src/oauth2.rs`: client
 credentials, password, authorization code with optional PKCE) gets its token
 before the send (`runner::send_and_record`): cached per critter (or for no
 one), refreshed when expired, or fetched anew for the first two grants. The
@@ -80,7 +83,7 @@ The implicit grant, AWS, NTLM and OAuth 1 are kept as written but not sent.
 
 **Flow tools** are steps that aren't requests (`- tool: prompt`): prompt,
 pick, display, set, assert, poll, wait, run, open, webhook, slack, notify
-(`core/src/tools/`). Tools that send requests or run flows (poll, run) do so
+(`crates/core/src/tools/`). Tools that send requests or run flows (poll, run) do so
 through `ToolCx::runner`, as the run itself would; `run` nests at most 8
 deep, so flows that run each other fail rather than loop. A step
 is a request unless it has a `tool` key, so older flows read unchanged. Each
@@ -135,7 +138,7 @@ says so in the response's `warnings`.
 | `tools`                                           | Flow tool steps: the `Tool` trait, the `tools!` registry (`ToolStep`), `ToolHost` (asking, notifying, opening URLs), one file per tool             |
 | `history`, `recent`, `state`, `storage`, `layout` | Persistence                                                                                                                                        |
 
-Errors are typed (`core/src/error.rs`) and reach the UI as their message. An
+Errors are typed (`crates/core/src/error.rs`) and reach the UI as their message. An
 I/O failure on a known file is `Error::File`, which names the file; attach the
 path with `.map_err(Error::file(&path))`.
 
@@ -148,7 +151,7 @@ and staged, but a commit records the whole index, as `git commit` does
 `user.name`/`user.email` in git config, and hooks don't run. `.git/` isn't
 watched; the UI refreshes the status on file changes and on window focus.
 
-## Desktop backend (src-tauri)
+## Desktop backend (apps/desktop/src-tauri)
 
 - `commands/*`: one adapter per command; no logic beyond argument conversion.
 - `state.rs`: shared HTTP client, the scheduler and the single cancellable operation.
@@ -176,10 +179,10 @@ watched; the UI refreshes the status on file changes and on window focus.
   outside the cancel slot.
 - `bindings.rs`: registers commands and events with tauri-specta.
 
-`ui/src/api/bindings.ts` is **generated** from the Rust types. Regenerate with
+`apps/desktop/ui/src/api/bindings.ts` is **generated** from the Rust types. Regenerate with
 `cargo test -p cactus` (or by running the app in debug). Never edit it by hand.
 
-## UI (ui/src)
+## UI (apps/desktop/ui/src)
 
 Data flows one way: **component → action → backend → store → component**.
 
@@ -231,42 +234,42 @@ page `/#sprites` shows them all.
 ## Common changes
 
 Step-by-step guides with code for these and more are in
-[docs/how-to/](docs/README.md#how-to-guides).
+[apps/docs/how-to/](apps/docs/README.md#how-to-guides).
 
 **Add a backend command.** Add the function in `core`, then an adapter in
-`src-tauri/src/commands/`, then register it in `bindings.rs`. Run
+`apps/desktop/src-tauri/src/commands/`, then register it in `bindings.rs`. Run
 `cargo test -p cactus` to regenerate the bindings, then call it via
 `backend.yourCommand(...)` from an action.
 
-**Add a flow tool.** Write `core/src/tools/<id>.rs`: a struct with its fields
+**Add a flow tool.** Write `crates/core/src/tools/<id>.rs`: a struct with its fields
 (`#[serde(default)]`, empty fields left out) and `impl Tool` (`title`,
 `templates`, `run`), then add `<id>::<Struct>` to `tools!` in
-`core/src/tools/mod.rs`. Run `cargo test -p cactus` to regenerate the
-bindings, then write `ui/src/features/critters/flows/tools/<id>.tsx` with
+`crates/core/src/tools/mod.rs`. Run `cargo test -p cactus` to regenerate the
+bindings, then write `apps/desktop/ui/src/features/critters/flows/tools/<id>.tsx` with
 `defineTool` (label, icon, `create`, `dataflow`, `Editor` built from
 `fields.tsx`) and add it to `TOOLS` in `tools/index.ts`, which won't
 typecheck until every tool has one. `slack.rs` and `slack.tsx` are the
 smallest example.
 
-**Edit another OpenCollection field.** Add it to `core/src/scenario/model.rs`
+**Edit another OpenCollection field.** Add it to `crates/core/src/scenario/model.rs`
 (or `collection/model.rs`) under its spec name, with
 `#[serde(default, skip_serializing_if = ...)]` so files without it still load
 and stay minimal, and `LenientString` for strings hand-written YAML may type
 as numbers (`value: 8080`). Until a field is in the model, saves leave it untouched. Regenerate the
-bindings, then add an editor tab under `ui/src/features/editor/tabs/` that takes
+bindings, then add an editor tab under `apps/desktop/ui/src/features/editor/tabs/` that takes
 `ScenarioTabProps`. The UI must hold a request exactly as the backend writes it
 (empty lists left out, query params mirroring the URL), or every save looks
 like an outside change and reloads the editor. Query-param syncing is
 implemented on both sides, so its cases live in one fixture
-(`core/tests/fixtures/query-params.json`) that both test suites run. Other
+(`crates/core/tests/fixtures/query-params.json`) that both test suites run. Other
 things the UI copies from core (assertion operators, layer file names) are
-checked by `core/tests/ui_contract.rs`.
+checked by `crates/core/tests/ui_contract.rs`.
 
 ## Checks
 
 ```sh
 cargo fmt --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace
-cd ui && npm run typecheck && npm run lint && npm run format:check && npm test && npm run build
+npm run check
 ```
 
 The UI lints with Oxlint because the project uses TypeScript 7, which

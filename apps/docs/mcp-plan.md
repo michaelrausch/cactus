@@ -9,7 +9,7 @@ person does in the app. It lists and reads requests, sends them with the
 project's environments and secrets, checks their assertions, and writes new
 requests that a person reviews in git like any other change.
 
-It's a thin adapter over `core`, like `src-tauri/src/commands/`. Projects and
+It's a thin adapter over `core`, like `apps/desktop/src-tauri/src/commands/`. Projects and
 people that don't use it see no change.
 
 > **Re-validate before building.** This plan was written against commit
@@ -25,19 +25,19 @@ Run `git log a43d433..HEAD --stat` and read each file below that appears in it.
 
 | Assumption | Where | Phase |
 | --- | --- | --- |
-| The CLI is clap with `run`, `send` and `import`, `Outcome` sets the exit code, and tokio is `current_thread` with features `rt`, `macros` | `cli/src/args.rs`, `cli/src/main.rs`, `cli/Cargo.toml` | 2 |
-| `runner::send_and_record(client, project, path, scenario, env_name)` builds, sends, merges captures and records history; `runner::run` takes an `on_result` callback | `core/src/runner.rs` | 3 |
-| `http::send` calls `build_request`, which returns a `PreparedRequest { request, unresolved, warnings }` before anything goes out | `core/src/http/send.rs`, `core/src/http/request.rs` | 1, 3 |
-| Attachment and file bodies are read from `project.join(file)`, so an absolute or `..` path leaves the project | `core/src/http/request.rs` (~l. 228, 239) | 1 |
-| `resolve_for_request` merges collection → env → folders → request vars → secrets → captured, and is the only merge | `core/src/env/layers.rs` | 1 |
-| Secrets live in `.cactus/secrets.json` and captured values in `.cactus/captured.json`, both flat `Env`s read through `env::load` | `core/src/env/layers.rs`, `core/src/layout.rs` | 1 |
-| `Subject::parse`/`select` handle `res.*` expressions and are `pub(crate)` | `core/src/http/expression.rs` | 1 |
-| `Response` has `url`, `headers`, `body`, `truncated`, `checks`, `captured`, `capture_failures`, `unresolved`, `warnings`; bodies are cut at 5 MiB | `core/src/http/response.rs` | 1, 3 |
-| `scenario::store::save` patches in place; `create(project, dir, scenario)` picks the file name from the title and returns the path | `core/src/scenario/store.rs` | 4 |
-| `collection::read` parses a request file into `Scenario`; there is no parse-from-string helper yet | `core/src/collection/file.rs` | 4 |
-| `import::import(project, file)` reads the file itself | `core/src/import/mod.rs` | 4 |
-| `history::load` returns the whole `Response` per entry | `core/src/history.rs` | 2 |
-| The desktop watcher reloads files changed on disk and flags conflicts with dirty buffers | `src-tauri/src/watcher.rs`, `ui/src/actions/fsSync.ts` | — |
+| The CLI is clap with `run`, `send` and `import`, `Outcome` sets the exit code, and tokio is `current_thread` with features `rt`, `macros` | `crates/cli/src/args.rs`, `crates/cli/src/main.rs`, `cli/Cargo.toml` | 2 |
+| `runner::send_and_record(client, project, path, scenario, env_name)` builds, sends, merges captures and records history; `runner::run` takes an `on_result` callback | `crates/core/src/runner.rs` | 3 |
+| `http::send` calls `build_request`, which returns a `PreparedRequest { request, unresolved, warnings }` before anything goes out | `crates/core/src/http/send.rs`, `crates/core/src/http/request.rs` | 1, 3 |
+| Attachment and file bodies are read from `project.join(file)`, so an absolute or `..` path leaves the project | `crates/core/src/http/request.rs` (~l. 228, 239) | 1 |
+| `resolve_for_request` merges collection → env → folders → request vars → secrets → captured, and is the only merge | `crates/core/src/env/layers.rs` | 1 |
+| Secrets live in `.cactus/secrets.json` and captured values in `.cactus/captured.json`, both flat `Env`s read through `env::load` | `crates/core/src/env/layers.rs`, `crates/core/src/layout.rs` | 1 |
+| `Subject::parse`/`select` handle `res.*` expressions and are `pub(crate)` | `crates/core/src/http/expression.rs` | 1 |
+| `Response` has `url`, `headers`, `body`, `truncated`, `checks`, `captured`, `capture_failures`, `unresolved`, `warnings`; bodies are cut at 5 MiB | `crates/core/src/http/response.rs` | 1, 3 |
+| `scenario::store::save` patches in place; `create(project, dir, scenario)` picks the file name from the title and returns the path | `crates/core/src/scenario/store.rs` | 4 |
+| `collection::read` parses a request file into `Scenario`; there is no parse-from-string helper yet | `crates/core/src/collection/file.rs` | 4 |
+| `import::import(project, file)` reads the file itself | `crates/core/src/import/mod.rs` | 4 |
+| `history::load` returns the whole `Response` per entry | `crates/core/src/history.rs` | 2 |
+| The desktop watcher reloads files changed on disk and flags conflicts with dirty buffers | `apps/desktop/src-tauri/src/watcher.rs`, `apps/desktop/ui/src/actions/fsSync.ts` | — |
 
 If an assumption no longer holds:
 
@@ -247,7 +247,7 @@ before getting a response:
 They're the same files `read_request` returns. They exist so a client can
 attach them as context without a tool call. No subscriptions for now (§11).
 
-## 4. Core (`core/`)
+## 4. Core (`crates/core/`)
 
 Everything here is useful outside MCP, and nothing here depends on it.
 
@@ -269,7 +269,7 @@ Everything here is useful outside MCP, and nothing here depends on it.
 ### 4.2 `SendPolicy`
 
 ```rust
-// core/src/http/policy.rs
+// crates/core/src/http/policy.rs
 #[derive(Debug, Clone, Default)]
 pub struct SendPolicy {
     /// None = any method.
@@ -313,7 +313,7 @@ the allowlist.
   restarts. That's accepted: the refusal message says to restart or pass
   `--allow-host`.
 
-### 4.3 Redaction (`core/src/redact.rs`)
+### 4.3 Redaction (`crates/core/src/redact.rs`)
 
 ```rust
 pub struct Redactor { /* value → label, longest first */ }
@@ -354,10 +354,10 @@ existing `import::import`. No core change.
 Add `Refused(String)` and `InvalidExpression(String)`. Both reach the agent as
 their message, as all errors do.
 
-## 5. MCP server (`cli/src/mcp/`)
+## 5. MCP server (`crates/cli/src/mcp/`)
 
 ```
-cli/src/mcp/
+crates/cli/src/mcp/
   mod.rs        serve(project, options): stdio transport, the server loop
   server.rs     the ServerHandler: tool router, resources, capabilities
   tools/        one file per area: read.rs, send.rs, write.rs
@@ -389,7 +389,7 @@ cli/src/mcp/
   secrets are redacted as `«secret:name»` and can't be read, and that refused
   sends name the flag a person must add.
 
-## 6. CLI (`cli/`)
+## 6. CLI (`crates/cli/`)
 
 - `Command::Mcp { project, env, allow_host: Vec<String>, allow_unsafe, read_only }`.
 - `commands::execute` runs the server and returns `Outcome::Passed` when stdin
@@ -428,7 +428,7 @@ cli/src/mcp/
 | Agent runs `DELETE` on production | Safe methods only by default; `--allow-unsafe` with no `--env` warns; per-call `env` shows in the client's approval prompt |
 | Agent writes break a file | Parse and round-trip check before writing; `collection::write` refuses edits that wouldn't read back |
 | Large bodies flood the agent's context | 16 KiB cut, `select`, bodies left out of `run_folder` |
-| `rmcp` API churn | Isolated in `cli/src/mcp/`; core has no MCP dependency |
+| `rmcp` API churn | Isolated in `crates/cli/src/mcp/`; core has no MCP dependency |
 | Snapshot allowlist goes stale as the project grows | The refusal message says to restart or add `--allow-host` |
 
 ## 10. Other plans
@@ -513,6 +513,6 @@ Each phase starts by re-checking its §0 rows and ends green on the checks in
    `run_folder` with redaction, the cut, `select`, progress and cancellation.
 4. **Writing.** `create_request`, `update_request`, `import_spec`,
    `--read-only`.
-5. **Wrap-up.** `ARCHITECTURE.md` (a `cli/src/mcp` row, `SendPolicy`,
+5. **Wrap-up.** `ARCHITECTURE.md` (a `crates/cli/src/mcp` row, `SendPolicy`,
    redaction), a README section with the `.mcp.json` example and what's
    redacted and what isn't.

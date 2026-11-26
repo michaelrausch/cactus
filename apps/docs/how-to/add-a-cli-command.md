@@ -1,17 +1,17 @@
 # Add a CLI command
 
-`cactus-cli` (`cli/`) is the headless runner used in CI. Like the desktop
+`cactus-cli` (`crates/cli/`) is the headless runner used in CI. Like the desktop
 backend, it holds no behaviour of its own: each subcommand parses arguments,
 calls `cactus-core`, and prints the result.
 
 ```
-cli/src/main.rs          parse, execute, map the result to an exit code
-cli/src/args.rs          the clap definitions; doc comments are the --help text
-cli/src/commands/mod.rs  `execute`: builds the HTTP client, then dispatches
-cli/src/commands/<x>.rs  one module per subcommand
-cli/src/outcome.rs       Passed / Failed → exit codes 0 / 1 (errors are 2)
-cli/src/output.rs        shared report formatting
-cli/src/tool_host.rs     how flow tools ask questions on a terminal
+crates/cli/src/main.rs          parse, execute, map the result to an exit code
+crates/cli/src/args.rs          the clap definitions; doc comments are the --help text
+crates/cli/src/commands/mod.rs  `execute`: builds the HTTP client, then dispatches
+crates/cli/src/commands/<x>.rs  one module per subcommand
+crates/cli/src/outcome.rs       Passed / Failed → exit codes 0 / 1 (errors are 2)
+crates/cli/src/output.rs        shared report formatting
+crates/cli/src/tool_host.rs     how flow tools ask questions on a terminal
 ```
 
 This guide adds `cactus-cli list <project>`, which prints every request path
@@ -19,7 +19,7 @@ in tree order.
 
 ## 1. Declare the arguments
 
-Add a variant to `Command` in `cli/src/args.rs`. The doc comments are the
+Add a variant to `Command` in `crates/cli/src/args.rs`. The doc comments are the
 `--help` text, so write them for users:
 
 ```rust
@@ -38,7 +38,7 @@ of `args.rs`.
 
 ## 2. Write the command
 
-Create `cli/src/commands/list.rs`:
+Create `crates/cli/src/commands/list.rs`:
 
 ```rust
 //! `cactus-cli list`: request paths, one per line.
@@ -77,7 +77,7 @@ Conventions:
 
 ## 3. Dispatch to it
 
-In `cli/src/commands/mod.rs`, add `mod list;` and a match arm in `execute`:
+In `crates/cli/src/commands/mod.rs`, add `mod list;` and a match arm in `execute`:
 
 ```rust
 Command::List { project, json } => list::list(&project, json),
@@ -93,6 +93,6 @@ cargo run -p cactus-cli -- list --help
 ## Checklist
 
 - [ ] variant in `Command` (`args.rs`) with doc comments, plus a parse test
-- [ ] `cli/src/commands/<name>.rs` returning `Result<Outcome>`
+- [ ] `crates/cli/src/commands/<name>.rs` returning `Result<Outcome>`
 - [ ] `mod` + match arm in `commands/mod.rs`
 - [ ] behaviour you needed that wasn't in core is added to core, not here

@@ -10,11 +10,11 @@ A theme is only CSS. It's a block of custom properties (tokens) selected by a `d
 This page adds a dark theme called Mesquite.
 
 <FileTree>
-- ui/src/theme/
+- apps/desktop/ui/src/theme/
   - **themes.css** the tokens
   - **themes.ts** list it in the picker
   - themes.test.ts checks the other files agree; no changes needed
-- ui/src/components/critters/
+- apps/desktop/ui/src/components/critters/
   - **critters.css** light themes only
 </FileTree>
 
@@ -22,11 +22,11 @@ This page adds a dark theme called Mesquite.
 
 1. ### Write the tokens
 
-   At the top of `ui/src/theme/themes.css` is a base block, `[data-theme] { … }`. It defines every token with the default dark values. A theme overrides only the tokens it changes.
+   At the top of `apps/desktop/ui/src/theme/themes.css` is a base block, `[data-theme] { … }`. It defines every token with the default dark values. A theme overrides only the tokens it changes.
 
    Add a block for the new theme. Copying the closest existing theme is the quickest start: `synthwave` for a dark one, `desert-day` for a light one.
 
-   ```css title="ui/src/theme/themes.css"
+   ```css title="apps/desktop/ui/src/theme/themes.css"
    /* mesquite: warm brown wood, dark. */
    [data-theme="mesquite"] {
      --background: oklch(0.17 0.02 55);
@@ -68,9 +68,9 @@ This page adds a dark theme called Mesquite.
 
 2. ### List it in the picker
 
-   Add it to `THEMES` in `ui/src/theme/themes.ts`. The picker shows themes in this order.
+   Add it to `THEMES` in `apps/desktop/ui/src/theme/themes.ts`. The picker shows themes in this order.
 
-   ```ts title="ui/src/theme/themes.ts"
+   ```ts title="apps/desktop/ui/src/theme/themes.ts"
    { id: "mesquite", name: "Mesquite", scheme: "dark" },
    ```
 
@@ -84,9 +84,9 @@ This page adds a dark theme called Mesquite.
 
    Skip this step for a dark theme.
 
-   Pale critter sprites disappear on light backgrounds, so light themes give them a 1px outline. In `ui/src/components/critters/critters.css`, add the theme to the selector list under the `/* Light themes` comment:
+   Pale critter sprites disappear on light backgrounds, so light themes give them a 1px outline. In `apps/desktop/ui/src/components/critters/critters.css`, add the theme to the selector list under the `/* Light themes` comment:
 
-   ```css title="ui/src/components/critters/critters.css" ins={4}
+   ```css title="apps/desktop/ui/src/components/critters/critters.css" ins={4}
    /* Light themes: … */
    [data-theme="desert-day"],
    [data-theme="salt-flat"],
@@ -99,7 +99,7 @@ This page adds a dark theme called Mesquite.
 4. ### Run the tests
 
    ```sh
-   cd ui && npm test -- themes species && npm run format:check
+   npm test -w cactus-ui -- themes species && npm run format:check -w cactus-ui
    ```
 
 5. ### Look at it

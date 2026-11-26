@@ -3,7 +3,7 @@
 Request files follow [OpenCollection v1.0.0](https://schema.opencollection.com/).
 cactus models only part of the spec; every key it doesn't model is still
 **kept** on save, because saves patch the file in place rather than rewrite it
-(see "Saving never rewrites a file" in [ARCHITECTURE.md](../../ARCHITECTURE.md)).
+(see "Saving never rewrites a file" in [ARCHITECTURE.md](../../../ARCHITECTURE.md)).
 So adding a field is about letting cactus _read, edit and act on_ it, not about
 preserving it.
 
@@ -13,7 +13,7 @@ changes how the request is sent).
 
 ## 1. Find the field in the spec
 
-The schema is vendored at `core/tests/fixtures/opencollection-v1.0.0.json`.
+The schema is vendored at `crates/core/tests/fixtures/opencollection-v1.0.0.json`.
 Find the field's exact name and shape there, for example under
 `HttpRequestSettings`:
 
@@ -27,8 +27,8 @@ validates what cactus writes against this schema, so a misspelt key fails it.
 
 ## 2. Add it to the model
 
-Request files are `Scenario` in `core/src/scenario/model.rs`. Collection,
-folder and environment files are in `core/src/collection/model.rs`.
+Request files are `Scenario` in `crates/core/src/scenario/model.rs`. Collection,
+folder and environment files are in `crates/core/src/collection/model.rs`.
 
 ```rust
 pub struct Scenario {
@@ -76,7 +76,7 @@ so a new field is saved in place like every other.
 
 ## 3. Use it when sending (if it affects the request)
 
-Requests are built in `core/src/http/request.rs` (`build_request`). That's where
+Requests are built in `crates/core/src/http/request.rs` (`build_request`). That's where
 `settings.timeout` takes effect:
 
 ```rust
@@ -86,7 +86,7 @@ if let Some(Timeout::Millis(ms)) = scenario.settings.timeout {
 ```
 
 If the field should inherit from folders and the collection (like headers and
-auth do), add it to the defaults chain in `core/src/collection/` and read it
+auth do), add it to the defaults chain in `crates/core/src/collection/` and read it
 from `inherited` rather than only from the scenario.
 
 If the field is something cactus keeps but can't act on (as with
@@ -98,11 +98,11 @@ If the field is something cactus keeps but can't act on (as with
 cargo test -p cactus
 ```
 
-`Scenario` in `ui/src/api/bindings.ts` now includes the field.
+`Scenario` in `apps/desktop/ui/src/api/bindings.ts` now includes the field.
 
 ## 5. Add an editor tab
 
-Tabs live in `ui/src/features/editor/tabs/` and all take `ScenarioTabProps`:
+Tabs live in `apps/desktop/ui/src/features/editor/tabs/` and all take `ScenarioTabProps`:
 the whole scenario, and an `onChange` that receives the next version.
 `DocsTab.tsx` is the whole of the `docs` editor:
 
@@ -130,7 +130,7 @@ This matters: the UI must hold a request exactly as the backend writes it
 (empty fields left out). Otherwise the saved file reads back differently from
 the buffer, every save looks like an outside change, and the editor reloads.
 
-Then add a trigger and content pair in `ui/src/features/editor/RequestEditor.tsx`:
+Then add a trigger and content pair in `apps/desktop/ui/src/features/editor/RequestEditor.tsx`:
 
 ```tsx
 <TabsTrigger value="docs">Docs</TabsTrigger>
@@ -141,30 +141,30 @@ Then add a trigger and content pair in `ui/src/features/editor/RequestEditor.tsx
 ```
 
 For a small setting, consider adding a row to an existing tab rather than a
-new tab. Shared inputs are in `ui/src/components/` (`Field`, `KeyValueTable`)
+new tab. Shared inputs are in `apps/desktop/ui/src/components/` (`Field`, `KeyValueTable`)
 and `components/ui/` (shadcn); fields that accept `{{variables}}` should use
 `components/template/TemplateField.tsx` so they get highlighting and
 completion.
 
-Any pure logic (parsing, normalising) goes in `ui/src/domain/` with a
+Any pure logic (parsing, normalising) goes in `apps/desktop/ui/src/domain/` with a
 `*.test.ts` beside it.
 
 ## 6. Keep both sides in agreement
 
 If the UI derives the field from something else, or normalises it the way core
 does (as query params mirror the URL), put the cases in a shared JSON fixture
-under `core/tests/fixtures/` and run it from both test suites. See
-`query-params.json`, used by the tests in `core/src/scenario/model.rs` and
-`ui/src/domain/scenario.test.ts`.
+under `crates/core/tests/fixtures/` and run it from both test suites. See
+`query-params.json`, used by the tests in `crates/core/src/scenario/model.rs` and
+`apps/desktop/ui/src/domain/scenario.test.ts`.
 
 ## 7. Test
 
 - **Round trip**: a file with the field loads, saves unchanged, and an edit
-  changes only that key. The tests in `core/src/collection/patch.rs` and
-  `core/tests/opencollection.rs` show how.
+  changes only that key. The tests in `crates/core/src/collection/patch.rs` and
+  `crates/core/tests/opencollection.rs` show how.
 - **Schema**: `cargo test -p cactus-core --test opencollection`.
 - **Behaviour**: for sending, add a runner test using the local test server in
-  `core/src/runner/tests.rs`.
+  `crates/core/src/runner/tests.rs`.
 - In the app: edit the field, save, check the file in git's diff view (only
   that key should change), and reopen it.
 

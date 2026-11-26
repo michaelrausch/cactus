@@ -1,17 +1,17 @@
 # Add a theme
 
 Themes are pure CSS: a block of custom properties ("tokens") in
-`ui/src/theme/themes.css`, selected by `data-theme` on the root element.
+`apps/desktop/ui/src/theme/themes.css`, selected by `data-theme` on the root element.
 Components only ever use tokens, so a theme never needs component changes.
 
 Four files are involved:
 
 | File                                      | What to do                                               |
 | ----------------------------------------- | -------------------------------------------------------- |
-| `ui/src/theme/themes.css`                 | Add a `[data-theme="<id>"]` block                        |
-| `ui/src/theme/themes.ts`                  | List it in `THEMES`                                      |
-| `ui/src/components/critters/critters.css` | Light themes only: add it to the sprite-outline selector |
-| `ui/src/theme/themes.test.ts`             | Nothing; it checks the above agree                       |
+| `apps/desktop/ui/src/theme/themes.css`                 | Add a `[data-theme="<id>"]` block                        |
+| `apps/desktop/ui/src/theme/themes.ts`                  | List it in `THEMES`                                      |
+| `apps/desktop/ui/src/components/critters/critters.css` | Light themes only: add it to the sprite-outline selector |
+| `apps/desktop/ui/src/theme/themes.test.ts`             | Nothing; it checks the above agree                       |
 
 ## 1. Write the tokens
 
@@ -55,7 +55,7 @@ Rules (`themes.test.ts` enforces them):
 
 - **Only set tokens the base block defines.** A typo like `--sucess` fails
   the test. To add a new token, define it in the base block first, and expose
-  it to Tailwind in `ui/src/index.css` if components should use it as a class.
+  it to Tailwind in `apps/desktop/ui/src/index.css` if components should use it as a class.
 - **Light themes set `color-scheme: light;`**, because the base is dark.
 - **Tokens only.** Anything beyond tokens (custom scrollbars, gloss effects)
   goes in the **Extras** section at the end of `themes.css`, scoped to
@@ -66,7 +66,7 @@ Rules (`themes.test.ts` enforces them):
 
 ## 2. List it
 
-Add it to `THEMES` in `ui/src/theme/themes.ts`, in the position you want it in
+Add it to `THEMES` in `apps/desktop/ui/src/theme/themes.ts`, in the position you want it in
 the picker:
 
 ```ts
@@ -80,13 +80,13 @@ the picker:
 
 Pale sprites disappear on light backgrounds, so light themes get a 1px
 outline. Add the theme to the selector list under `/* Light themes` in
-`ui/src/components/critters/critters.css`. A test checks that every light
+`apps/desktop/ui/src/components/critters/critters.css`. A test checks that every light
 theme, and only light themes, is in that list.
 
 ## 4. Check it
 
 ```sh
-cd ui && npm test -- themes species && npm run format:check
+npm test -w cactus-ui -- themes species && npm run format:check -w cactus-ui
 ```
 
 Then look at it in the app (Settings → Theme): the request editor with a JSON

@@ -1,14 +1,15 @@
 # cactus docs
 
 This folder holds two things: these contributor notes, and the user docs
-site (Astro Starlight; pages in `src/content/docs/`). To work on the site:
+site (Astro Starlight; pages in `src/content/docs/`). To work on the site, from
+the repository root:
 
 ```sh
-cd docs && npm ci && npm run dev    # http://localhost:4321
-npm run build                       # static output in docs/dist
+npm ci && npm run dev:docs         # http://localhost:4321
+npm run build -w cactus-docs       # static output in apps/docs/dist
 ```
 
-Start with [ARCHITECTURE.md](../ARCHITECTURE.md): the crates, what lives on disk,
+Start with [ARCHITECTURE.md](../../ARCHITECTURE.md): the crates, what lives on disk,
 variable precedence, how saving works, and the UI's layering rules. The guides
 below assume it.
 
@@ -31,20 +32,20 @@ you've missed one.
 
 ## Conventions that apply everywhere
 
-- **core owns behaviour.** `src-tauri` and `cli` only convert arguments and
+- **core owns behaviour.** `apps/desktop/src-tauri` and `crates/cli` only convert arguments and
   present results. If you're writing an `if` in a Tauri command, it probably
   belongs in core.
 - **Errors are user-facing.** Every `cactus_core::Error` message is shown as-is
-  in the app and the CLI. Add a variant to `core/src/error.rs` with a short
+  in the app and the CLI. Add a variant to `crates/core/src/error.rs` with a short
   message rather than formatting strings at the call site. Attach paths to I/O
   errors with `.map_err(Error::file(&path))`.
 - **Files stay minimal and round-trip.** Model fields use
   `#[serde(default, skip_serializing_if = …)]` so absent stays absent. Saves
   patch files in place; never write a request file with `serde_yaml` directly.
-- **Never hand-edit `ui/src/api/bindings.ts`.** Regenerate with
+- **Never hand-edit `apps/desktop/ui/src/api/bindings.ts`.** Regenerate with
   `cargo test -p cactus`. CI fails if it is stale.
 - **Things the UI mirrors are tested.** When the UI keeps a copy of a core list
-  (assertion operators, generators, file names), `core/tests/ui_contract.rs`
+  (assertion operators, generators, file names), `crates/core/tests/ui_contract.rs`
   checks it. Update both sides together.
 - **UI copy is terse.** Labels and titles only: no helper sentences, caveats or
   taglines. Error strings are short, with no trailing advice.

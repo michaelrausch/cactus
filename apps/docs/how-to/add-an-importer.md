@@ -1,7 +1,7 @@
 # Add an importer
 
 Importers turn another tool's collection into cactus request files. They live
-in `core/src/import/`: `mod.rs` detects the format and writes the result, and
+in `crates/core/src/import/`: `mod.rs` detects the format and writes the result, and
 each format is one file (`postman.rs`, `openapi.rs`) that only _parses_.
 
 Both the desktop app (sidebar import button → `import_file` command) and the
@@ -12,7 +12,7 @@ This guide adds an Insomnia v4 export as the example.
 
 ## How an import runs
 
-`import(project, file)` in `core/src/import/mod.rs`:
+`import(project, file)` in `crates/core/src/import/mod.rs`:
 
 1. `parse_document`: reads the file as JSON, or YAML by extension (or when
    JSON fails).
@@ -28,7 +28,7 @@ Your parser only does step 3. It doesn't touch the disk.
 
 ## 1. Add the format
 
-In `core/src/import/mod.rs`:
+In `crates/core/src/import/mod.rs`:
 
 ```rust
 mod insomnia;
@@ -65,7 +65,7 @@ ImportFormat::Insomnia => insomnia::parse(&document),
 
 ## 2. Write the parser
 
-Create `core/src/import/insomnia.rs`:
+Create `crates/core/src/import/insomnia.rs`:
 
 ```rust
 //! Insomnia v4 exports.
@@ -115,7 +115,7 @@ small sample document to a temp dir, run `import`, and check the
 Postman / OpenAPI files still detect as before).
 
 To check imported files against the OpenCollection schema, import a sample
-into a temp project in `core/tests/opencollection.rs` and run its
+into a temp project in `crates/core/tests/opencollection.rs` and run its
 `assert_valid` over the result, as `everything_cactus_writes_is_valid` does
 for files the app writes.
 
@@ -123,10 +123,10 @@ for files the app writes.
 
 The file picker's filter and the sidebar button name the formats:
 
-- `IMPORT_FILTERS` in `ui/src/actions/project.ts` (add extensions if the new
+- `IMPORT_FILTERS` in `apps/desktop/ui/src/actions/project.ts` (add extensions if the new
   format uses others).
-- The import button's label in `ui/src/features/sidebar/Sidebar.tsx`.
-- The guide text in `ui/src/features/settings/guide/pages.tsx`.
+- The import button's label in `apps/desktop/ui/src/features/sidebar/Sidebar.tsx`.
+- The guide text in `apps/desktop/ui/src/features/settings/guide/pages.tsx`.
 
 `ImportFormat` is in the generated bindings, so regenerate them
 (`cargo test -p cactus`) after step 1.
@@ -135,7 +135,7 @@ The file picker's filter and the sidebar button name the formats:
 
 - [ ] `ImportFormat` variant and `as_str`
 - [ ] detection in `detect_format`, dispatch in `import`
-- [ ] `core/src/import/<format>.rs` with `pub(super) fn parse`
+- [ ] `crates/core/src/import/<format>.rs` with `pub(super) fn parse`
 - [ ] tests for detection and parsing
 - [ ] `cargo test -p cactus` to regenerate bindings
 - [ ] UI labels and file filter

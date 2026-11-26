@@ -2,7 +2,7 @@
 
 The desktop UI talks to Rust through Tauri commands (UI → backend, request and
 response) and events (backend → UI, pushed). Both are typed end to end:
-tauri-specta generates `ui/src/api/bindings.ts` from the Rust signatures.
+tauri-specta generates `apps/desktop/ui/src/api/bindings.ts` from the Rust signatures.
 
 The path a new command takes:
 
@@ -15,7 +15,7 @@ This guide adds a `delete_folder` command, then an event.
 ## 1. Write the behaviour in core
 
 All logic goes in `cactus-core`, so the CLI (and tests) can use it too. Put it
-in the module that owns the data, here `core/src/scenario/store.rs`, next to
+in the module that owns the data, here `crates/core/src/scenario/store.rs`, next to
 `create_folder`:
 
 ```rust
@@ -35,16 +35,16 @@ Rules of thumb:
 - **Take paths inside the project as `ProjectPath`** (or parse a string into
   one). It is validated so it can never point outside the project.
 - **Return `cactus_core::Result`.** If no existing `Error` variant fits, add one
-  to `core/src/error.rs`. Its `#[error("…")]` message is what the user sees,
+  to `crates/core/src/error.rs`. Its `#[error("…")]` message is what the user sees,
   so keep it short and plain.
-- **Paths of files on disk come from `core/src/layout.rs`**, never hand-built.
+- **Paths of files on disk come from `crates/core/src/layout.rs`**, never hand-built.
 - **Re-export** from the module's `mod.rs` if the store function isn't already
   public through it.
 - Add a unit test beside the function (`tempfile::tempdir()` for a project).
 
 ## 2. Add the Tauri adapter
 
-In the matching file under `src-tauri/src/commands/`, here `scenario.rs`:
+In the matching file under `apps/desktop/src-tauri/src/commands/`, here `scenario.rs`:
 
 ```rust
 #[tauri::command(async)]
@@ -70,7 +70,7 @@ A new file under `commands/` also needs a `pub mod` line in `commands/mod.rs`.
 
 ## 3. Register it
 
-Add it to `collect_commands![…]` in `src-tauri/src/bindings.rs`:
+Add it to `collect_commands![…]` in `apps/desktop/src-tauri/src/bindings.rs`:
 
 ```rust
 scenario::create_folder,
@@ -84,21 +84,21 @@ scenario::list_folders,
 cargo test -p cactus
 ```
 
-`ui/src/api/bindings.ts` now has `commands.deleteFolder(project, dir)`
+`apps/desktop/ui/src/api/bindings.ts` now has `commands.deleteFolder(project, dir)`
 (camelCase). Commit the regenerated file; CI fails if it differs from what
 the Rust code produces.
 
-If the command returns a new type, add a short alias in `ui/src/api/client.ts`
+If the command returns a new type, add a short alias in `apps/desktop/ui/src/api/client.ts`
 (`export type Foo = Bindings.Foo_Serialize;`) so the rest of the UI doesn't
 import from `bindings.ts` directly.
 
 ## 5. Call it from an action
 
 Components never call the backend. Write (or extend) a function in
-`ui/src/actions/` that calls it, updates stores, and reports errors:
+`apps/desktop/ui/src/actions/` that calls it, updates stores, and reports errors:
 
 ```ts
-// ui/src/actions/scenario.ts
+// apps/desktop/ui/src/actions/scenario.ts
 export async function deleteFolder(dir: string): Promise<void> {
   const { project } = useProjectStore.getState();
   if (!project) return;
@@ -110,7 +110,7 @@ export async function deleteFolder(dir: string): Promise<void> {
 }
 ```
 
-Error helpers (`ui/src/lib/errors.ts`):
+Error helpers (`apps/desktop/ui/src/lib/errors.ts`):
 
 | Helper                    | Use for                                                                                             |
 | ------------------------- | --------------------------------------------------------------------------------------------------- |
@@ -141,7 +141,7 @@ watcher can't see (it ignores `.cactus/`).
 
 ### 1. Define it
 
-In `src-tauri/src/events.rs`:
+In `apps/desktop/src-tauri/src/events.rs`:
 
 ```rust
 /// A folder was deleted from outside the editor.
@@ -154,7 +154,7 @@ pub struct FolderDeleted {
 ### 2. Register it
 
 Add it to the `use crate::events::{…}` list and to `collect_events![…]` in
-`src-tauri/src/bindings.rs`.
+`apps/desktop/src-tauri/src/bindings.rs`.
 
 ### 3. Emit it
 
@@ -172,7 +172,7 @@ command.
 ### 4. Listen in the UI
 
 Regenerate bindings (`cargo test -p cactus`), then subscribe in
-`ui/src/hooks/useAppLifecycle.ts`, alongside the other listeners, and hand
+`apps/desktop/ui/src/hooks/useAppLifecycle.ts`, alongside the other listeners, and hand
 the payload to an action or store method:
 
 ```ts
@@ -188,8 +188,8 @@ returned `unlisten` when it finishes; see `actions/request.ts`.
 
 - [ ] core function, with a test, returning `cactus_core::Result`
 - [ ] new `Error` variant if needed, with a short message
-- [ ] adapter in `src-tauri/src/commands/<area>.rs`
+- [ ] adapter in `apps/desktop/src-tauri/src/commands/<area>.rs`
 - [ ] entry in `collect_commands!` (and `collect_events!` for events)
 - [ ] `cargo test -p cactus`, commit `bindings.ts`
 - [ ] type alias in `api/client.ts` for new types
-- [ ] action in `ui/src/actions/`, called from a component
+- [ ] action in `apps/desktop/ui/src/actions/`, called from a component

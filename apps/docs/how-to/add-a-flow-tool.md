@@ -2,8 +2,8 @@
 
 A flow tool is a flow step that isn't a request, written as `- tool: <id>` in
 `critters/<critter>/flows/<flow>.yml`. The existing tools are in
-`core/src/tools/` (Rust: what it does) and
-`ui/src/features/critters/flows/tools/` (TypeScript: how the editor shows it).
+`crates/core/src/tools/` (Rust: what it does) and
+`apps/desktop/ui/src/features/critters/flows/tools/` (TypeScript: how the editor shows it).
 
 This guide adds a `teams` tool that posts a message to a Microsoft Teams
 incoming webhook:
@@ -21,7 +21,7 @@ steps:
 
 ## 1. Write the tool in core
 
-Create `core/src/tools/teams.rs`:
+Create `crates/core/src/tools/teams.rs`:
 
 ```rust
 //! `- tool: teams`: post a message to a Microsoft Teams incoming webhook.
@@ -113,7 +113,7 @@ them.
 
 ## 2. Register it
 
-In `core/src/tools/mod.rs`, add the module and list it in `tools!`:
+In `crates/core/src/tools/mod.rs`, add the module and list it in `tools!`:
 
 ```rust
 mod teams;
@@ -137,13 +137,13 @@ backend needs to change: they all run tools through `ToolStep::run`.
 cargo test -p cactus
 ```
 
-`ui/src/api/bindings.ts` now has a `{ tool: "teams"; webhook?: string; text?: string }`
-variant of `ToolStep`. Until the UI has an editor for it, `npm run typecheck`
+`apps/desktop/ui/src/api/bindings.ts` now has a `{ tool: "teams"; webhook?: string; text?: string }`
+variant of `ToolStep`. Until the UI has an editor for it, `npm run typecheck -w cactus-ui`
 fails in `tools/index.ts`. That is deliberate.
 
 ## 4. Write the editor
 
-Create `ui/src/features/critters/flows/tools/teams.tsx`:
+Create `apps/desktop/ui/src/features/critters/flows/tools/teams.tsx`:
 
 ```tsx
 import { MessageSquare } from "lucide-react";
@@ -187,7 +187,7 @@ constant with a comment naming the Rust one.
 
 ## 5. Add it to the registry
 
-In `ui/src/features/critters/flows/tools/index.ts`, import it and add it to
+In `apps/desktop/ui/src/features/critters/flows/tools/index.ts`, import it and add it to
 `TOOLS`. The order there is the order of the palette.
 
 ```ts
@@ -204,7 +204,7 @@ export const TOOLS = {
 ## 6. Test
 
 - **Rust:** `each_tool_reads_as_its_id` already covers reading and writing.
-  Test `run` end to end in `core/src/runner/tests.rs`, which runs real flows
+  Test `run` end to end in `crates/core/src/runner/tests.rs`, which runs real flows
   in a temp project: `tool("tool: teams\n…")` builds a step, `serve(|request| …)`
   stands up a local HTTP server, and `run_flow(…, &Headless, …)` runs it.
   `webhook_and_slack_post_and_fail_on_errors` is the model to copy. Pure
@@ -212,15 +212,15 @@ export const TOOLS = {
   and `pick.rs` do.
 - **UI:** `tools.test.ts` checks every `create()` is written the way the backend
   writes it. Add a `toolDataflow({ tool: "teams", … })` case for its problems.
-- Run the full [checks](../../README.md#checks), then try it in the app: open a
+- Run the full [checks](../../../README.md#checks), then try it in the app: open a
   flow, drag the tool in from the palette, run it, and check the step card
   and the YAML tab.
 
 ## Checklist
 
-- [ ] `core/src/tools/<id>.rs`: struct + `impl Tool`
-- [ ] `core/src/tools/mod.rs`: `mod <id>;` and an entry in `tools!`
+- [ ] `crates/core/src/tools/<id>.rs`: struct + `impl Tool`
+- [ ] `crates/core/src/tools/mod.rs`: `mod <id>;` and an entry in `tools!`
 - [ ] `cargo test -p cactus` to regenerate bindings
-- [ ] `ui/src/features/critters/flows/tools/<id>.tsx` with `defineTool`
-- [ ] `ui/src/features/critters/flows/tools/index.ts`: entry in `TOOLS`
+- [ ] `apps/desktop/ui/src/features/critters/flows/tools/<id>.tsx` with `defineTool`
+- [ ] `apps/desktop/ui/src/features/critters/flows/tools/index.ts`: entry in `TOOLS`
 - [ ] Tests on both sides

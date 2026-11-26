@@ -4,7 +4,7 @@ import { test } from "node:test";
 import { skipReason, type KofiPayment } from "./index.ts";
 import { issue } from "./license.ts";
 
-test("keys match the app's (core/src/license.rs, keys_match_the_websites)", async () => {
+test("keys match the app's (crates/core/src/license.rs, keys_match_the_websites)", async () => {
   const key = await issue({ id: "test", name: "Ada", email: "ada@example.com" }, "07".repeat(32));
   assert.equal(
     key,

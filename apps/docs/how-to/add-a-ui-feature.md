@@ -1,6 +1,6 @@
 # Add a UI feature
 
-The front end (`ui/src`) is React 19, TypeScript, Tailwind 4, shadcn/Radix
+The front end (`apps/desktop/ui/src`) is React 19, TypeScript, Tailwind 4, shadcn/Radix
 components and Zustand stores. Data flows one way:
 
 ```
@@ -8,7 +8,7 @@ component  →  action  →  backend  →  store  →  component
 ```
 
 The folder rules (what may import what) are in the UI section of
-[ARCHITECTURE.md](../../ARCHITECTURE.md#ui-uisrc). In short:
+[ARCHITECTURE.md](../../../ARCHITECTURE.md#ui-appsdesktopuisrc). In short:
 
 | Put it in…    | If it is…                                                                      |
 | ------------- | ------------------------------------------------------------------------------ |
@@ -19,13 +19,13 @@ The folder rules (what may import what) are in the UI section of
 | `features/`   | A screen or part of one: reads stores, calls actions.                          |
 | `hooks/`      | App-wide lifecycle (events, focus) and keyboard handling.                      |
 
-Run the UI checks from `ui/`:
+Run the UI checks from the repository root:
 
 ```sh
-npm run typecheck && npm run lint && npm run format:check && npm test
+npm run typecheck -w cactus-ui && npm run lint -w cactus-ui && npm run format:check -w cactus-ui && npm test -w cactus-ui
 ```
 
-`npm run dev` serves the UI in a plain browser at `localhost:5173`, which is
+`npm run dev -w cactus-ui` serves the UI in a plain browser at `localhost:5173`, which is
 quick for layout work, but backend calls only work inside the Tauri app.
 
 ## Recipe: a new piece of state and a workflow

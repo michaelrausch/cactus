@@ -15,15 +15,15 @@ species: gila-monster
 
 | Half | Language | Decides |
 | --- | --- | --- |
-| `core/src/critter/model.rs` | Rust | Which names a `critter.yml` may contain |
-| `ui/src/components/critters/species.ts` | TypeScript | The name, colour and pixel art |
+| `crates/core/src/critter/model.rs` | Rust | Which names a `critter.yml` may contain |
+| `apps/desktop/ui/src/components/critters/species.ts` | TypeScript | The name, colour and pixel art |
 
 You'll touch these files:
 
 <FileTree>
-- core/src/critter/
+- crates/core/src/critter/
   - **model.rs** add the variant
-- ui/src/components/critters/
+- apps/desktop/ui/src/components/critters/
   - **species.ts** draw it
   - **species.test.ts** add it to the expected list
 </FileTree>
@@ -34,9 +34,9 @@ You'll touch these files:
 
 1. ### Add the variant in Rust
 
-   In `core/src/critter/model.rs`, a species appears in **three** places: the public `Species` enum, a private `Known` enum inside its `Deserialize` impl, and the `match` that maps one to the other. Add `GilaMonster` to all three.
+   In `crates/core/src/critter/model.rs`, a species appears in **three** places: the public `Species` enum, a private `Known` enum inside its `Deserialize` impl, and the `match` that maps one to the other. Add `GilaMonster` to all three.
 
-   ```rust title="core/src/critter/model.rs" ins={6,17,24}
+   ```rust title="crates/core/src/critter/model.rs" ins={6,17,24}
    pub enum Species {
        #[default]
        Roadrunner,
@@ -76,15 +76,15 @@ You'll touch these files:
    cargo test -p cactus
    ```
 
-   The `Species` type in `ui/src/api/bindings.ts` now includes `"gila-monster"`.
+   The `Species` type in `apps/desktop/ui/src/api/bindings.ts` now includes `"gila-monster"`.
 
-   **Check:** `cd ui && npm run typecheck` **fails** in `species.ts`. `SPECIES` is a `Record<Species, SpeciesInfo>`, so it needs an entry for every species and doesn't have one for the new one yet.
+   **Check:** `npm run typecheck -w cactus-ui` **fails** in `species.ts`. `SPECIES` is a `Record<Species, SpeciesInfo>`, so it needs an entry for every species and doesn't have one for the new one yet.
 
 3. ### Draw the sprite
 
-   Add an entry to `SPECIES` in `ui/src/components/critters/species.ts`:
+   Add an entry to `SPECIES` in `apps/desktop/ui/src/components/critters/species.ts`:
 
-   ```ts title="ui/src/components/critters/species.ts"
+   ```ts title="apps/desktop/ui/src/components/critters/species.ts"
    "gila-monster": {
      name: "Gila Monster",
      description: "Slow, but never lets go of a session.",
@@ -134,14 +134,14 @@ You'll touch these files:
 
    Only `body` and `stride` are drawn by hand. The app derives blinking (`e` → `lid`) and the pass/fail eyes (`e` → `w` / `x`).
 
-   **Check:** `npm run typecheck` passes again.
+   **Check:** `npm run typecheck -w cactus-ui` passes again.
 
 4. ### Update the test
 
-   In `ui/src/components/critters/species.test.ts`, the test `covers every species the backend knows` has a list of every species. Add `"gila-monster"` to it.
+   In `apps/desktop/ui/src/components/critters/species.test.ts`, the test `covers every species the backend knows` has a list of every species. Add `"gila-monster"` to it.
 
    ```sh
-   cd ui && npm test -- species
+   npm test -w cactus-ui -- species
    ```
 
    The other tests in the file then check your drawing:

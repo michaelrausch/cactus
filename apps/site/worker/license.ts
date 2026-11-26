@@ -1,5 +1,5 @@
 /**
- * cactus pro license keys, as `core/src/license.rs` checks them:
+ * cactus pro license keys, as `crates/core/src/license.rs` checks them:
  * `CACTUS-PRO-` and the base32 (RFC 4648, no padding) of the licensee as
  * JSON followed by an Ed25519 signature over that JSON.
  */

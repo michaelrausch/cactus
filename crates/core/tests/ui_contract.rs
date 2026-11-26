@@ -29,7 +29,7 @@ fn the_set_tool_offers_every_generator_core_has() {
 #[test]
 fn the_ui_names_the_files_core_uses() {
     for expected in [layout::COLLECTION_FILE.to_string(), format!("`{}/${{", layout::ENVIRONMENTS_DIR)] {
-        assert!(UI_ENV_FILES.contains(&expected), "ui/src/domain/envFiles.ts doesn't mention {expected}");
+        assert!(UI_ENV_FILES.contains(&expected), "apps/desktop/ui/src/domain/envFiles.ts doesn't mention {expected}");
     }
     assert!(UI_PATHS.contains(&format!("REQUEST_EXTENSION = \"{}\"", layout::REQUEST_EXTENSION)));
 }

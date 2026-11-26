@@ -120,31 +120,31 @@ listed below that appears in it.
 
 | Assumption | Where | Phase |
 | --- | --- | --- |
-| Precedence is collection → env → folders → request vars → secrets → captured, in `resolve_for_request(project, named, inherited, request_variables)` | `core/src/env/layers.rs` | 1 |
-| `EnvFile` is a `kind`/`name` tagged enum with `Base`, `Named`, `Secrets`, `Captured`; the UI edits layers through it | `core/src/env/layers.rs`, `ui/src/features/env/EnvLayerEditor.tsx`, `ui/src/domain/envFiles.ts` | 1, 7 |
-| `merge_captured` does an unlocked read-modify-write of `captured.json` | `core/src/env/capture.rs` | 1 |
-| `is_request_file` excludes `environments/` by prefix, and nothing else excludes `critters/` | `core/src/layout.rs`, `core/src/scenario/listing.rs` | 1 |
-| `collection::write` patches files in place and refuses edits that wouldn't read back as saved | `core/src/collection/file.rs` | 1 |
-| `WorkspaceState` holds only `env` | `core/src/state.rs` | 1 |
-| `RequestInfo` has no `tags` field yet | `core/src/scenario/model.rs` | 1 |
-| `Response` fields (`captured`, `checks`, `capture_failures`, `warnings`), all `#[serde(default)]`; history stores the whole `Response` | `core/src/http/response.rs`, `core/src/history.rs` | 1 |
-| Assertions and set-variable actions are evaluated from `scenario.runtime` by `evaluate`, and pass/fail is `scenario_passed` | `core/src/http/assertions.rs` | 2 |
-| `Subject::parse`/`select` handle `res.*` expressions and are `pub(crate)` | `core/src/http/expression.rs` | 2 |
-| `runner::run` loops over entries in listing order and `RunResult` has `rel_path`, `title`, `ok`, `response`, `error` | `core/src/runner.rs` | 2 |
-| `serde_yaml_ng` is the YAML parser, and its errors expose `location()` | `core/Cargo.toml` | 2 |
-| One cancellable operation at a time through `AppState::run_cancellable` | `src-tauri/src/state.rs` | 4 |
-| The watcher ignores `.cactus/` and, outside Windows, watches only directories that existed when the project opened | `src-tauri/src/watcher.rs` | 4 |
-| Commands are thin adapters registered in `bindings.rs`; bindings regenerate with `cargo test -p cactus` | `src-tauri/src/bindings.rs` | 4 |
-| `tokio` in `src-tauri` lacks the `time` feature; there's no notification plugin; `dragDropEnabled` isn't set | `src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json`, `src-tauri/capabilities/default.json` | 4 |
-| `send_request` takes `(project, path, scenario)` and uses the active env; `variable_names` exists | `src-tauri/src/commands/request.rs`, `src-tauri/src/commands/env.rs` | 4 |
-| The CLI has `run`, `send` and `import`, and `Outcome` sets the exit code | `cli/src/args.rs`, `cli/src/outcome.rs` | 4 |
-| The UI layering rules (component → action → backend → store; stores don't import each other) | `ARCHITECTURE.md`, `ui/.oxlintrc.json` | 5–11 |
-| `SHORTCUTS` has Ctrl-only entries and no `Ctrl+B` | `ui/src/app/shortcuts.ts` | 6 |
-| `ScenarioSwitcher` is the `Ctrl+P` palette | `ui/src/features/palette/ScenarioSwitcher.tsx` | 6 |
-| Theme ids (Phosphor, light themes) and the motion tokens `--dur-*`, `--ease-snappy` with the reduced-motion override | `ui/src/theme/themes.ts`, `ui/src/index.css` | 5 |
-| `settingsStore` persists only `themeId` | `ui/src/stores/settingsStore.ts` | 5 |
-| `fsSync` routes changed paths, and `isOwnRecentWrite` skips the app's own saves | `ui/src/actions/fsSync.ts`, `ui/src/actions/saving.ts` | 7, 9 |
-| `TemplateField`, `templateParts`, `useExpressionSuggester`, `KeyValueTable`, `JsonTree`, `DiffView`, `ConflictBanner`, `StatusCode` exist with the roles assumed here | `ui/src/components/`, `ui/src/domain/template.ts`, `ui/src/hooks/`, `ui/src/features/` | 7–11 |
+| Precedence is collection → env → folders → request vars → secrets → captured, in `resolve_for_request(project, named, inherited, request_variables)` | `crates/core/src/env/layers.rs` | 1 |
+| `EnvFile` is a `kind`/`name` tagged enum with `Base`, `Named`, `Secrets`, `Captured`; the UI edits layers through it | `crates/core/src/env/layers.rs`, `apps/desktop/ui/src/features/env/EnvLayerEditor.tsx`, `apps/desktop/ui/src/domain/envFiles.ts` | 1, 7 |
+| `merge_captured` does an unlocked read-modify-write of `captured.json` | `crates/core/src/env/capture.rs` | 1 |
+| `is_request_file` excludes `environments/` by prefix, and nothing else excludes `critters/` | `crates/core/src/layout.rs`, `crates/core/src/scenario/listing.rs` | 1 |
+| `collection::write` patches files in place and refuses edits that wouldn't read back as saved | `crates/core/src/collection/file.rs` | 1 |
+| `WorkspaceState` holds only `env` | `crates/core/src/state.rs` | 1 |
+| `RequestInfo` has no `tags` field yet | `crates/core/src/scenario/model.rs` | 1 |
+| `Response` fields (`captured`, `checks`, `capture_failures`, `warnings`), all `#[serde(default)]`; history stores the whole `Response` | `crates/core/src/http/response.rs`, `crates/core/src/history.rs` | 1 |
+| Assertions and set-variable actions are evaluated from `scenario.runtime` by `evaluate`, and pass/fail is `scenario_passed` | `crates/core/src/http/assertions.rs` | 2 |
+| `Subject::parse`/`select` handle `res.*` expressions and are `pub(crate)` | `crates/core/src/http/expression.rs` | 2 |
+| `runner::run` loops over entries in listing order and `RunResult` has `rel_path`, `title`, `ok`, `response`, `error` | `crates/core/src/runner.rs` | 2 |
+| `serde_yaml_ng` is the YAML parser, and its errors expose `location()` | `crates/core/Cargo.toml` | 2 |
+| One cancellable operation at a time through `AppState::run_cancellable` | `apps/desktop/src-tauri/src/state.rs` | 4 |
+| The watcher ignores `.cactus/` and, outside Windows, watches only directories that existed when the project opened | `apps/desktop/src-tauri/src/watcher.rs` | 4 |
+| Commands are thin adapters registered in `bindings.rs`; bindings regenerate with `cargo test -p cactus` | `apps/desktop/src-tauri/src/bindings.rs` | 4 |
+| `tokio` in `src-tauri` lacks the `time` feature; there's no notification plugin; `dragDropEnabled` isn't set | `apps/desktop/src-tauri/Cargo.toml`, `apps/desktop/src-tauri/tauri.conf.json`, `apps/desktop/src-tauri/capabilities/default.json` | 4 |
+| `send_request` takes `(project, path, scenario)` and uses the active env; `variable_names` exists | `apps/desktop/src-tauri/src/commands/request.rs`, `apps/desktop/src-tauri/src/commands/env.rs` | 4 |
+| The CLI has `run`, `send` and `import`, and `Outcome` sets the exit code | `crates/cli/src/args.rs`, `crates/cli/src/outcome.rs` | 4 |
+| The UI layering rules (component → action → backend → store; stores don't import each other) | `ARCHITECTURE.md`, `apps/desktop/ui/.oxlintrc.json` | 5–11 |
+| `SHORTCUTS` has Ctrl-only entries and no `Ctrl+B` | `apps/desktop/ui/src/app/shortcuts.ts` | 6 |
+| `ScenarioSwitcher` is the `Ctrl+P` palette | `apps/desktop/ui/src/features/palette/ScenarioSwitcher.tsx` | 6 |
+| Theme ids (Phosphor, light themes) and the motion tokens `--dur-*`, `--ease-snappy` with the reduced-motion override | `apps/desktop/ui/src/theme/themes.ts`, `apps/desktop/ui/src/index.css` | 5 |
+| `settingsStore` persists only `themeId` | `apps/desktop/ui/src/stores/settingsStore.ts` | 5 |
+| `fsSync` routes changed paths, and `isOwnRecentWrite` skips the app's own saves | `apps/desktop/ui/src/actions/fsSync.ts`, `apps/desktop/ui/src/actions/saving.ts` | 7, 9 |
+| `TemplateField`, `templateParts`, `useExpressionSuggester`, `KeyValueTable`, `JsonTree`, `DiffView`, `ConflictBanner`, `StatusCode` exist with the roles assumed here | `apps/desktop/ui/src/components/`, `apps/desktop/ui/src/domain/template.ts`, `apps/desktop/ui/src/hooks/`, `apps/desktop/ui/src/features/` | 7–11 |
 
 If an assumption no longer holds:
 
@@ -274,7 +274,7 @@ variables and explaining where they come from both fold over the same list,
 so they can't disagree:
 
 ```rust
-// core/src/env/layers.rs
+// crates/core/src/env/layers.rs
 pub struct Scope {
     pub env: Option<String>,      // resolved env name; None = no env
     pub critter: Option<String>,  // None = no critter
@@ -329,12 +329,12 @@ a critter's variables and secrets unchanged. Saving `CritterContext` through
 `save` replaces values and stamps `from: "edited"`. Captures use
 `merge_context` (§4.3) instead.
 
-## 4. Core (`core/`)
+## 4. Core (`crates/core/`)
 
 ### 4.1 New module `critter/`
 
 ```
-core/src/critter/
+crates/core/src/critter/
   mod.rs      re-exports
   model.rs    Critter, Species, Flow, FlowStep, Trigger, Interval, AlertOn, ContextEntry
   store.rs    list/create/rename/duplicate/delete, flows CRUD, raw text load/save, parse
@@ -580,7 +580,7 @@ New `Error` variants:
 - `FlowNotFound { critter, flow }`
 - `InvalidInterval(String)`: "every: use e.g. 30s, 5m or 1h; minimum 30s".
 
-## 5. Desktop backend (`src-tauri/`)
+## 5. Desktop backend (`apps/desktop/src-tauri/`)
 
 ### 5.1 Commands (`commands/critter.rs`, `commands/flow.rs`)
 
@@ -616,7 +616,7 @@ New events in `events.rs`, registered in `bindings.rs`:
   wrote a critter's context. `.cactus/` writes are filtered out by the
   watcher's `is_own_write`, so the UI needs this to stay current.
 
-### 5.2 Scheduler (`src-tauri/src/scheduler.rs`)
+### 5.2 Scheduler (`apps/desktop/src-tauri/src/scheduler.rs`)
 
 ```rust
 pub struct Scheduler {
@@ -678,7 +678,7 @@ Otherwise Tauri takes over drag events for OS file drops and HTML5 drag and
 drop doesn't work in the webview on Windows. Import uses a file dialog, so
 nothing is lost.
 
-## 6. CLI (`cli/`)
+## 6. CLI (`crates/cli/`)
 
 - `--as <critter>` on `run` and `send`, which sets `Scope.critter`.
 - `cactus-cli flow <project> <critter> <flow> [-e env] [--json] [--junit FILE]`.
@@ -690,7 +690,7 @@ nothing is lost.
 - No scheduler in the CLI. For headless schedules, run `flow --all` from cron
   or CI.
 
-## 7. UI (`ui/src/`)
+## 7. UI (`apps/desktop/ui/src/`)
 
 ### 7.1 Principles
 
