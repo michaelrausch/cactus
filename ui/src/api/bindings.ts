@@ -192,6 +192,7 @@ export const events = {
 	flowNotified: makeEvent<FlowNotified, FlowNotified>("flow-notified"),
 	flowProgress: makeEvent<FlowProgress_Serialize, FlowProgress_Deserialize>("flow-progress"),
 	flowStepStarted: makeEvent<FlowStepStarted_Serialize, FlowStepStarted_Deserialize>("flow-step-started"),
+	flowToolProgress: makeEvent<FlowToolProgress, FlowToolProgress>("flow-tool-progress"),
 	fsChanged: makeEvent<FsChanged, FsChanged>("fs-changed"),
 	historyChanged: makeEvent<HistoryChanged, HistoryChanged>("history-changed"),
 	matrixProgress: makeEvent<MatrixProgress_Serialize, MatrixProgress_Deserialize>("matrix-progress"),
@@ -230,19 +231,25 @@ export type AlertEvent_Deserialize =
 /**  The flow started failing. `step` is `None` when it couldn't start. */
 { kind: "failing"; step?: number | null; request?: string | null; reason: string } | { kind: "recovered" } | 
 /**  A watched value differs from the previous run's. */
-{ kind: "changed"; step: number; expression: string; before?: string | null; after?: string | null };
+{ kind: "changed"; step: number; expression: string; before?: string | null; after?: string | null } | 
+/**  A tool found things the previous run's same step didn't. */
+{ kind: "newFindings"; step: number; request: string; findings: FindingKey_Deserialize[] };
 
 export type AlertEvent_Serialize = 
 /**  The flow started failing. `step` is `None` when it couldn't start. */
 { kind: "failing"; step: number | null; request: string | null; reason: string } | { kind: "recovered" } | 
 /**  A watched value differs from the previous run's. */
-{ kind: "changed"; step: number; expression: string; before: string | null; after: string | null };
+{ kind: "changed"; step: number; expression: string; before: string | null; after: string | null } | 
+/**  A tool found things the previous run's same step didn't. */
+{ kind: "newFindings"; step: number; request: string; findings: FindingKey_Serialize[] };
 
 export type AlertOn = 
 /**  Starting to fail, and recovering. */
 "failure" | 
 /**  A watched value differing from the previous run. */
-"change";
+"change" | 
+/**  A security tool finding something the previous run didn't. */
+"findings";
 
 /**  Which changes of state alert. */
 export type AlertRule = AlertRule_Serialize | AlertRule_Deserialize;
@@ -696,6 +703,63 @@ export type FileVariant_Serialize = {
 	selected: boolean,
 };
 
+/**  One thing a tool found. */
+export type Finding = Finding_Serialize | Finding_Deserialize;
+
+/**
+ *  A finding without its text, as the run log keeps it. `rule` and
+ *  `location` identify it between runs.
+ */
+export type FindingKey = FindingKey_Serialize | FindingKey_Deserialize;
+
+/**
+ *  A finding without its text, as the run log keeps it. `rule` and
+ *  `location` identify it between runs.
+ */
+export type FindingKey_Deserialize = {
+	severity: Severity,
+	rule: string,
+	location?: string,
+};
+
+/**
+ *  A finding without its text, as the run log keeps it. `rule` and
+ *  `location` identify it between runs.
+ */
+export type FindingKey_Serialize = {
+	severity: Severity,
+	rule: string,
+	location?: string,
+};
+
+/**  One thing a tool found. */
+export type Finding_Deserialize = {
+	severity?: Severity,
+	/**  What it is: "Missing Strict-Transport-Security". */
+	title?: string,
+	/**  A stable id, e.g. `headers.hsts`, so runs can be compared. */
+	rule?: string,
+	/**  Where: a URL, header, parameter or JSON path. */
+	location?: string,
+	detail?: string,
+	/**  What was sent or seen, e.g. the payload and a response snippet. */
+	evidence?: string,
+};
+
+/**  One thing a tool found. */
+export type Finding_Serialize = {
+	severity: Severity,
+	/**  What it is: "Missing Strict-Transport-Security". */
+	title: string,
+	/**  A stable id, e.g. `headers.hsts`, so runs can be compared. */
+	rule?: string,
+	/**  Where: a URL, header, parameter or JSON path. */
+	location?: string,
+	detail?: string,
+	/**  What was sent or seen, e.g. the payload and a response snippet. */
+	evidence?: string,
+};
+
 /**  `critters/<id>/flows/<flow>.yml`: requests run in order as the critter. */
 export type Flow = Flow_Serialize | Flow_Deserialize;
 
@@ -966,6 +1030,15 @@ export type FlowSummary_Serialize = {
 	error: string | null,
 };
 
+/**  How far a long-running tool step of an interactive run has got. */
+export type FlowToolProgress = {
+	critter: string,
+	flow: string,
+	index: number,
+	done: number,
+	total: number,
+};
+
 /**  `critters/<id>/flows/<flow>.yml`: requests run in order as the critter. */
 export type Flow_Deserialize = {
 	name?: LenientString,
@@ -1185,6 +1258,31 @@ export type McpStatus_Serialize = {
 	running: boolean,
 	/**  Why it isn't running though enabled, e.g. the port is taken. */
 	error: string | null,
+};
+
+/**  One number a tool measured. */
+export type Metric = Metric_Serialize | Metric_Deserialize;
+
+/**  One number a tool measured. */
+export type Metric_Deserialize = {
+	/**  What checks name it by: `p95`, `rps`, `errors`. */
+	name?: string,
+	/**  How it's shown: "P95". */
+	label?: string,
+	value?: number | null,
+	/**  `ms`, `%`, `/s`, or empty for a count. */
+	unit?: string,
+};
+
+/**  One number a tool measured. */
+export type Metric_Serialize = {
+	/**  What checks name it by: `p95`, `rps`, `errors`. */
+	name: string,
+	/**  How it's shown: "P95". */
+	label: string,
+	value: number | null,
+	/**  `ms`, `%`, `/s`, or empty for a count. */
+	unit?: string,
 };
 
 /**  A scheduled flow started failing, recovered, or a watched value changed. */
@@ -1911,6 +2009,9 @@ export type Settings_Serialize = {
 	timeout?: Timeout,
 };
 
+/**  How bad a finding is. Ordered, so `Critical > High`. */
+export type Severity = "info" | "low" | "medium" | "high" | "critical";
+
 export type Slack = Slack_Serialize | Slack_Deserialize;
 
 export type Slack_Deserialize = {
@@ -1941,6 +2042,13 @@ export type StepRecord_Deserialize = {
 	failedChecks: Check[],
 	error?: string | null,
 	watched: { [key in string]: string | null },
+	/**
+	 *  What a security tool found; `None` when the step didn't scan, so
+	 *  an empty list means "found nothing".
+	 */
+	findings?: FindingKey_Deserialize[] | null,
+	/**  A tool's metrics, by name. */
+	metrics?: { [key in string]: number | null },
 };
 
 export type StepRecord_Serialize = {
@@ -1951,6 +2059,13 @@ export type StepRecord_Serialize = {
 	failedChecks: Check[],
 	error: string | null,
 	watched: { [key in string]: string | null },
+	/**
+	 *  What a security tool found; `None` when the step didn't scan, so
+	 *  an empty list means "found nothing".
+	 */
+	findings?: FindingKey_Serialize[],
+	/**  A tool's metrics, by name. */
+	metrics?: { [key in string]: number | null },
 };
 
 /**  One step of a flow: a request, or a tool (`- tool: prompt`). */
@@ -1996,6 +2111,10 @@ export type ToolOutput_Deserialize = {
 	status?: number | null,
 	/**  The variables it set for later steps; secret ones as `••••`. */
 	values?: { [key in string]: string },
+	/**  What a security tool found, most severe first. */
+	findings?: Finding_Deserialize[],
+	/**  Numbers a tool measured, e.g. a load test's latencies. */
+	metrics?: Metric_Deserialize[],
 };
 
 /**  What a tool step did, for the step card, the run panel and the CLI. */
@@ -2005,6 +2124,10 @@ export type ToolOutput_Serialize = {
 	status?: number,
 	/**  The variables it set for later steps; secret ones as `••••`. */
 	values?: { [key in string]: string },
+	/**  What a security tool found, most severe first. */
+	findings?: Finding_Serialize[],
+	/**  Numbers a tool measured, e.g. a load test's latencies. */
+	metrics?: Metric_Serialize[],
 };
 
 /**  A tool step as written in the flow file, tagged by `tool`. */

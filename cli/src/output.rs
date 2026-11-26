@@ -3,7 +3,7 @@
 use cactus_core::http::Response;
 use cactus_core::import::ImportSummary;
 use cactus_core::runner::{FlowRun, FlowStepResult, RunResult};
-use cactus_core::tools::ToolOutput;
+use cactus_core::tools::{Severity, ToolOutput};
 
 const RESET: &str = "\x1b[0m";
 const GREEN: &str = "\x1b[32m";
@@ -33,16 +33,27 @@ pub fn format_step_result(step: &FlowStepResult) -> String {
         return format!("{} {}", paint(DIM, SKIP_MARK), paint(DIM, &format!("  -        -  {location}  skipped")));
     }
     match &step.output {
-        Some(output) if step.ok => format_tool_output(&location, output),
-        _ => format_outcome(step.ok, &location, step.response.as_ref(), step.error.as_deref()),
+        Some(output) => format_tool_output(&location, output, step.error.as_deref()),
+        None => format_outcome(step.ok, &location, step.response.as_ref(), step.error.as_deref()),
     }
 }
 
-/// A tool step that ran: its status if it sent something, then what it said and set.
-fn format_tool_output(location: &str, output: &ToolOutput) -> String {
+/// A tool step that ran: its status if it sent something, why it failed,
+/// then what it found, measured, said and set.
+fn format_tool_output(location: &str, output: &ToolOutput, error: Option<&str>) -> String {
     let status = output.status.map_or_else(|| "-".to_string(), |status| status.to_string());
+    let mark = if error.is_some() { paint(RED, FAIL_MARK) } else { paint(GREEN, PASS_MARK) };
     // A dash holds the time column, as for a step with no response.
-    let mut lines = vec![format!("{} {status:>3}        -  {location}", paint(GREEN, PASS_MARK))];
+    let mut lines = vec![format!("{mark} {status:>3}        -  {location}")];
+    lines.extend(error.map(|error| format!("{DETAIL_INDENT}{}", paint(RED, error))));
+    lines.extend(output.findings.iter().map(|finding| {
+        let color = if finding.severity >= Severity::High { RED } else { YELLOW };
+        format!("{DETAIL_INDENT}{}", paint(color, &finding.line()))
+    }));
+    if !output.metrics.is_empty() {
+        let metrics: Vec<String> = output.metrics.iter().map(|m| format!("{} {}", m.label, m.shown())).collect();
+        lines.push(format!("{DETAIL_INDENT}{}", metrics.join("  ")));
+    }
     lines.extend(output.text.iter().flat_map(|text| text.lines()).map(|line| format!("{DETAIL_INDENT}{line}")));
     lines.extend(
         output
@@ -126,6 +137,7 @@ pub fn format_import_summary(summary: &ImportSummary) -> String {
 #[cfg(test)]
 mod tests {
     use cactus_core::ProjectPath;
+    use cactus_core::tools::{Finding, Metric};
 
     use super::*;
 
@@ -141,6 +153,33 @@ mod tests {
         assert_eq!(
             format_run_result(&result),
             "\x1b[31m✗\x1b[0m   -        -  A  \x1b[2ma.yml\x1b[0m\n      \x1b[31mboom\x1b[0m"
+        );
+    }
+
+    #[test]
+    fn a_failed_scan_shows_its_reason_findings_and_metrics() {
+        let finding = |severity, rule: &str| Finding {
+            severity,
+            title: "T".into(),
+            rule: rule.into(),
+            location: "/".into(),
+            ..Finding::default()
+        };
+        let output = ToolOutput {
+            findings: vec![finding(Severity::High, "a"), finding(Severity::Low, "b")],
+            metrics: vec![Metric::new("p95", "P95", 412.0, "ms"), Metric::new("errors", "Errors", 2.5, "%")],
+            ..ToolOutput::default()
+        };
+        assert_eq!(
+            format_tool_output("1. Headers", &output, Some("1 high finding")),
+            [
+                "\x1b[31m✗\x1b[0m   -        -  1. Headers",
+                "      \x1b[31m1 high finding\x1b[0m",
+                "      \x1b[31mhigh  a  /  T\x1b[0m",
+                "      \x1b[33mlow  b  /  T\x1b[0m",
+                "      P95 412ms  Errors 2.5%",
+            ]
+            .join("\n")
         );
     }
 }

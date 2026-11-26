@@ -4,6 +4,7 @@
 use std::fmt::Write;
 
 use cactus_core::runner::{FlowRun, FlowStepResult};
+use cactus_core::tools::Finding;
 
 /// `runs` as `(critter, flow, run)`, in the order they ran.
 // The `let _ = write!` calls below write to a `String`, which can't fail.
@@ -57,10 +58,11 @@ fn write_case(xml: &mut String, critter: &str, flow: &str, step: &FlowStepResult
     }
 }
 
-/// Every failed check, or the error, one per line.
+/// Every failed check, or the error, one per line; then a tool's findings.
 fn failure_details(step: &FlowStepResult) -> String {
     if let Some(error) = &step.error {
-        return error.clone();
+        let findings = step.output.iter().flat_map(|output| &output.findings).map(Finding::line);
+        return std::iter::once(error.clone()).chain(findings).collect::<Vec<_>>().join("\n");
     }
     let Some(response) = &step.response else { return String::new() };
     let failed: Vec<String> =
@@ -98,6 +100,7 @@ mod tests {
     use std::collections::BTreeMap;
 
     use cactus_core::http::{Check, Response};
+    use cactus_core::tools::{Severity, ToolOutput};
 
     use super::*;
 
@@ -164,5 +167,19 @@ mod tests {
 "#
         );
         assert_eq!(escape("a\u{1}b'"), "ab&apos;");
+    }
+
+    #[test]
+    fn failed_scans_list_their_findings() {
+        let mut scan = step(0, "", false, false, None);
+        scan.error = Some("1 high finding".into());
+        let hsts = Finding {
+            severity: Severity::High,
+            title: "Missing HSTS".into(),
+            rule: "headers.hsts".into(),
+            ..Finding::default()
+        };
+        scan.output = Some(ToolOutput { findings: vec![hsts], ..ToolOutput::default() });
+        assert_eq!(failure_details(&scan), "1 high finding\nhigh  headers.hsts  Missing HSTS");
     }
 }

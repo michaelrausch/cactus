@@ -32,6 +32,16 @@ pub struct FlowProgress {
     pub step: FlowStepResult,
 }
 
+/// How far a long-running tool step of an interactive run has got.
+#[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
+pub struct FlowToolProgress {
+    pub critter: String,
+    pub flow: String,
+    pub index: u32,
+    pub done: u32,
+    pub total: u32,
+}
+
 /// A flow's tool step asks the person running it something; answer with
 /// `answer_flow_ask(id, …)`.
 #[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]

@@ -13,13 +13,14 @@ use crate::env::ensure_critter_workspace;
 use crate::http::Check;
 use crate::runner::{FlowRun, FlowStepResult};
 use crate::storage::{ensure_parent_dir, read_json_lenient, write_json};
+use crate::tools::{Finding, FindingKey, ToolStep};
 use crate::{Result, layout};
 
 /// How many runs a flow's log keeps.
 pub const MAX_RUN_RECORDS: usize = 50;
 
 /// One run, without bodies, so the log stays small.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct RunRecord {
@@ -36,7 +37,7 @@ pub struct RunRecord {
     pub error: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct StepRecord {
@@ -47,6 +48,13 @@ pub struct StepRecord {
     pub failed_checks: Vec<Check>,
     pub error: Option<String>,
     pub watched: BTreeMap<String, Option<String>>,
+    /// What a security tool found; `None` when the step didn't scan, so
+    /// an empty list means "found nothing".
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub findings: Option<Vec<FindingKey>>,
+    /// A tool's metrics, by name.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub metrics: BTreeMap<String, f64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -66,6 +74,12 @@ pub enum AlertEvent {
         expression: String,
         before: Option<String>,
         after: Option<String>,
+    },
+    /// A tool found things the previous run's same step didn't.
+    NewFindings {
+        step: u32,
+        request: String,
+        findings: Vec<FindingKey>,
     },
 }
 
@@ -112,7 +126,22 @@ fn step_record(step: &FlowStepResult) -> StepRecord {
         failed_checks: response.map_or_default(|r| r.checks.iter().filter(|c| !c.ok).cloned().collect()),
         error: step.error.clone(),
         watched: step.watched.clone(),
+        findings: step
+            .output
+            .as_ref()
+            .filter(|_| is_scan(step))
+            .map(|output| output.findings.iter().map(Finding::key).collect()),
+        metrics: step
+            .output
+            .as_ref()
+            .map_or_default(|output| output.metrics.iter().map(|metric| (metric.name.clone(), metric.value)).collect()),
     }
+}
+
+/// Whether a step is a tool that reports findings, so that finding
+/// nothing is recorded as an empty list rather than left out.
+fn is_scan(step: &FlowStepResult) -> bool {
+    step.tool.as_deref().is_some_and(ToolStep::scans)
 }
 
 /// The alerts `current` raises after `previous`. Only changes of state
@@ -150,7 +179,31 @@ pub fn compare(previous: Option<&RunRecord>, current: &RunRecord, rule: &AlertRu
             }
         }
     }
+    if rule.on.contains(&AlertOn::Findings) {
+        events.extend(new_findings(previous, current));
+    }
     events
+}
+
+/// Findings each step has that the previous run's same step didn't, where
+/// both runs got as far as scanning.
+fn new_findings(previous: &RunRecord, current: &RunRecord) -> Vec<AlertEvent> {
+    let steps = previous.steps.iter().zip(&current.steps).enumerate();
+    steps
+        .filter_map(|(index, (before, after))| {
+            if before.request != after.request {
+                return None;
+            }
+            let (Some(old), Some(new)) = (&before.findings, &after.findings) else { return None };
+            let fresh: Vec<FindingKey> =
+                new.iter().filter(|key| !old.iter().any(|seen| seen.same_as(key))).cloned().collect();
+            (!fresh.is_empty()).then(|| AlertEvent::NewFindings {
+                step: u32::try_from(index).unwrap_or(u32::MAX),
+                request: after.request.clone(),
+                findings: fresh,
+            })
+        })
+        .collect()
 }
 
 fn failing(run: &RunRecord) -> AlertEvent {
@@ -199,6 +252,7 @@ pub fn load_log(project: &Path, critter: &str, flow: &str) -> Vec<RunRecord> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tools::Severity;
 
     fn step(ok: bool, watched: &[(&str, Option<&str>)]) -> StepRecord {
         StepRecord {
@@ -209,7 +263,32 @@ mod tests {
             failed_checks: Vec::new(),
             error: None,
             watched: watched.iter().map(|(k, v)| ((*k).to_string(), v.map(str::to_string))).collect(),
+            findings: None,
+            metrics: BTreeMap::new(),
         }
+    }
+
+    fn scan(rules: Option<&[&str]>) -> RunRecord {
+        let mut scanned = step(true, &[]);
+        scanned.findings = rules.map(|rules| {
+            let key = |rule: &&str| FindingKey { severity: Severity::High, rule: (*rule).into(), location: "/".into() };
+            rules.iter().map(key).collect()
+        });
+        run(vec![scanned])
+    }
+
+    #[test]
+    fn alerts_on_findings_the_previous_scan_did_not_have() {
+        let findings = rule(&[AlertOn::Findings]);
+        assert_eq!(compare(None, &scan(Some(&["hsts"])), &findings), QUIET, "the first run is the baseline");
+        assert_eq!(compare(Some(&scan(Some(&["hsts"]))), &scan(Some(&["hsts"])), &findings), QUIET);
+        assert_eq!(compare(Some(&scan(Some(&["hsts"]))), &scan(Some(&[])), &findings), QUIET);
+        let events = compare(Some(&scan(Some(&["hsts"]))), &scan(Some(&["hsts", "csp"])), &findings);
+        assert!(
+            matches!(&events[..], [AlertEvent::NewFindings { step: 0, findings, .. }] if findings.len() == 1 && findings[0].rule == "csp")
+        );
+        assert_eq!(compare(Some(&scan(None)), &scan(Some(&["csp"])), &findings), QUIET, "the step didn't scan before");
+        assert_eq!(compare(Some(&scan(Some(&[]))), &scan(Some(&["csp"])), &AlertRule::default()), QUIET);
     }
 
     fn run(steps: Vec<StepRecord>) -> RunRecord {

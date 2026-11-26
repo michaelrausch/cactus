@@ -69,6 +69,23 @@ pub async fn send_and_record(
     Ok(response)
 }
 
+/// Send one request as [`send_and_record`] does, but keep nothing: no
+/// history, and captured values aren't saved. Never logs in again on a
+/// 401, which a probe may be looking for. For tools that send many
+/// variants of a request, such as fuzzers and load tests.
+pub(crate) async fn send_probe(
+    client: &reqwest::Client,
+    project: &Path,
+    path: &ProjectPath,
+    scenario: &Scenario,
+    scope: &Scope,
+) -> Result<Response> {
+    let resolved = env::resolve_for_request(project, scope, path.dir(), &scenario.runtime.variables)?;
+    let mut response = send_with_credentials(client, project, scenario, &resolved, scope).await?;
+    response.critter.clone_from(&scope.critter);
+    Ok(response)
+}
+
 /// Send with the request's OAuth2 token, if it uses one, and the critter's
 /// cookie jar, if there is a critter. A cached token the server refuses with
 /// a 401 is refreshed or replaced, and the request sent once more.

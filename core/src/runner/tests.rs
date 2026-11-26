@@ -384,6 +384,29 @@ async fn display_set_open_and_notify() {
 }
 
 #[tokio::test]
+async fn a_probe_keeps_neither_captures_nor_history_and_never_logs_in_again() {
+    let (dir, me_calls) = project().await;
+    let p = dir.path();
+    critter_with_login(p, "bob", "login", vec![login_step()]);
+    let scope = Scope { critter: Some("bob".into()), ..Scope::default() };
+    let client = build_client();
+
+    let login = flow::apply_step(scenario::load(p, &path("auth/login.yml")).unwrap(), &login_step());
+    let response = send_probe(&client, p, &path("auth/login.yml"), &login, &scope).await.unwrap();
+    assert_eq!(response.captured["token"], "fresh", "the capture ran");
+    assert!(env::load_context(p, "bob").unwrap().is_empty(), "but wasn't kept");
+
+    let me = scenario::load(p, &path("me.yml")).unwrap();
+    let response = send_probe(&client, p, &path("me.yml"), &me, &scope).await.unwrap();
+    assert_eq!(
+        (response.status, me_calls.load(Ordering::SeqCst)),
+        (401, 1),
+        "a 401 is the answer, not a reason to log in"
+    );
+    assert!(!p.join(".cactus/history").exists());
+}
+
+#[tokio::test]
 async fn webhook_and_slack_post_and_fail_on_errors() {
     let received = Arc::new(std::sync::Mutex::new(Vec::new()));
     let log = Arc::clone(&received);

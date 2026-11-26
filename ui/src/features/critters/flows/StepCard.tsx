@@ -11,6 +11,7 @@ import { stepFailure } from "@/domain/flowRun";
 import { formatDuration } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { STEP_MIME } from "./dragTypes";
+import { FindingsList, MetricStats, SeverityCounts } from "./ToolFindings";
 import { toolOf } from "./tools";
 
 /** Where a step is in a run. */
@@ -55,12 +56,16 @@ function Outcome({
   );
 }
 
-/** What a tool step did: its status, text and the values it set. */
-export function ToolResult({ output }: { output: ToolOutput }) {
+/** What a tool step did: its status, findings, metrics, text and the values it set. */
+export function ToolResult({ output, findingsLimit }: { output: ToolOutput; findingsLimit?: number }) {
   const values = Object.entries(output.values ?? {});
+  const findings = output.findings ?? [];
   return (
     <div className="flex flex-col gap-1.5 text-xs">
       {output.status !== undefined && <StatusCode status={output.status} className="font-semibold" />}
+      {findings.length > 0 && <SeverityCounts findings={findings} />}
+      {(output.metrics ?? []).length > 0 && <MetricStats metrics={output.metrics ?? []} />}
+      {findings.length > 0 && <FindingsList findings={findings} limit={findingsLimit} />}
       {output.text && <p className="break-words whitespace-pre-wrap">{output.text}</p>}
       {values.map(([name, value]) => (
         <p key={name} className="truncate font-mono text-muted-foreground">
@@ -75,7 +80,14 @@ export function ToolResult({ output }: { output: ToolOutput }) {
 function ResultDetails({ result }: { result: FlowStepResult }) {
   const response = result.response;
   if (result.skipped) return <p className="text-xs text-muted-foreground">Skipped: an earlier step failed.</p>;
-  if (result.output) return <ToolResult output={result.output} />;
+  if (result.output) {
+    return (
+      <div className="flex flex-col gap-1.5 text-xs">
+        {result.error && <p className="text-danger">{result.error}</p>}
+        <ToolResult output={result.output} findingsLimit={3} />
+      </div>
+    );
+  }
   if (!response) return <p className="text-xs text-danger">{result.error ?? stepFailure(result)}</p>;
   const captured = Object.entries(response.captured);
   const failed = response.checks.filter((check) => !check.ok);

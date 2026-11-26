@@ -136,7 +136,7 @@ pub async fn run_once(app: &AppHandle, project: &Path, critter: &str, flow: &str
         Ok(definition) => {
             let options = SendOptions::BACKGROUND;
             // No one to ask, but a `notify` step still notifies.
-            let host = DesktopHost { app: app.clone(), critter: critter.into(), flow: flow.into(), interactive: false };
+            let host = DesktopHost::new(app.clone(), critter.into(), flow.into(), false);
             runner::run_flow_definition(&client, project, critter, definition, env.clone(), options, &host, |_| {})
                 .await
                 .map_err(|error| error.to_string())

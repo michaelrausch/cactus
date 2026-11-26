@@ -4,4 +4,11 @@ export { createFlow, deleteFlow, duplicateFlow, renameFlow, setLoginFlow } from 
 export { editFlow, editFlowText, redoFlowEdit, setFlowMode, undoFlowEdit } from "./editing";
 export { flowFilesChanged, openFlow, overwriteFlow, reloadFlow, switchToFlow } from "./navigation";
 export { saveOpenFlow } from "./persist";
-export { flowStepFinished, flowStepStarted, runFlow, runOpenFlow, showStepResponse } from "./running";
+export {
+  flowStepFinished,
+  flowStepStarted,
+  flowToolProgressed,
+  runFlow,
+  runOpenFlow,
+  showStepResponse,
+} from "./running";

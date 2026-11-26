@@ -170,7 +170,7 @@ pub async fn run_flow(
             FlowEvent::Finished(step) => notify(&FlowProgress { critter, flow, step: step.clone() }, &app),
         }
     };
-    let host = DesktopHost { app: app.clone(), critter: critter.clone(), flow: flow.clone(), interactive: true };
+    let host = DesktopHost::new(app.clone(), critter.clone(), flow.clone(), true);
     let run = runner::run_flow(&state.client, &project, &critter, &flow, env, SendOptions::INTERACTIVE, &host, report);
     let result = state.run_cancellable(run).await.transpose();
     notify(&ContextChanged { critter }, &app);

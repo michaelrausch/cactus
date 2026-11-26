@@ -1,6 +1,6 @@
 import { Check, CircleDashed, ExternalLink, Minus, X } from "lucide-react";
 import { showStepResponse } from "@/actions/flows";
-import type { CritterSummary, FlowStepResult, FlowStepStart, HttpResponse, Step } from "@/api/client";
+import type { CritterSummary, FlowStepResult, FlowStepStart, HttpResponse, Step, ToolOutput } from "@/api/client";
 import { CountBadge } from "@/components/Badges";
 import { CritterSprite } from "@/components/critters/CritterSprite";
 import { MethodBadge } from "@/components/MethodBadge";
@@ -17,6 +17,7 @@ import { formatDuration } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useFlowStore } from "@/stores/flowStore";
 import { ToolResult } from "./StepCard";
+import { FindingsList, MetricStats, SeverityCounts } from "./ToolFindings";
 import { toolOf } from "./tools";
 
 /** Where a step is in the run shown. */
@@ -84,6 +85,7 @@ function RunRow({ index, step, start, result, state, selected, critter }: RowPro
   const url = result?.url || start?.url || stepText(step);
   const response = result?.response ?? null;
   const toolStatus = result?.output?.status;
+  const findings = result?.output?.findings ?? [];
   return (
     <li>
       <button
@@ -105,12 +107,15 @@ function RunRow({ index, step, start, result, state, selected, critter }: RowPro
         </span>
         {response && <StatusCode status={response.status} className="shrink-0 font-semibold tabular-nums" />}
         {toolStatus !== undefined && <StatusCode status={toolStatus} className="shrink-0 font-semibold tabular-nums" />}
+        {findings.length > 0 && <SeverityCounts findings={findings} className="shrink-0" />}
         {response && (
           <span className="w-14 shrink-0 text-right text-muted-foreground tabular-nums">
             {formatDuration(response.timeMs)}
           </span>
         )}
-        {state === "failed" && !response && <span className="shrink-0 text-danger">error</span>}
+        {state === "failed" && !response && findings.length === 0 && (
+          <span className="shrink-0 text-danger">error</span>
+        )}
       </button>
     </li>
   );
@@ -167,12 +172,60 @@ function ResponseTabs({ response }: { response: HttpResponse }) {
   );
 }
 
+/** A security tool's output: its findings and numbers in tabs, the rest under Output. */
+function ToolTabs({ output }: { output: ToolOutput }) {
+  const findings = output.findings ?? [];
+  const metrics = output.metrics ?? [];
+  const rest: ToolOutput = { ...output, findings: [], metrics: [] };
+  const hasRest = Boolean(output.text) || Object.keys(output.values ?? {}).length > 0 || output.status !== undefined;
+  const first = findings.length > 0 ? "findings" : "stats";
+  return (
+    <Tabs defaultValue={first} className="min-h-0 flex-1 gap-3">
+      <TabsList variant="line" className="h-8 gap-2">
+        {findings.length > 0 && (
+          <TabsTrigger value="findings">
+            Findings
+            <CountBadge count={findings.length} />
+          </TabsTrigger>
+        )}
+        {metrics.length > 0 && <TabsTrigger value="stats">Stats</TabsTrigger>}
+        {hasRest && <TabsTrigger value="output">Output</TabsTrigger>}
+      </TabsList>
+      <TabsContent value="findings" className="flex min-h-0 flex-col gap-2 overflow-auto">
+        <SeverityCounts findings={findings} className="px-1.5 text-xs" />
+        <FindingsList findings={findings} />
+      </TabsContent>
+      <TabsContent value="stats" className="min-h-0 overflow-auto">
+        <MetricStats metrics={metrics} />
+      </TabsContent>
+      <TabsContent value="output" className="min-h-0 overflow-auto">
+        <ToolResult output={rest} />
+      </TabsContent>
+    </Tabs>
+  );
+}
+
+/** "Running…", or "120/500" when the tool says how far it has got. */
+function RunningText({ index, tool }: { index: number; tool: boolean }) {
+  const progress = useFlowStore((s) => s.run.progress);
+  if (progress?.index === index && progress.total > 0) {
+    return (
+      <p className="text-xs text-muted-foreground tabular-nums">
+        {progress.done}/{progress.total}
+      </p>
+    );
+  }
+  return <p className="text-xs text-muted-foreground">{tool ? "Running…" : "Sending…"}</p>;
+}
+
 /** The selected step of the run: where it went and what came back. */
-function StepResult({ step, start, result, state }: Omit<RowProps, "index" | "selected" | "critter">) {
+function StepResult({ index, step, start, result, state }: Omit<RowProps, "selected" | "critter">) {
   const method = result?.method || start?.method || "";
   const url = result?.url || start?.url || "";
   const response = result?.response ?? null;
   const tool = isToolStep(step);
+  const output = result?.output;
+  const scanned = Boolean(output && ((output.findings ?? []).length > 0 || (output.metrics ?? []).length > 0));
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3 border-t p-3">
       <div className="flex items-start gap-2">
@@ -187,10 +240,11 @@ function StepResult({ step, start, result, state }: Omit<RowProps, "index" | "se
         )}
       </div>
       {state === "queued" && <p className="text-xs text-muted-foreground">Queued</p>}
-      {state === "running" && <p className="text-xs text-muted-foreground">{tool ? "Running…" : "Sending…"}</p>}
+      {state === "running" && <RunningText index={index} tool={tool} />}
       {state === "skipped" && <p className="text-xs text-muted-foreground">Skipped</p>}
-      {result?.output && <ToolResult output={result.output} />}
-      {result && !response && !result.output && !result.skipped && (
+      {output && result.error && <p className="text-xs text-danger">{result.error}</p>}
+      {output && (scanned ? <ToolTabs key={result.index} output={output} /> : <ToolResult output={output} />)}
+      {result && !response && !output && !result.skipped && (
         <pre className="rounded-md border border-danger/30 bg-danger/5 p-2 font-mono text-xs whitespace-pre-wrap text-danger">
           {stepFailure(result)}
         </pre>
@@ -256,7 +310,7 @@ export function RunPanel({ critter, steps }: { critter: CritterSummary; steps: S
           />
         ))}
       </ul>
-      {shown && selected !== null && <StepResult step={shown} {...at(selected)} />}
+      {shown && selected !== null && <StepResult index={selected} step={shown} {...at(selected)} />}
     </div>
   );
 }

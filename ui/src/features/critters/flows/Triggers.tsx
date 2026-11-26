@@ -23,6 +23,7 @@ import { useProjectStore } from "@/stores/projectStore";
 const ACTIVE_ENV = "__active__";
 /** What a flow alerts on without an `alert` key. */
 const DEFAULT_ALERTS: readonly AlertOn[] = ["failure"];
+const ALERT_LABELS: Record<AlertOn, string> = { failure: "failures", change: "changes", findings: "findings" };
 
 type TriggerType = Trigger["type"];
 
@@ -167,7 +168,7 @@ function ScheduleChip({ critter, flowId, index, schedule, model, editable, defau
         </div>
         <div className={ROW}>
           <span className={LABEL}>Alert on</span>
-          {(["failure", "change"] as const).map((kind) => (
+          {(["failure", "change", "findings"] as const).map((kind) => (
             <label key={kind} className="flex items-center gap-1">
               <input
                 type="checkbox"
@@ -175,7 +176,7 @@ function ScheduleChip({ critter, flowId, index, schedule, model, editable, defau
                 disabled={!editable}
                 onChange={(event) => toggleAlert(kind, event.target.checked)}
               />
-              {kind === "failure" ? "failures" : "changes"}
+              {ALERT_LABELS[kind]}
             </label>
           ))}
         </div>
