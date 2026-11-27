@@ -211,8 +211,8 @@ export const GUIDE_PAGES: GuidePage[] = [
       {
         body: [
           <>
-            A bot is a user you test as, like an admin or a new customer. Each one has its own variables, secrets
-            and saved values. <K id="critters" /> shows them.
+            A bot is a user you test as, like an admin or a new customer. Each one has its own variables, secrets and
+            saved values. <K id="critters" /> shows them.
           </>,
         ],
       },
@@ -229,8 +229,8 @@ export const GUIDE_PAGES: GuidePage[] = [
         heading: "Sending as a bot",
         body: [
           <>
-            Pick a bot in the sidebar and every request is sent as them. Values a request captures are saved to that
-            bot only. Its Context tab shows what it has saved, and when.
+            Pick a bot in the sidebar and every request is sent as them. Values a request captures are saved to that bot
+            only. Its Context tab shows what it has saved, and when.
           </>,
         ],
       },
@@ -238,8 +238,8 @@ export const GUIDE_PAGES: GuidePage[] = [
         heading: "Logging in",
         body: [
           <>
-            Give a bot a login flow in its Settings tab. When a request comes back 401, cactus runs the login flow
-            and tries the request once more.
+            Give a bot a login flow in its Settings tab. When a request comes back 401, cactus runs the login flow and
+            tries the request once more.
           </>,
         ],
       },
@@ -453,8 +453,8 @@ export const GUIDE_PAGES: GuidePage[] = [
             <C>--env NAME</C> picks the environment.
           </>,
           <>
-            For run and send, <C>--as CRITTER</C> sends as a bot. For run and flow, <C>--json</C> prints JSON
-            instead of a report.
+            For run and send, <C>--as CRITTER</C> sends as a bot. For run and flow, <C>--json</C> prints JSON instead of
+            a report.
           </>,
           <>
             For flows, <C>--junit FILE</C> writes a JUnit report and <C>--var name=value</C> answers a prompt step.
