@@ -272,13 +272,13 @@ export function CritterTree({ filter }: { filter: string }) {
   if (query && shown.length === 0) return null;
 
   return (
-    <section aria-label="Critters" className="mt-3">
+    <section aria-label="Bots" className="mt-3">
       <div className="group flex h-6 items-center gap-1 pr-1 pl-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
-        <span className="flex-1">Critters</span>
+        <span className="flex-1">Bots</span>
         <button
           type="button"
-          title="New critter"
-          aria-label="New critter"
+          title="New bot"
+          aria-label="New bot"
           onClick={openNewCritter}
           className={cn(ACTION, "size-6")}
         >

@@ -12,8 +12,8 @@ function RunEditor(props: ToolEditorProps<"run">) {
   return (
     <Fields>
       <ChoiceInput
-        label="Critter"
-        none="This critter"
+        label="Bot"
+        none="This bot"
         options={critters.filter((c) => c.id !== own).map((c) => ({ value: c.id, label: c.name }))}
         {...bind(props, "critter")}
       />

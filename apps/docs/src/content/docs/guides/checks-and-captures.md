@@ -52,7 +52,7 @@ Where the value is saved:
 
 | Sending as | Saved to |
 | --- | --- |
-| No critter | `.cactus/captured.json` |
+| No bot | `.cactus/captured.json` |
 | A critter | That critter's context, `.cactus/critters/<id>/context.json` |
 
 If the expression matches nothing, the old value stays and the response shows `capture token failed`.

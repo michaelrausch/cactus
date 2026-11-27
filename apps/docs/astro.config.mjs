@@ -30,7 +30,7 @@ export default defineConfig({
             { label: "Variables and environments", slug: "guides/variables" },
             { label: "Auth", slug: "guides/auth" },
             { label: "Checks and captures", slug: "guides/checks-and-captures" },
-            { label: "Critters", slug: "guides/critters" },
+            { label: "Bots", slug: "guides/critters" },
             { label: "Flows", slug: "guides/flows" },
             { label: "Schedules and alerts", slug: "guides/schedules" },
             { label: "Secrets and the vault", slug: "guides/secrets" },
@@ -68,7 +68,7 @@ export default defineConfig({
           items: [
             { label: "Write a flow tool", slug: "extending/flow-tool" },
             { label: "Add an operator or generator", slug: "extending/operators-and-generators" },
-            { label: "Add a critter species", slug: "extending/species" },
+            { label: "Add a bot species", slug: "extending/species" },
             { label: "Add a theme", slug: "extending/theme" },
           ],
         },

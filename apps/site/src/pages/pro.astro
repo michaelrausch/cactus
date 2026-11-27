@@ -23,47 +23,63 @@ const heartIcon = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>cactus pro</title>
     <meta name="description" content="cactus pro: security tooling, Slack and webhooks, extra themes and early access. Support cactus on Ko-fi for a license key." />
+    <script is:inline>
+      const ua = navigator.userAgent;
+      const os = /Macintosh|iPhone|iPad/.test(ua) ? "mac" : /Windows/.test(ua) ? "windows" : "";
+      if (os) document.documentElement.dataset.os = os;
+    </script>
   </head>
   <body>
     <div class="wrap">
       <header>
         <a class="logo" href="/"><img src="/favicon.svg" alt="" />cactus</a>
         <nav>
-          <a href="/#flows">Flows</a>
-          <a href="/#features">Features</a>
-          <a href="/pro">Pro</a>
+          <a href="/pro"><span class="badge">Pro</span></a>
           <a href="https://docs.usecactus.dev">Docs</a>
           <a href="https://github.com/michaelrausch/cactus">GitHub</a>
-          <a href="/#download">Download</a>
+          <a class="btn primary" href="/#download">Download</a>
         </nav>
       </header>
 
       <div class="hero">
-        <h1>cactus <span class="accent">pro</span></h1>
+        <h1>cactus <span class="badge">Pro</span></h1>
         <p>cactus is donationware. If you want to support it, buy cactus pro on Ko-fi. Pro adds security testing, Slack and webhook steps, more themes and early access to new features.</p>
         <div class="buttons">
           <a class="btn primary" href={KOFI_PRO_URL}><Fragment set:html={heartIcon} />Get cactus pro</a>
-          <a class="btn" href={proDownloads.macos}><Fragment set:html={appleIcon} />macOS</a>
-          <a class="btn" href={proDownloads.windowsInstaller}><Fragment set:html={windowsIcon} />Windows</a>
+          <a class="btn dl-mac" href={proDownloads.macos}><Fragment set:html={appleIcon} />Download Pro for macOS</a>
+          <a class="btn dl-win" href={proDownloads.windowsInstaller}><Fragment set:html={windowsIcon} />Download Pro for Windows</a>
         </div>
-        <p class="alt">
-          Windows without installing? <a href={proDownloads.windowsStandalone}><Fragment set:html={downloadIcon} />Standalone .exe</a>
+        <a class="dl-link dl-mac-link" href={proDownloads.macos}>Download Pro for macOS instead</a>
+        <a class="dl-link dl-win-link" href={proDownloads.windowsInstaller}>Download Pro for Windows instead</a>
+        <p class="alt dl-win">
+          Windows without installing? <a href={proDownloads.windowsStandalone}><Fragment set:html={downloadIcon} />Standalone Pro .exe</a>
         </p>
-        <div class="shot"><img src="/flow.png" alt="The flow editor with a request, an assert and a Slack step" width="2558" height="1596" /></div>
       </div>
     </div>
+    <svg class="scene" viewBox="0 0 1440 240" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
+      <path d="M0 150 C 260 96, 460 100, 700 138 S 1140 170, 1440 112 L1440 240 L0 240 Z" fill="#e3d6bb" />
+      <g fill="none" stroke="#3d6b4c" stroke-width="22" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M300 200 V 98" />
+        <path d="M300 158 H 270 V 124" stroke-width="16" />
+        <path d="M300 140 H 332 V 108" stroke-width="16" />
+        <path d="M1180 210 V 150" stroke-width="16" />
+        <path d="M1180 180 H 1160 V 150" stroke-width="12" />
+        <path d="M1180 178 H 1198 V 156" stroke-width="12" />
+      </g>
+      <path d="M0 190 C 300 160, 600 176, 880 196 S 1280 180, 1440 170 L1440 240 L0 240 Z" fill="#ebe2d0" />
+    </svg>
 
-    <section class="tight">
+    <section class="tight band">
       <div class="wrap">
-        <h2>What's in Pro</h2>
-        <div class="features four">
+        <h2>What's in <span class="badge">Pro</span></h2>
+        <ul class="list">
           {features.map((f) => (
-            <div class="card">
+            <li>
               <h3>{f.title}</h3>
               <p>{f.body}</p>
-            </div>
+            </li>
           ))}
-        </div>
+        </ul>
       </div>
     </section>
 

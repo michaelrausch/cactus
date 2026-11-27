@@ -67,7 +67,7 @@ export function CritterPicker() {
   const paused = useMonitorStore((s) => s.paused);
   const alerted = useMonitorStore((s) => s.flashing !== null && s.flashing === activeId);
 
-  const label = active ? `Sending as ${active.name}` : "Sending as no critter";
+  const label = active ? `Sending as ${active.name}` : "Sending as no bot";
   return (
     <DropdownMenu onOpenChange={(open) => open && void refreshSchedules()}>
       <DropdownMenuTrigger
@@ -87,7 +87,7 @@ export function CritterPicker() {
         ) : (
           <UserRound className="size-4 shrink-0 text-muted-foreground" />
         )}
-        <span className="min-w-0 flex-1 truncate">{active?.name ?? "No critter"}</span>
+        <span className="min-w-0 flex-1 truncate">{active?.name ?? "No bot"}</span>
         {failing > 0 && (
           <span
             title={`${plural(failing, "scheduled flow")} failing`}
@@ -101,7 +101,7 @@ export function CritterPicker() {
       <DropdownMenuContent align="start" side="top" className="w-60">
         <DropdownMenuLabel className="text-xs text-muted-foreground">Send as</DropdownMenuLabel>
         <DropdownMenuItem onSelect={() => void actAs(null)}>
-          <UserRound /> <span className="flex-1">No critter</span>
+          <UserRound /> <span className="flex-1">No bot</span>
           {!activeId && <Check className="text-brand-2" />}
         </DropdownMenuItem>
         {critters.map((critter) => (

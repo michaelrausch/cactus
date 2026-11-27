@@ -3,7 +3,7 @@ title: Flows
 description: Chain requests and tool steps. Run them by hand, on a schedule, in CI or from an agent.
 ---
 
-A flow is a list of steps a critter runs in order. Each step is a request from the project or a tool, such as prompt, pick, poll or Slack.
+A flow is a list of steps a bot runs in order. Each step is a request from the project or a tool, such as prompt, pick, poll or Slack.
 
 ![The flow editor with a request, an assert and a Slack step](../../../assets/flow.png)
 
@@ -17,7 +17,7 @@ steps:
   - request: orders/create.yml
     with:                     # variables for this step only
       sku: TSHIRT-M
-    capture:                  # saved to the critter's context
+    capture:                  # saved to the bot's context
       orderId: res.body.id
     expect: 201               # replaces the request's status checks
     assert:                   # added after the request's own checks
@@ -75,7 +75,7 @@ steps:
 
 | Set by | Lasts |
 | --- | --- |
-| `capture`, and set-variable actions in the request | Saved to the critter's context |
+| `capture`, and set-variable actions in the request | Saved to the bot's context |
 | `prompt`, `pick`, `set`, `poll` | The current run only, never written to disk |
 
 The editor shows which variables pass between steps, and lists any step that uses a variable nothing has set.

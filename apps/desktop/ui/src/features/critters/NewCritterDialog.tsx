@@ -60,7 +60,7 @@ function NewCritterForm({ onDone }: { onDone: () => void }) {
       }}
     >
       <DialogHeader>
-        <DialogTitle>New critter</DialogTitle>
+        <DialogTitle>New bot</DialogTitle>
       </DialogHeader>
 
       <SpeciesGrid value={species} onChange={setSpecies} />
@@ -121,7 +121,7 @@ function NewCritterForm({ onDone }: { onDone: () => void }) {
           </label>
           <Select value={from} onValueChange={setFrom} disabled={critters.length === 0}>
             <SelectTrigger className="h-7 w-40" onFocus={() => setStartKind("duplicate")}>
-              <SelectValue placeholder="No critters yet" />
+              <SelectValue placeholder="No bots yet" />
             </SelectTrigger>
             <SelectContent>
               {critters.map((critter) => (

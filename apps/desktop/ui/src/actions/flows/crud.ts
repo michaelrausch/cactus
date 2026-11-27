@@ -24,7 +24,7 @@ export function createFlow(critter: string): void {
   if (!project) return;
   useUiStore.getState().askPrompt({
     title: "New flow",
-    description: "Requests the critter sends in order, e.g. Login, or Staging health.",
+    description: "Requests the bot sends in order, e.g. Login, or Staging health.",
     initial: "",
     placeholder: "Staging health",
     onSubmit: async (name) => {

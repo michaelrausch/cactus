@@ -14,7 +14,7 @@ description: Desktop app shortcuts.
 | <kbd>Ctrl</kbd>+<kbd>P</kbd> | Jump to request |
 | <kbd>Ctrl</kbd>+<kbd>O</kbd> | Open folder |
 | <kbd>Ctrl</kbd>+<kbd>E</kbd> | Variables |
-| <kbd>Ctrl</kbd>+<kbd>B</kbd> | Critters |
+| <kbd>Ctrl</kbd>+<kbd>B</kbd> | Bots |
 | <kbd>Ctrl</kbd>+<kbd>G</kbd> | Git changes |
 | <kbd>Ctrl</kbd>+<kbd>J</kbd> | Toggle response |
 | <kbd>Ctrl</kbd>+<kbd>,</kbd> | Settings |

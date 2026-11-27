@@ -171,7 +171,7 @@ A JSON body is sent as `application/json` unless `Content-Type` is set. A non-2x
 
 ## Security tools
 
-`fuzz`, `headers`, `cert`, `ratelimit` and `loadtest` report findings and metrics. They send as the step's critter, in the run's environment, but keep nothing: no history, captures or cookies, and no logging in again on a 401.
+`fuzz`, `headers`, `cert`, `ratelimit` and `loadtest` report findings and metrics. They send as the step's bot, in the run's environment, but keep nothing: no history, captures or cookies, and no logging in again on a 401.
 
 | Field | |
 | --- | --- |

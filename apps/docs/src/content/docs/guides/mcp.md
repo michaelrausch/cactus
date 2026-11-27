@@ -39,7 +39,7 @@ The token is stored in the app's config folder, not in the project. **New token*
 | `list_requests` | Requests in tree order |
 | `get_request` | One request, as JSON |
 | `list_environments` | Environments and which is active |
-| `list_critters` | Critters and their flows |
+| `list_critters` | Bots and their flows |
 | `get_flow` | A flow's YAML |
 | `get_variables` | Variables a request sees and their sources; secret values hidden |
 | `get_history` | A request's recent responses |

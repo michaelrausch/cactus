@@ -40,9 +40,9 @@ Lowest to highest:
 
 When sending as a [critter](/guides/critters/), the project's captured values are left out and these are added on top:
 
-7. Critter variables
-8. Critter secrets
-9. Critter context (its captured values)
+7. Bot variables
+8. Bot secrets
+9. Bot context (its captured values)
 10. Values set by earlier tool steps in the flow run
 11. The flow step's `with`
 

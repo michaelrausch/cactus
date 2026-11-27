@@ -38,7 +38,7 @@ Requests use it with `auth: inherit`.
 2. On any request's **Auth** tab, click **Get token** and sign in in the browser.
 3. Sends now use the cached token and refresh it when it expires. `offline_access` (or your provider's equivalent) is needed to get a refresh token.
 
-Tokens are cached per critter, so each critter can be signed in as a different user.
+Tokens are cached per bot, so each bot can be signed in as a different user.
 
 ## Client credentials
 

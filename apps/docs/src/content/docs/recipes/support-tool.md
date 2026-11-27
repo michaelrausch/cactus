@@ -44,7 +44,7 @@ steps:
     title: Receipt sent
 ```
 
-The `support` critter holds the support account's credentials and a `login` flow.
+The `support` bot holds the support account's credentials and a `login` flow.
 
 From the CLI:
 

@@ -77,7 +77,7 @@ export function SpriteGallery() {
   return (
     <main className="flex h-screen flex-col gap-4 overflow-auto bg-background p-6 text-foreground">
       <header className="flex flex-wrap items-center gap-3">
-        <h1 className="text-lg font-semibold">Critter sprites</h1>
+        <h1 className="text-lg font-semibold">Bot sprites</h1>
         {SPECIES_IDS.map((species) => (
           <span key={species} className="text-xs text-muted-foreground">
             <b className="text-foreground">{SPECIES[species].name}</b>: {SPECIES[species].description}

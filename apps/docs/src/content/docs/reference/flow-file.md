@@ -1,6 +1,6 @@
 ---
 title: Flow file
-description: Every key in a flow file and a critter file.
+description: Every key in a flow file and a bot file.
 ---
 
 ```yaml title="critters/<critter>/flows/<flow>.yml"
@@ -38,7 +38,7 @@ A step with a `tool` key is a [tool step](/reference/flow-tools/). Any other ste
 | --- | --- |
 | `request` | Request file, relative to the project |
 | `with` | Variables for this step only; highest precedence |
-| `capture` | `name: expression`, saved to the critter's context |
+| `capture` | `name: expression`, saved to the bot's context |
 | `expect` | Expected status; replaces the request's status checks |
 | `assert` | Extra checks |
 | `watch` | Expressions compared between scheduled runs |
@@ -59,7 +59,7 @@ A step with a `tool` key is a [tool step](/reference/flow-tools/). Any other ste
 | `change` | When a `watch` value changes |
 | `findings` | When a security tool finds something the previous run didn't |
 
-## Critter file
+## Bot file
 
 ```yaml title="critters/<critter>/critter.yml"
 name: Admin

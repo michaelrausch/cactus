@@ -16,7 +16,7 @@ const STEPS = ["welcome", "theme", "project"] as const;
 type Step = (typeof STEPS)[number];
 
 const FEATURES: { icon: LucideIcon; name: string; detail: string }[] = [
-  { icon: Users, name: "Critters", detail: "Test as different users, each kept in its own sandbox" },
+  { icon: Users, name: "Bots", detail: "Test as different users, each kept in its own sandbox" },
   { icon: Workflow, name: "Flows", detail: "Play out real workflows across your APIs and tools" },
   { icon: Bot, name: "MCP", detail: "Let AI agents call your APIs without handing over your keys" },
   { icon: GitBranch, name: "Git", detail: "Your work lives in git, so there's nothing to host" },

@@ -121,15 +121,15 @@ export const ACHIEVEMENTS: readonly Achievement[] = [
   {
     id: "critters-1",
     name: "It's Alive",
-    description: "Create your first critter",
+    description: "Create your first bot",
     icon: "paw",
     stat: "crittersCreated",
     goal: 1,
   },
   {
     id: "critters-3",
-    name: "Critter Keeper",
-    description: "Create 3 critters",
+    name: "Bot Keeper",
+    description: "Create 3 bots",
     icon: "paw",
     stat: "crittersCreated",
     goal: 3,
@@ -137,7 +137,7 @@ export const ACHIEVEMENTS: readonly Achievement[] = [
   {
     id: "critters-10",
     name: "Zoo",
-    description: "Create 10 critters",
+    description: "Create 10 bots",
     icon: "users",
     stat: "crittersCreated",
     goal: 10,

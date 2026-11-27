@@ -114,7 +114,7 @@ Click **Get token** on the Auth tab to sign in. The callback URL must be a loopb
 | `settings.autoFetchToken: false` | Don't fetch a token while sending |
 | `settings.autoRefreshToken: false` | Don't refresh an expired token while sending |
 
-Tokens are stored per critter, or in `.cactus/tokens.json` when you aren't sending as one.
+Tokens are stored per bot, or in `.cactus/tokens.json` when you aren't sending as one.
 
 ## Not sent
 

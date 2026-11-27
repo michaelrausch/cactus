@@ -18,7 +18,7 @@ const senderOf = (entry: HistoryEntry): string => entry.response.critter ?? NONE
 /** Who sent an entry: the critter's sprite, or a plain person for nobody. */
 function Sender({ id }: { id: string | null }) {
   const critter = useCritterStore((s) => s.critters.find((c) => c.id === id));
-  if (!id) return <UserRound className="size-4 shrink-0 text-muted-foreground/60" aria-label="No critter" />;
+  if (!id) return <UserRound className="size-4 shrink-0 text-muted-foreground/60" aria-label="No bot" />;
   if (!critter)
     return (
       <span className="w-4 shrink-0 truncate text-muted-foreground" title={id}>
@@ -40,7 +40,7 @@ export function HistoryList() {
   const senders = [...new Set(history.map(senderOf))];
   const shown = filter === ALL ? history : history.filter((entry) => senderOf(entry) === filter);
   const nameOf = (sender: string) =>
-    sender === NONE ? "No critter" : (critters.find((c) => c.id === sender)?.name ?? sender);
+    sender === NONE ? "No bot" : (critters.find((c) => c.id === sender)?.name ?? sender);
   return (
     <div className="flex flex-col gap-0.5">
       {senders.length > 1 && (

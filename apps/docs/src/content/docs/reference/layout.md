@@ -21,15 +21,15 @@ Ignored by git. Sensitive files are [encrypted](/guides/secrets/#encryption).
 | Path | |
 | --- | --- |
 | `secrets.json` | Secret values |
-| `captured.json` | Values captured with no critter selected |
-| `tokens.json` | OAuth2 tokens fetched with no critter selected |
+| `captured.json` | Values captured with no bot selected |
+| `tokens.json` | OAuth2 tokens fetched with no bot selected |
 | `critters/<id>/secrets.json` | Critter secrets |
 | `critters/<id>/context.json` | Critter's captured values |
 | `critters/<id>/cookies.json` | Critter cookie jar |
 | `critters/<id>/tokens.json` | Critter OAuth2 tokens |
 | `critters/<id>/runs/<flow>.json` | Last 50 scheduled runs |
 | `history/*.json` | Recent responses |
-| `state.json` | Active environment and critter |
+| `state.json` | Active environment and bot |
 | `vault` | Password check and authenticator secret |
 
 Deleting `.cactus/` resets local state: secrets, captured values and history.

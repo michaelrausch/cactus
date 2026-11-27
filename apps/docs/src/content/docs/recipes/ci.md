@@ -73,7 +73,7 @@ jobs:
           report_paths: api-results.xml
 ```
 
-`api-tests` is the project folder. The JUnit report has one suite per critter and one test case per step.
+`api-tests` is the project folder. The JUnit report has one suite per bot and one test case per step.
 
 ## Variations
 
@@ -93,7 +93,7 @@ Send every request without flows:
 cactus-cli run api-tests -e ci
 ```
 
-One job per critter:
+One job per bot:
 
 ```yaml
 strategy:

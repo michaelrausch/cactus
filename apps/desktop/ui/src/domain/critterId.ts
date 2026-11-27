@@ -59,7 +59,7 @@ export function critterNameProblem(name: string, others: readonly { name: string
   const trimmed = name.trim();
   if (!trimmed) return "Give it a name.";
   if (others.some((other) => other.name.trim().toLowerCase() === trimmed.toLowerCase())) {
-    return `There's already a critter called ${trimmed}.`;
+    return `There's already a bot called ${trimmed}.`;
   }
   return null;
 }

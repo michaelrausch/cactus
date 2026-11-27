@@ -7,7 +7,7 @@ import { shortDuration } from "./jwt";
  * critter layers belong to.
  */
 export function varSourceLabel(source: VarSource, critter?: string): string {
-  const owner = critter ? `${critter}'s` : "critter";
+  const owner = critter ? `${critter}'s` : "bot";
   switch (source.kind) {
     case "collection":
       return "shared";

@@ -21,7 +21,7 @@ steps:
 - Schedules run while the app has the project open, starting once the file is saved.
 - A run never overlaps the one before it.
 - Runs missed while the computer slept are skipped.
-- **Pause schedules** in the critter picker stops them all.
+- **Pause schedules** in the bot picker stops them all.
 
 ## Alerts
 

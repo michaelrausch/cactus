@@ -16,7 +16,7 @@ export const SHORTCUTS = {
   variables: { key: "e", description: "variables" },
   changes: { key: "g", description: "git changes" },
   toggleResponse: { key: "j", description: "toggle response" },
-  critters: { key: "b", description: "critters" },
+  critters: { key: "b", description: "bots" },
   settings: { key: ",", description: "settings" },
 } as const satisfies Record<string, ShortcutDefinition>;
 

@@ -46,7 +46,7 @@ export const GUIDE_PAGES: GuidePage[] = [
           </>,
           <>Every other .yml file is a request. Folders group them.</>,
           <>
-            <C>critters/</C> holds your critters and their flows.
+            <C>critters/</C> holds your bots and their flows.
           </>,
           <>
             <C>.cactus/</C> is for this machine only: secrets, history and captured values. It ignores itself in git.
@@ -206,12 +206,12 @@ export const GUIDE_PAGES: GuidePage[] = [
   },
   {
     id: "critters",
-    title: "Critters",
+    title: "Bots",
     sections: [
       {
         body: [
           <>
-            A critter is a user you test as, like an admin or a new customer. Each one has its own variables, secrets
+            A bot is a user you test as, like an admin or a new customer. Each one has its own variables, secrets
             and saved values. <K id="critters" /> shows them.
           </>,
         ],
@@ -221,16 +221,16 @@ export const GUIDE_PAGES: GuidePage[] = [
         body: [
           <>
             Pick a species and a name. You can start empty, with the variable names from an environment, or as a copy of
-            another critter.
+            another bot.
           </>,
         ],
       },
       {
-        heading: "Sending as a critter",
+        heading: "Sending as a bot",
         body: [
           <>
-            Pick a critter in the sidebar and every request is sent as them. Values a request captures are saved to that
-            critter only. Its Context tab shows what it has saved, and when.
+            Pick a bot in the sidebar and every request is sent as them. Values a request captures are saved to that
+            bot only. Its Context tab shows what it has saved, and when.
           </>,
         ],
       },
@@ -238,7 +238,7 @@ export const GUIDE_PAGES: GuidePage[] = [
         heading: "Logging in",
         body: [
           <>
-            Give a critter a login flow in its Settings tab. When a request comes back 401, cactus runs the login flow
+            Give a bot a login flow in its Settings tab. When a request comes back 401, cactus runs the login flow
             and tries the request once more.
           </>,
         ],
@@ -252,7 +252,7 @@ export const GUIDE_PAGES: GuidePage[] = [
       {
         body: [
           <>
-            A flow is a list of steps a critter runs in order. Drag requests in from the list, and drag steps to reorder
+            A flow is a list of steps a bot runs in order. Drag requests in from the list, and drag steps to reorder
             them. If a step fails, the rest are skipped.
           </>,
         ],
@@ -297,7 +297,7 @@ export const GUIDE_PAGES: GuidePage[] = [
             <b>Wait</b> pauses for a while, like for an API that takes time to catch up.
           </>,
           <>
-            <b>Run flow</b> runs another flow as one step, from this critter or another, so flows can share setup.
+            <b>Run flow</b> runs another flow as one step, from this bot or another, so flows can share setup.
           </>,
           <>
             <b>Open in browser</b> opens a URL, like a sign-in page.
@@ -407,7 +407,7 @@ export const GUIDE_PAGES: GuidePage[] = [
       {
         heading: "What agents can do",
         body: [
-          <>List and read requests, environments, critters, flows, variables and history. Secret values stay hidden.</>,
+          <>List and read requests, environments, bots, flows, variables and history. Secret values stay hidden.</>,
           <>Send requests and run folders and flows. These show up in history like your own.</>,
           <>With Allow edits on, create and save requests and flows.</>,
         ],
@@ -453,7 +453,7 @@ export const GUIDE_PAGES: GuidePage[] = [
             <C>--env NAME</C> picks the environment.
           </>,
           <>
-            For run and send, <C>--as CRITTER</C> sends as a critter. For run and flow, <C>--json</C> prints JSON
+            For run and send, <C>--as CRITTER</C> sends as a bot. For run and flow, <C>--json</C> prints JSON
             instead of a report.
           </>,
           <>

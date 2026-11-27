@@ -47,7 +47,7 @@ The exit code reflects the request's checks.
 
 ## flow
 
-Runs one flow, or every flow of every critter.
+Runs one flow, or every flow of every bot.
 
 ```sh
 cactus-cli flow <project> <critter> <flow> [flags]
@@ -56,7 +56,7 @@ cactus-cli flow <project> --all [flags]
 
 | Flag | |
 | --- | --- |
-| `--all` | Every flow of every critter |
+| `--all` | Every flow of every bot |
 | `-e`, `--env <NAME>` | Environment |
 | `--json` | JSON output |
 | `--junit <FILE>` | Also write a JUnit XML report |

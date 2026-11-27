@@ -79,7 +79,7 @@ export async function updateCritter(id: string, change: (critter: Critter) => Cr
     const critter = await backend.loadCritter(project, id);
     await backend.saveCritter(project, id, change(critter));
     return true;
-  }, "Couldn't save the critter");
+  }, "Couldn't save the bot");
   if (saved) await reportErrors(refreshCritters);
   return saved ?? false;
 }
@@ -264,7 +264,7 @@ export async function createCritter(name: string, species: Species, start: Critt
       await backend.createCritter(project, id, { name, species, variables });
     }
     return true;
-  }, "Couldn't create the critter");
+  }, "Couldn't create the bot");
   if (!created) return false;
   track("crittersCreated");
   await reportErrors(refreshCritters);

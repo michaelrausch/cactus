@@ -1,9 +1,9 @@
 ---
 title: Check every role's permissions
-description: One critter per role, with different expected statuses for the same requests.
+description: One bot per role, with different expected statuses for the same requests.
 ---
 
-## Critters
+## Bots
 
 ```yaml title="critters/admin/critter.yml"
 name: Admin
@@ -25,7 +25,7 @@ variables:
 name: Anonymous
 ```
 
-Admin and Member each have a login flow that runs `auth/login.yml`, which captures `token`. Each critter keeps its own token.
+Admin and Member each have a login flow that runs `auth/login.yml`, which captures `token`. Each bot keeps its own token.
 
 ## Flows
 
@@ -77,6 +77,6 @@ cactus-cli flow . --all -e staging --junit permissions.xml
 
 ## Notes
 
-- Give the flow the same name for every critter so the report lines up.
-- For each expected `403`, make sure some other critter gets a `2xx` from the same request. Otherwise the endpoint might just be broken.
+- Give the flow the same name for every bot so the report lines up.
+- For each expected `403`, make sure some other bot gets a `2xx` from the same request. Otherwise the endpoint might just be broken.
 - Check response bodies as well as statuses. A `200` can still return another user's data.

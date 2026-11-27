@@ -31,7 +31,7 @@ const modeOf = (search: string): Mode => {
 
 const EMPTY_TEXT: Record<Mode, string> = {
   requests: "No match",
-  critters: "No critter matches",
+  critters: "No bot matches",
   flows: "No flow matches",
 };
 
@@ -65,7 +65,7 @@ function CritterItems({ close }: { close: () => void }) {
     <CommandGroup heading="Send as">
       <CommandItem value={`${CRITTER_PREFIX}none no critter`} onSelect={() => choose(null)}>
         <UserRound className="text-muted-foreground" />
-        <span className="flex-1">No critter</span>
+        <span className="flex-1">No bot</span>
         {!activeId && <span className="text-xs text-muted-foreground">active</span>}
       </CommandItem>
       {critters.map((critter) => (
@@ -133,7 +133,7 @@ export function ScenarioSwitcher() {
       <CommandInput
         value={search}
         onValueChange={setSearch}
-        placeholder={`Jump to request… (${CRITTER_PREFIX} critters, ${FLOW_PREFIX} flows)`}
+        placeholder={`Jump to request… (${CRITTER_PREFIX} bots, ${FLOW_PREFIX} flows)`}
       />
       <CommandList>
         <CommandEmpty>{EMPTY_TEXT[mode]}</CommandEmpty>

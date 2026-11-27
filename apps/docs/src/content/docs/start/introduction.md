@@ -50,11 +50,11 @@ All three read the same files.
 **Capture**
 : Saves part of a response, e.g. `res.body.token`, as a variable. See [Checks and captures](/guides/checks-and-captures/).
 
-**Critter**
-: A persona with its own variables, secrets, cookies and captured values. See [Critters](/guides/critters/).
+**Bot**
+: A persona with its own variables, secrets, cookies and captured values. See [Bots](/guides/critters/).
 
 **Flow**
-: Steps a critter runs in order: requests and tools such as prompt, pick, poll and Slack. See [Flows](/guides/flows/).
+: Steps a bot runs in order: requests and tools such as prompt, pick, poll and Slack. See [Flows](/guides/flows/).
 
 ## Not supported
 

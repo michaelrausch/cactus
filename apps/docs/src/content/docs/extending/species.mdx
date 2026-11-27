@@ -1,11 +1,11 @@
 ---
-title: Add a critter species
-description: Add a new critter animal, from the Rust enum to its 16×16 sprite.
+title: Add a bot species
+description: Add a new bot animal, from the Rust enum to its 16×16 sprite.
 ---
 
 import { Steps, FileTree } from "@astrojs/starlight/components";
 
-A critter's `species` sets only its sprite and accent colour. It has no effect on behaviour. This page adds a Gila monster, written in YAML as:
+A bot's `species` sets only its sprite and accent colour. It has no effect on behaviour. This page adds a Gila monster, written in YAML as:
 
 ```yaml title="critters/<id>/critter.yml"
 species: gila-monster
@@ -68,7 +68,7 @@ You'll touch these files:
 
    `rename_all = "kebab-case"` turns `GilaMonster` into `gila-monster` in YAML.
 
-   **Why two enums?** If a newer version of cactus writes a species this build doesn't know, `Err(_)` falls back to `roadrunner`, so the critter still loads instead of failing.
+   **Why two enums?** If a newer version of cactus writes a species this build doesn't know, `Err(_)` falls back to `roadrunner`, so the bot still loads instead of failing.
 
 2. ### Regenerate the TypeScript types
 
@@ -118,18 +118,18 @@ You'll touch these files:
    | --- | --- |
    | `name` | Shown in the species picker |
    | `description` | One line in the picker |
-   | `accent` | The critter's colour elsewhere in the UI |
+   | `accent` | The bot's colour elsewhere in the UI |
    | `palette` | Character → colour |
    | `body` | 16 rows of exactly 16 characters, drawn from the bottom. `blank(n)` adds `n` empty rows on top. |
    | `stride` | The second frame of the walking animation: from row `from` to the bottom, `rows` replace the body. `from + rows.length` must be 16. |
-   | `lid` | The character a closed eye turns into when the critter blinks |
+   | `lid` | The character a closed eye turns into when the bot blinks |
 
    Reserved characters you can't redefine in `palette`:
 
    | Char | |
    | --- | --- |
    | `e` | The eye. Every body needs at least one. |
-   | `w` | The eye when the critter's flow passes |
+   | `w` | The eye when the bot's flow passes |
    | `x` | The eye when it fails |
 
    Only `body` and `stride` are drawn by hand. The app derives blinking (`e` → `lid`) and the pass/fail eyes (`e` → `w` / `x`).

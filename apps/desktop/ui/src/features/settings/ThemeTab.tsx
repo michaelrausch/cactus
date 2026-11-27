@@ -126,7 +126,7 @@ export function ThemeTab() {
             onChange={(event) => setAnimateCritters(event.target.checked)}
             className="size-4 accent-(--brand-2)"
           />
-          Animate idle critters
+          Animate idle bots
         </label>
       </section>
     </div>
