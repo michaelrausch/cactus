@@ -10,7 +10,7 @@ describe("variable sources", () => {
     expect(varSourceLabel({ kind: "critterContext", from: "auth/login.yml", at: 0 }, "Bob")).toBe(
       "Bob's context · auth/login.yml",
     );
-    expect(varSourceLabel({ kind: "critter" })).toBe("critter variables");
+    expect(varSourceLabel({ kind: "critter" })).toBe("bot variables");
   });
 
   it("adds the age of captured values", () => {

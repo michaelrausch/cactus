@@ -46,7 +46,7 @@ describe("critter ids", () => {
   it("explains names that can't be used", () => {
     const others = [{ name: "Alice" }];
     expect(critterNameProblem("  ", others)).toBe("Give it a name.");
-    expect(critterNameProblem("alice ", others)).toBe("There's already a critter called alice.");
+    expect(critterNameProblem("alice ", others)).toBe("There's already a bot called alice.");
     expect(critterNameProblem("Bob", others)).toBeNull();
   });
 });
