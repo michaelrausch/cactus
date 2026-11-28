@@ -1,16 +1,16 @@
-const RELEASE = "https://github.com/michaelrausch/cactus/releases/download/v1.3.2";
+const RELEASE = "https://github.com/michaelrausch/cactus/releases/download/v1.3.3";
 
 export const downloads = {
-  macos: `${RELEASE}/cactus_1.3.2_universal.dmg`,
-  windowsInstaller: `${RELEASE}/cactus_1.3.2_x64-setup.exe`,
-  windowsStandalone: `${RELEASE}/cactus_v1.3.2_x64_portable.exe`,
+  macos: `${RELEASE}/cactus_1.3.3_universal.dmg`,
+  windowsInstaller: `${RELEASE}/cactus_1.3.3_x64-setup.exe`,
+  windowsStandalone: `${RELEASE}/cactus_v1.3.3_x64_portable.exe`,
 };
 
 /** The Pro edition's builds, as `.github/workflows/release.yml` names them. */
 export const proDownloads = {
-  macos: `${RELEASE}/cactus-pro_1.3.2_universal.dmg`,
-  windowsInstaller: `${RELEASE}/cactus-pro_1.3.2_x64-setup.exe`,
-  windowsStandalone: `${RELEASE}/cactus-pro_v1.3.2_x64_portable.exe`,
+  macos: `${RELEASE}/cactus-pro_1.3.3_universal.dmg`,
+  windowsInstaller: `${RELEASE}/cactus-pro_1.3.3_x64-setup.exe`,
+  windowsStandalone: `${RELEASE}/cactus-pro_v1.3.3_x64_portable.exe`,
 };
 
 /** Where Pro licenses come from: any donation here emails a key (worker/index.ts). */
