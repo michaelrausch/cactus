@@ -141,7 +141,15 @@ html[data-os="windows"] .dl-mac-link { display: inline-block; }
 
 
 /* A flat desert scene closing the hero: sun, two dunes, two saguaros. Flat fills only. */
-.scene { display: block; width: 100%; height: 200px; margin-top: 72px; }
+.scene { display: block; width: 100%; height: clamp(160px, 19.5vw, 380px); margin-top: 8px; }
+/* On narrow screens the scene crops at the sides: pull the cactuses inward,
+   dropping each onto the dune at its new spot, and hide the prickly pear. */
+@media (max-width: 700px) {
+  .scene .saguaro { translate: 200px 4px; }
+  .scene .barrel { translate: 200px 10px; }
+  .scene .saguaro.small { translate: -200px 7px; }
+  .scene .pear { display: none; }
+}
 
 /* Sections */
 section { padding: 104px 0; }
@@ -204,7 +212,7 @@ section .lead { color: var(--muted); margin: 0 0 40px; font-size: 18px; max-widt
 .list p { color: #4f473d; margin: 0; font-size: 14.5px; }
 /* Features: heading on the left, white cards with solid green icon tiles on the right. */
 #features .wrap { display: grid; grid-template-columns: 1fr; gap: 0; }
-#features h2 { margin: 0 0 12px; }
+#features h2 { margin: 0 0 32px; }
 #features .sub { color: var(--muted); margin: 0 0 32px; font-size: 17px; }
 #features .list { grid-template-columns: repeat(3, 1fr); }
 .list li {
@@ -291,6 +299,220 @@ footer {
 footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 footer a:hover { color: var(--ink); }
 .footer-links { display: flex; gap: 24px; }
+
+/* Motion */
+@keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+@keyframes sway { 0%, 100% { transform: rotate(-1.2deg); } 50% { transform: rotate(1.2deg); } }
+@keyframes sun-up { from { transform: translateY(90px); } to { transform: none; } }
+
+.hero h1 { animation: rise 0.7s cubic-bezier(.2,.7,.2,1) both; }
+.hero > p { animation: rise 0.7s 0.1s cubic-bezier(.2,.7,.2,1) both; }
+.hero .buttons { animation: rise 0.7s 0.2s cubic-bezier(.2,.7,.2,1) both; }
+.hero .dl-link, .hero .alt { animation: rise 0.7s 0.3s cubic-bezier(.2,.7,.2,1) both; }
+
+.scene .sun { animation: sun-up 1.6s 0.3s cubic-bezier(.2,.7,.2,1) both; }
+.scene .saguaro { transform-box: fill-box; transform-origin: 50% 100%; animation: sway 6s ease-in-out infinite; }
+.scene .saguaro.small { animation-duration: 7.5s; animation-delay: -2s; }
+
+.reveal { opacity: 0; transform: translateY(18px); transition: opacity 0.6s ease, transform 0.6s cubic-bezier(.2,.7,.2,1); }
+.reveal.in { opacity: 1; transform: none; }
+
+.btn { transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.15s, box-shadow 0.15s; }
+.btn:hover { transform: translateY(-1px); }
+.btn:active { transform: translateY(0) scale(0.98); }
+.btn.primary:hover { box-shadow: 0 6px 16px -6px rgb(45 82 56 / 55%); }
+
+.list li { transition: transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease; }
+.list li:hover { transform: translateY(-3px); background: var(--surface); box-shadow: 0 12px 28px -18px rgb(60 40 20 / 35%); }
+.feature-icon { transition: transform 0.25s cubic-bezier(.2,.7,.2,1); }
+.list li:hover .feature-icon { transform: scale(1.12) rotate(-4deg); }
+
+.shot { transition: transform 0.4s cubic-bezier(.2,.7,.2,1), box-shadow 0.4s ease; }
+.shot:hover { transform: translateY(-4px); box-shadow: 0 1px 2px rgb(60 40 20 / 6%), 0 36px 70px -26px rgb(60 40 20 / 34%); }
+
+.points h3::before {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 9px;
+  border-radius: 2px;
+  background: var(--clay);
+  vertical-align: 2px;
+}
+
+.panel li { display: flex; align-items: center; gap: 10px; }
+.panel li::before {
+  content: "";
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--green-soft) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232d5238' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 12.5l4 4 8-9'/%3E%3C/svg%3E") center / 12px no-repeat;
+}
+
+/* Flows and bots get bigger headings than the other sections. */
+section h2.big { font-size: clamp(32px, 4.4vw, 46px); letter-spacing: -0.03em; line-height: 1.08; }
+
+/* Bots and flows: copy on the left, a mock bot with its own flows on the right. */
+.bots { display: grid; grid-template-columns: 1fr 1fr; gap: 56px; align-items: center; }
+.bots .lead { margin-bottom: 16px; }
+.bots .lead:last-child { margin-bottom: 0; }
+.bot-tabs { display: flex; gap: 4px; padding: 4px; flex-wrap: wrap; }
+.bot-tabs > span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px 6px 6px;
+  border-radius: 9px;
+  font-size: 14px;
+  color: var(--muted);
+}
+.bot-tabs > span.active { background: var(--bg); color: var(--ink); font-weight: 500; }
+.bot-tabs .bot-avatar { width: 24px; height: 24px; border-radius: 7px; font-size: 12px; }
+.bot-form { padding: 16px 14px 14px; border-top: 1px solid var(--line); margin-top: 4px; }
+.bot-flow-name { margin: 0 0 12px; font-weight: 600; font-size: 15px; }
+.bot-form label { display: grid; grid-template-columns: 80px 1fr; align-items: center; gap: 12px; margin-bottom: 8px; font-size: 13px; color: var(--muted); }
+.bot-input {
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 13px;
+}
+.bot-select { position: relative; padding-right: 28px; }
+.bot-select::after {
+  content: "";
+  position: absolute;
+  right: 11px;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid var(--muted);
+  border-bottom: 1.5px solid var(--muted);
+  transform: translateY(-70%) rotate(45deg);
+}
+.bot-progress { margin-top: 14px; }
+.bot-progress .bot-steps { display: grid; grid-template-columns: repeat(4, 1fr); }
+.bot-progress .bot-steps i { width: auto; }
+.bot-output { padding: 6px 14px 10px; border-top: 1px solid var(--line); }
+.bot-output > div { display: flex; justify-content: space-between; align-items: center; padding: 7px 0; font-size: 13.5px; color: var(--muted); }
+.bot-output > div + div { border-top: 1px dashed var(--line); }
+.bot-output .mono { color: var(--ink); }
+.bot-run {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 8px;
+  box-shadow: 0 1px 2px rgb(60 40 20 / 6%), 0 24px 60px -28px rgb(60 40 20 / 30%);
+}
+.bot-avatar {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  color: #fff;
+  font-weight: 600;
+  font-size: 15px;
+}
+.bot-steps { display: flex; gap: 6px; }
+.bot-steps i { width: 26px; height: 6px; border-radius: 3px; background: var(--line); }
+.bot-status {
+  justify-self: end;
+  font-family: "Geist Mono Variable", ui-monospace, monospace;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+.bot-status.ok { background: var(--green-soft); color: var(--green-ink); }
+
+/* When the card scrolls in, each flow's steps fill in turn, then its check pops. */
+@keyframes fill-step { to { background: var(--green); } }
+@keyframes pop { from { transform: scale(0.4); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes show-row { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.bot-run.reveal .bot-output > div, .bot-run.reveal .bot-status { opacity: 0; }
+.bot-run.in .bot-steps i { animation: fill-step 0.3s ease forwards; }
+.bot-run.in .bot-steps i:nth-child(1) { animation-delay: 0.6s; }
+.bot-run.in .bot-steps i:nth-child(2) { animation-delay: 0.85s; }
+.bot-run.in .bot-steps i:nth-child(3) { animation-delay: 1.1s; }
+.bot-run.in .bot-steps i:nth-child(4) { animation-delay: 1.35s; }
+.bot-run.in .bot-output > div { animation: show-row 0.35s ease forwards; }
+.bot-run.in .bot-output > div:nth-child(1) { animation-delay: 1.7s; }
+.bot-run.in .bot-output > div:nth-child(2) { animation-delay: 1.82s; }
+.bot-run.in .bot-output > div:nth-child(3) { animation-delay: 1.94s; }
+.bot-run.in .bot-status { animation: pop 0.35s cubic-bezier(.3,1.6,.5,1) forwards; animation-delay: 2.1s; }
+.bot-run:not(.reveal) .bot-steps i { background: var(--green); }
+
+@media (max-width: 960px) {
+  .bots { grid-template-columns: 1fr; gap: 36px; }
+}
+
+/* Reading progress */
+.progress {
+  position: fixed;
+  inset: 0 0 auto 0;
+  height: 3px;
+  background: var(--green);
+  transform: scaleX(0);
+  transform-origin: 0 50%;
+  z-index: 50;
+  pointer-events: none;
+}
+
+/* Logo cactus wiggles on hover. */
+@keyframes wiggle { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-10deg); } 75% { transform: rotate(8deg); } }
+.logo img { transform-origin: 50% 100%; }
+.logo:hover img { animation: wiggle 0.5s ease-in-out; }
+
+/* Download arrows nudge down on hover. */
+@keyframes nudge { 0%, 100% { transform: none; } 50% { transform: translateY(2px); } }
+.alt a:hover svg, .alt-line a:hover svg { animation: nudge 0.6s ease-in-out infinite; }
+
+/* Desert extras: drifting clouds and a tumbleweed that rolls past now and then. */
+@keyframes drift { from { transform: translateX(-80px); } to { transform: translateX(80px); } }
+.scene .cloud { animation: drift 18s ease-in-out infinite alternate; }
+.scene .cloud.slow { animation-duration: 26s; animation-direction: alternate-reverse; }
+
+@keyframes roll-across {
+  0% { transform: translate(-60px, 236px); }
+  55% { transform: translate(1500px, 226px); }
+  100% { transform: translate(1500px, 226px); }
+}
+@keyframes flap { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(-0.4); } }
+@keyframes glide { from { transform: translate(-40px, 6px); } to { transform: translate(40px, -6px); } }
+.scene .birds { animation: glide 14s ease-in-out infinite alternate; }
+.scene .bird { transform-box: fill-box; transform-origin: 50% 100%; animation: flap 1.8s ease-in-out infinite; }
+.scene .bird.b2 { animation-duration: 2.2s; animation-delay: -0.8s; }
+.scene .flowers circle { transform-box: fill-box; transform-origin: center; animation: bloom 0.5s cubic-bezier(.3,1.6,.5,1) both; animation-delay: 1s; }
+@keyframes bloom { from { transform: scale(0); } to { transform: scale(1); } }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes hop { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+.scene .tumbleweed { animation: roll-across 22s 2s linear infinite both; }
+.scene .hop { animation: hop 0.7s ease-out infinite; }
+.scene .tumble { animation: spin 1.4s linear infinite; }
+
+/* The flow screenshot tips up from a slight lean as it scrolls in. */
+.shot.reveal { transform: perspective(1400px) rotateX(10deg) translateY(40px) scale(0.97); transform-origin: 50% 100%; transition-duration: 0.9s; }
+.shot.reveal.in { transform: none; }
+.shot.reveal.in:hover { transform: translateY(-4px); }
+
+/* Eyebrows get a short green dash. */
+.eyebrow { display: flex; align-items: center; gap: 10px; }
+.eyebrow::before {
+  content: "";
+  width: 22px;
+  height: 2px;
+  border-radius: 2px;
+  background: currentColor;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .progress { display: none; }
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
 
 /* Phones */
 @media (max-width: 960px) {

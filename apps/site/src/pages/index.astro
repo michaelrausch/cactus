@@ -3,10 +3,10 @@ import "../styles/global.css";
 import { downloads, KOFI_PRO_URL } from "../downloads";
 
 const flowPoints = [
-  { title: "Steps", body: "Requests, prompts, pick lists, polling, waits, webhooks, Slack, notifications and more." },
-  { title: "Bots", body: "Run the same flow as every user role in your app, and let your AI agent act as any of them." },
+  { title: "In CI", body: "Run a bot's flows from the command line with cactus-cli." },
+  { title: "Steps", body: "Requests, prompts, pick lists, polling, waits, webhooks, Slack and notifications." },
   { title: "Schedules", body: "Run a flow every few minutes. Get an alert when it fails, recovers, or a value you watch changes." },
-  { title: "AI agents", body: "Agents run your flows and requests over MCP using your secrets. Secret values stay out of what they get back." },
+  { title: "AI agents", body: "Agents run your flows and requests over MCP using your secrets. They never see the secret values." },
   { title: "Captures", body: "Take a token or ID from one response and use it later in the flow." },
   { title: "YAML or editor", body: "Flows are YAML files. Edit them by hand or in the app." },
 ];
@@ -15,11 +15,17 @@ const icon = (paths: string) =>
   `<svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
 
 const features = [
-  { title: "OpenCollection", body: "Review API changes in pull requests, like any other code.", icon:icon('<path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5"/><path d="M10 13h6M10 17h6"/>') },
+  { title: "OpenCollection", body: "An open YAML format for requests. Review API changes in pull requests.", icon:icon('<path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5"/><path d="M10 13h6M10 17h6"/>') },
   { title: "Git", body: "Commit, branch and stage requests without leaving the app.", icon:icon('<circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="8" r="2"/><path d="M6 7v10M18 10c0 4-12 2-12 7"/>') },
   { title: "Secrets", body: "Encrypted at rest, with an optional vault password.", icon:icon('<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>') },
   { title: "CLI", body: "Run your requests in CI.", icon:icon('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3M13 15h4"/>') },
   { title: "Import", body: "Bring in your Postman, OpenAPI or Swagger files.", icon: icon('<path d="M12 4v11M7 10l5 5 5-5M4 17v3h16v-3"/>') },
+];
+
+const bots = [
+  { name: "Security", color: "#3d6b4c" },
+  { name: "Support", color: "#b8623a" },
+  { name: "Admin", color: "#8a7f70" },
 ];
 
 const proFeatures =["Security tooling", "Slack and webhooks", "24 extra themes", "Early access to new features"];
@@ -45,6 +51,7 @@ const heartIcon = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s
     </script>
   </head>
   <body>
+    <div class="progress" aria-hidden="true"></div>
     <div class="wrap">
       <header>
         <a class="logo" href="/"><img src="/favicon.svg" alt="" />cactus</a>
@@ -58,7 +65,7 @@ const heartIcon = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s
 
       <div class="hero" id="download">
         <h1>A <span class="accent">fast, lightweight</span><br />API client</h1>
-        <p>A git-native API client. Requests are YAML files in your repo, so they diff, review and branch like code.</p>
+        <p>Requests are YAML files in your repo, so they diff, review and branch like code. No account, no cloud sync.</p>
         <div class="buttons">
           <a class="btn primary dl-mac" href={downloads.macos}><Fragment set:html={appleIcon} />Download for macOS</a>
           <a class="btn primary dl-win" href={downloads.windowsInstaller}><Fragment set:html={windowsIcon} />Download for Windows</a>
@@ -70,23 +77,128 @@ const heartIcon = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s
         </p>
       </div>
     </div>
-    <svg class="scene" viewBox="0 0 1440 240" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
-      <path d="M0 150 C 260 96, 460 100, 700 138 S 1140 170, 1440 112 L1440 240 L0 240 Z" fill="#e3d6bb" />
-      <g fill="none" stroke="#3d6b4c" stroke-width="22" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M300 200 V 98" />
-        <path d="M300 158 H 270 V 124" stroke-width="16" />
-        <path d="M300 140 H 332 V 108" stroke-width="16" />
-        <path d="M1180 210 V 150" stroke-width="16" />
-        <path d="M1180 180 H 1160 V 150" stroke-width="12" />
-        <path d="M1180 178 H 1198 V 156" stroke-width="12" />
+    <svg class="scene" viewBox="0 0 1440 280" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
+      <g class="cloud" fill="#fffdf8">
+        <ellipse cx="200" cy="62" rx="46" ry="12" />
+        <ellipse cx="226" cy="52" rx="26" ry="12" />
       </g>
-      <path d="M0 190 C 300 160, 600 176, 880 196 S 1280 180, 1440 170 L1440 240 L0 240 Z" fill="#ebe2d0" />
+      <g class="cloud slow" fill="#fffdf8">
+        <ellipse cx="640" cy="40" rx="38" ry="10" />
+        <ellipse cx="662" cy="32" rx="20" ry="9" />
+      </g>
+
+      <!-- Sun rising behind the mesas -->
+      <circle class="sun" cx="1030" cy="150" r="58" fill="#edb27c" />
+      <g class="birds" fill="none" stroke="#8a7f70" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path class="bird" d="M900 70 q 6 -6 12 0 q 6 -6 12 0" />
+        <path class="bird b2" d="M934 56 q 5 -5 10 0 q 5 -5 10 0" />
+      </g>
+
+      <!-- Far mesas, with tiny saguaro silhouettes -->
+      <path d="M0 280 V 182 H 70 L 92 160 H 220 L 246 186 H 520 L 540 174 H 600 L 618 194 H 900 L 930 150 H 1120 L 1150 186 H 1440 V 280 Z" fill="#e8c8a4" />
+      <g fill="none" stroke="#d4ae86" stroke-linecap="round" stroke-linejoin="round">
+        <g stroke-width="6"><path d="M150 166 V 140" /><path d="M150 156 H 142 V 147" stroke-width="4" /><path d="M150 151 H 157 V 143" stroke-width="4" /></g>
+        <g stroke-width="5"><path d="M760 200 V 176" /><path d="M760 190 H 753 V 182" stroke-width="3.5" /><path d="M760 186 H 766 V 179" stroke-width="3.5" /></g>
+        <g stroke-width="4"><path d="M1340 192 V 174" /><path d="M1340 184 H 1334 V 178" stroke-width="3" /></g>
+      </g>
+
+      <!-- Big saguaro: dark rim on the shaded side, lighter ribs, flowers on the tips -->
+      <g class="saguaro">
+        <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <g stroke="#2d5238">
+            <path d="M320 205 V 72" stroke-width="30" />
+            <path d="M320 164 H 286 V 108" stroke-width="20" />
+            <path d="M320 140 H 356 V 90" stroke-width="20" />
+          </g>
+          <g stroke="#3d6b4c" transform="translate(-3 0)">
+            <path d="M320 205 V 74" stroke-width="22" />
+            <path d="M320 164 H 286 V 110" stroke-width="13" />
+            <path d="M320 140 H 356 V 92" stroke-width="13" />
+          </g>
+          <g stroke="#5e8f69" stroke-width="1.8">
+            <path d="M311 200 V 78" />
+            <path d="M319 200 V 74" />
+            <path d="M282 156 V 108" />
+            <path d="M352 132 V 90" />
+          </g>
+        </g>
+        <g class="flowers">
+          <circle cx="316" cy="58" r="5" fill="#f6e7c8" /><circle cx="316" cy="58" r="2" fill="#e9b07a" />
+          <circle cx="306" cy="62" r="4" fill="#f6e7c8" /><circle cx="306" cy="62" r="1.6" fill="#e9b07a" />
+          <circle cx="352" cy="79" r="4" fill="#f6e7c8" /><circle cx="352" cy="79" r="1.6" fill="#e9b07a" />
+        </g>
+      </g>
+
+      <!-- Barrel cactus beside it -->
+      <g class="barrel" transform="translate(0 -20)">
+        <ellipse cx="386" cy="192" rx="17" ry="19" fill="#2d5238" />
+        <ellipse cx="383" cy="192" rx="13" ry="17" fill="#4a7a57" />
+        <g fill="none" stroke="#6b9a73" stroke-width="1.5">
+          <path d="M376 178 Q 372 192 376 206" /><path d="M383 175 V 208" /><path d="M390 178 Q 394 192 390 206" />
+        </g>
+        <circle cx="378" cy="174" r="3.2" fill="#c96d43" /><circle cx="386" cy="172" r="3.6" fill="#d8834f" /><circle cx="394" cy="175" r="3" fill="#c96d43" />
+      </g>
+
+      <!-- Small saguaro, right -->
+      <g class="saguaro small">
+        <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <g stroke="#2d5238">
+            <path d="M1190 240 V 158" stroke-width="22" />
+            <path d="M1190 208 H 1166 V 176" stroke-width="15" />
+            <path d="M1190 196 H 1214 V 168" stroke-width="15" />
+          </g>
+          <g stroke="#3d6b4c" transform="translate(-2 0)">
+            <path d="M1190 240 V 160" stroke-width="16" />
+            <path d="M1190 208 H 1166 V 178" stroke-width="9" />
+            <path d="M1190 196 H 1214 V 170" stroke-width="9" />
+          </g>
+          <g stroke="#5e8f69" stroke-width="1.5">
+            <path d="M1183 236 V 162" /><path d="M1189 236 V 160" />
+          </g>
+        </g>
+        <circle cx="1187" cy="148" r="4" fill="#f6e7c8" /><circle cx="1187" cy="148" r="1.6" fill="#e9b07a" />
+      </g>
+
+      <!-- Prickly pear with fruit -->
+      <g class="pear" transform="translate(0 -22)">
+        <g fill="#2d5238">
+          <ellipse cx="1266" cy="226" rx="16" ry="22" />
+          <ellipse cx="1250" cy="200" rx="12" ry="16" transform="rotate(-25 1250 200)" />
+          <ellipse cx="1283" cy="196" rx="11" ry="15" transform="rotate(20 1283 196)" />
+        </g>
+        <g fill="#4a7a57">
+          <ellipse cx="1264" cy="226" rx="12" ry="19" />
+          <ellipse cx="1249" cy="200" rx="9" ry="13" transform="rotate(-25 1249 200)" />
+          <ellipse cx="1282" cy="196" rx="8" ry="12" transform="rotate(20 1282 196)" />
+        </g>
+        <g fill="#2d5238"><circle cx="1260" cy="220" r="1.2" /><circle cx="1268" cy="230" r="1.2" /><circle cx="1262" cy="238" r="1.2" /><circle cx="1247" cy="196" r="1.1" /><circle cx="1252" cy="205" r="1.1" /><circle cx="1281" cy="192" r="1.1" /><circle cx="1284" cy="201" r="1.1" /></g>
+        <ellipse cx="1243" cy="184" rx="3.6" ry="4.4" fill="#b8623a" />
+        <ellipse cx="1253" cy="183" rx="3.4" ry="4.2" fill="#c96d43" />
+        <ellipse cx="1288" cy="181" rx="3.4" ry="4.2" fill="#b8623a" />
+      </g>
+
+      <!-- Mid dune covers the cactus bases -->
+      <path d="M0 214 C 240 170, 480 176, 720 206 S 1160 236, 1440 186 L1440 280 L0 280 Z" fill="#e3d6bb" />
+      <g fill="#d6c6a6">
+        <ellipse cx="452" cy="196" rx="9" ry="4" />
+        <ellipse cx="464" cy="198" rx="5" ry="3" />
+        <ellipse cx="1110" cy="226" rx="7" ry="3" />
+      </g>
+
+      <g class="tumbleweed">
+        <g class="hop">
+          <g class="tumble" fill="none" stroke="#a8875f" stroke-width="2.5" stroke-linecap="round">
+            <circle cx="0" cy="0" r="14" />
+            <path d="M-10 -8 C -2 -2, 4 6, 12 4 M-12 4 C -4 0, 2 -10, 8 -11 M-4 12 C -2 2, 6 -2, 13 -5 M-6 -12 C -8 -2, -2 8, 4 13" />
+          </g>
+        </g>
+      </g>
+      <path d="M0 252 C 300 226, 600 240, 880 256 S 1280 242, 1440 234 L1440 280 L0 280 Z" fill="#ebe2d0" />
     </svg>
 
     <section id="features" class="band">
       <div class="wrap">
-        <h2>A git-native API client</h2>
-        <p class="sub">Your collections stay in your repo.<br />No account, no cloud sync.</p>
+        <h2>Your API collections live in git</h2>
         <ul class="list">
           {features.map((f) => (
             <li>
@@ -101,9 +213,32 @@ const heartIcon = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s
 
     <section id="flows">
       <div class="wrap">
-        <p class="eyebrow">Flows</p>
-        <h2>Build tools around your APIs</h2>
-        <p class="lead">Chain requests with prompts, pick lists and waits. Run them by hand, on a schedule, or from an agent.</p>
+        <div class="bots">
+          <div>
+            <p class="eyebrow">Bots and flows</p>
+            <h2 class="big">Build tools around your APIs</h2>
+            <p class="lead">A bot is a set of flows with its own variables, secrets and cookies. Build a security bot that checks your baseline, or a support bot that looks up and refunds orders.</p>
+            <p class="lead">Flows chain requests with tools like prompts, pick lists and waits, take input and show results. Run them by hand, on a schedule, or from an agent.</p>
+          </div>
+          <div class="bot-run" aria-hidden="true">
+            <div class="bot-tabs">
+              {bots.map((b, i) => (
+                <span class={i === 1 ? "active" : ""}><span class="bot-avatar" style={`background:${b.color}`}>{b.name[0]}</span>{b.name}</span>
+              ))}
+            </div>
+            <div class="bot-form">
+              <p class="bot-flow-name">Refund order</p>
+              <label><span>Order ID</span><span class="bot-input mono">ord_8821</span></label>
+              <label><span>Reason</span><span class="bot-input bot-select">Damaged in transit</span></label>
+              <div class="bot-progress"><span class="bot-steps"><i></i><i></i><i></i><i></i></span></div>
+            </div>
+            <div class="bot-output">
+              <div><span>Order</span><span class="mono">ord_8821</span></div>
+              <div><span>Refunded</span><span class="mono">$42.00</span></div>
+              <div><span>Status</span><span class="bot-status ok">refunded</span></div>
+            </div>
+          </div>
+        </div>
         <div class="shot"><img src="/flow.png" alt="The flow editor with a request, an assert and a Slack step" width="2558" height="1596" loading="lazy" /></div>
         <div class="points">
           {flowPoints.map((f) => (
@@ -122,9 +257,9 @@ const heartIcon = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s
         <div class="panel">
           <div>
             <h2>cactus <span class="badge">Pro</span></h2>
-            <p>Pro adds security testing, Slack and webhook steps, and early access to new features.</p>
+            <p>Pro adds security tooling, Slack and webhook steps, and early access to new features.</p>
             <div class="buttons">
-              <a class="btn primary" href={KOFI_PRO_URL}><Fragment set:html={heartIcon} />Get cactus pro</a>
+              <a class="btn primary" href={KOFI_PRO_URL}><Fragment set:html={heartIcon} />Get cactus Pro</a>
               <a class="btn" href="/pro">What's in Pro</a>
             </div>
           </div>
@@ -147,5 +282,36 @@ const heartIcon = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s
         </span>
       </div>
     </footer>
+    <script is:inline>
+      // Fade sections in as they scroll into view.
+      const targets = document.querySelectorAll("section h2, section .sub, section .lead, .list li, .shot, .points > div, .panel, .bot-run");
+      if ("IntersectionObserver" in window && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        const io = new IntersectionObserver((entries) => {
+          for (const e of entries) {
+            if (e.isIntersecting) {
+              e.target.classList.add("in");
+              io.unobserve(e.target);
+            }
+          }
+        }, { rootMargin: "0px 0px -8% 0px" });
+        targets.forEach((el) => {
+          el.classList.add("reveal");
+          const siblings = el.parentElement ? [...el.parentElement.children].indexOf(el) : 0;
+          el.style.transitionDelay = `${Math.min(siblings, 5) * 60}ms`;
+          // Drop the stagger once revealed so hover effects aren't delayed.
+          el.addEventListener("transitionend", () => (el.style.transitionDelay = ""), { once: true });
+          io.observe(el);
+        });
+      }
+
+      // Thin green reading-progress bar along the top.
+      const bar = document.querySelector(".progress");
+      const onScroll = () => {
+        const max = document.documentElement.scrollHeight - innerHeight;
+        bar.style.transform = `scaleX(${max > 0 ? scrollY / max : 0})`;
+      };
+      addEventListener("scroll", onScroll, { passive: true });
+      onScroll();
+    </script>
   </body>
 </html>
