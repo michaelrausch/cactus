@@ -13,11 +13,12 @@ pub async fn check_for_update(state: State<'_, AppState>) -> Result<Option<Strin
     update::check(&state.client, env!("CARGO_PKG_VERSION")).await
 }
 
-/// Open the website's downloads in the browser.
+/// Open the website's downloads in the browser: the Pro page for the Pro edition.
 #[tauri::command]
 #[specta::specta]
 pub fn open_website(app: AppHandle) -> Result<()> {
-    open(&app, update::DOWNLOAD_PAGE)
+    let page = if cfg!(feature = "pro") { update::PRO_PAGE } else { update::DOWNLOAD_PAGE };
+    open(&app, page)
 }
 
 /// Open where to buy a Pro license key in the browser.
