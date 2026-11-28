@@ -179,7 +179,7 @@ export const commands = {
 	regenerateMcpToken: (options?: InvokeOptions) => __TAURI_INVOKE<McpStatus_Serialize>("regenerate_mcp_token", undefined, options),
 	/**  The website's latest version, if it is newer than this build. */
 	checkForUpdate: (options?: InvokeOptions) => __TAURI_INVOKE<string | null>("check_for_update", undefined, options),
-	/**  Open the website's downloads in the browser. */
+	/**  Open the website's downloads in the browser: the Pro page for the Pro edition. */
 	openWebsite: (options?: InvokeOptions) => __TAURI_INVOKE<null>("open_website", undefined, options),
 	/**  Open where to buy a Pro license key in the browser. */
 	openProPage: (options?: InvokeOptions) => __TAURI_INVOKE<null>("open_pro_page", undefined, options),
